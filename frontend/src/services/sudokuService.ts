@@ -14,7 +14,7 @@ async function fetchNewPuzzle(options?: SudokuOptions, token?: string) {
     }
   }
   try {
-    const response = await fetch(`${API_BASE_URL}/api/sudoku/new?difficulty=${options?.difficulty}`, fetchOptions)
+    const response = await fetch(`${API_BASE_URL}/sudoku/new?difficulty=${options?.difficulty}`, fetchOptions)
     if(!response.ok) {
       const errData = await response.json();
       console.log(errData)
