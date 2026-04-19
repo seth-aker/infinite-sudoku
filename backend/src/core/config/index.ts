@@ -1,7 +1,6 @@
 import dotenv from 'dotenv'
 import process from "node:process";
-const envPath = process.env.NODE_ENV === 'production' ? '.env.production' : '.env'
-dotenv.config({path: envPath});
+dotenv.config();
 
 if (!process.env.DB_CONNECTION_STRING) {
   throw new Error('Invalid/Missing environment variable: "DB_CONNECTION_STRING"')
