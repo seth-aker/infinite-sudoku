@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { useSudokuStore } from '@/stores/sudokuStore';
 import { Button } from './ui/button';
+import { useGameStore } from '@/stores/gameStore';
 const sudokuStore = useSudokuStore();
-
+const gameStore = useGameStore()
 const inputs = [] as number[];
 for (let i = sudokuStore.puzzle.cellsPerRow; i > 0; i--) {
   inputs.push(i);
@@ -53,7 +54,8 @@ const numberInPuzzleCount = (number: number) => {
   <div class="grid gap-1"
     :style="{ gridTemplateColumns: `repeat(${Math.sqrt(sudokuStore.puzzle.cellsPerRow)}, minmax(0, 1fr))` }">
     <Button size="icon" v-for="(input) in inputs"
-      :disabled="numberInPuzzleCount(input) === sudokuStore.puzzle.cellsPerRow" @click="onNumberPress(input)">{{ input
+      :disabled="numberInPuzzleCount(input) === sudokuStore.puzzle.cellsPerRow || gameStore.gameState === 'paused'"
+      @click="onNumberPress(input)">{{ input
       }}</Button>
   </div>
 </template>

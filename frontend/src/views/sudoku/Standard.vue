@@ -16,10 +16,11 @@ import DialogClose from '@/components/ui/dialog/DialogClose.vue';
 import { Icon } from '@iconify/vue';
 import { useRouter } from 'vue-router';
 import type { Difficulty } from '@/stores/models/difficulty';
-import { useAuth0 } from '@auth0/auth0-vue';
+// import { useAuth0 } from '@auth0/auth0-vue';
 import { useUserStore } from '@/stores/userStore';
 import LoadingOverlay from '@/components/LoadingOverlay.vue';
 import ErrorDialog from '@/components/ErrorDialog.vue';
+import PauseMenu from '@/components/PauseMenu.vue';
 const sudokuStore = useSudokuStore();
 const gameStore = useGameStore()
 const userStore = useUserStore();
@@ -27,10 +28,11 @@ const router = useRouter();
 const error = ref<string | null>(null)
 const difficulty = ref(router.currentRoute.value.name?.toString() as Difficulty)
 const dialogOpen = ref(false);
-const { isAuthenticated, getAccessTokenSilently, isLoading } = useAuth0()
+
+// const { isAuthenticated, getAccessTokenSilently, isLoading } = useAuth0()
 
 const loading = computed(() => {
-  return isLoading.value || userStore.userLoading || sudokuStore.loading
+  return userStore.userLoading || sudokuStore.loading
 })
 watch(() => loading, () => {
   if (loading) {
@@ -41,9 +43,9 @@ watch(() => loading, () => {
 })
 const requestNewPuzzle = async (newDifficulty: Difficulty) => {
   let token = undefined;
-  if (isAuthenticated.value) {
-    token = await getAccessTokenSilently();
-  }
+  // if (isAuthenticated.value) {
+  //   token = await getAccessTokenSilently();
+  // }
   await sudokuStore.getNewPuzzle({ difficulty: newDifficulty }, token);
   gameStore.elapsedSeconds = 0;
 }
@@ -99,16 +101,14 @@ const handlePuzzleSolved = async () => {
   gameStore.stopTimer();
   dialogOpen.value = true;
   gameStore.gameState = 'solved';
-  const token = await getAccessTokenSilently()
-  userStore.updateUser(token);
+  // const token = await getAccessTokenSilently()
+  // userStore.updateUser(token);
 }
 const toggleTimer = () => {
   if (gameStore.interval === null) {
     gameStore.startTimer();
-    gameStore.gameState = 'playing'
   } else {
-    gameStore.stopTimer();
-    gameStore.gameState = 'paused'
+    gameStore.pauseGame()
   }
 }
 
@@ -165,4 +165,5 @@ const handleReset = () => {
   </div>
   <LoadingOverlay v-if="loading" />
   <ErrorDialog v-if="error" :message="error" />
+  <PauseMenu />
 </template>

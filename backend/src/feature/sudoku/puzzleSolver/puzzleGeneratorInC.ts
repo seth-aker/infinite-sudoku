@@ -65,18 +65,8 @@ export function generatePuzzles(number: number, options: PuzzleOptions) {
 }
 worker({generatePuzzles})
 
-function processPuzzle(puzzleString: string): CreatePuzzle{
-  const puzzle = buildBlankPuzzleRows(9);
+function processPuzzle(puzzleString: string): CreatePuzzle {
   const [cellValues, difficultyScoreStr, difficultyRatingNum] = puzzleString.split(":");
-  puzzle.forEach((row, ri) => {
-    const rowMod = ri * 9;
-    row.forEach((cell, ci) => {
-      const cellIndex = ci + rowMod;
-      if(cellValues[cellIndex] !== '0') {
-        cell.value = Number.parseInt(cellValues[cellIndex]);
-      }
-    })
-  })
   const difficultyScore = Number.parseInt(difficultyScoreStr);
   let difficultyRating: DifficultyRating;
   switch (difficultyRatingNum) {
@@ -98,7 +88,7 @@ function processPuzzle(puzzleString: string): CreatePuzzle{
   }
   
   return {
-    cells: puzzle,
+    cells: cellValues,
     difficulty: {
       score: difficultyScore,
       rating: difficultyRating

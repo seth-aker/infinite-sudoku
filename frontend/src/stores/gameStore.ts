@@ -21,12 +21,17 @@ export const useGameStore = defineStore('gameStore', {
           this.elapsedSeconds++
           this.saveElapsedSecondsLocal();
         }, 1000)
+        this.gameState = 'playing'
       },
       stopTimer() {
         if(this.interval) {
           clearInterval(this.interval)
           this.interval = null
         }
+      },
+      pauseGame() {
+        this.stopTimer()
+        this.gameState = 'paused'
       },
       clearElapsedSecondsLocal() {
         localStorage.removeItem('elapsedSeconds');

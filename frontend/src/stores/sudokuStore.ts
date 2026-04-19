@@ -46,11 +46,19 @@ export const useSudokuStore = defineStore('sudoku', {
       },
       async getNewPuzzle(options: SudokuOptions, token?: string | undefined) {
         const response = await sudokuService.fetchNewPuzzle(options, token);
-        console.log(response)
+        const puzzleCells = buildBlankPuzzleRows();
+        puzzleCells.forEach((row, rowIdx) => {
+          row.forEach((cell, colIdx) => {
+            const index = rowIdx * 9 + colIdx
+            const val: number = response.cells[index];
+            cell.value = val !== 0 ? val : undefined;
+            cell.type = val !== 0 ? 'prefilled' : 'blank'
+          })
+        })
         if(response) {
           this.$patch({
             puzzleId: response._id,
-            puzzle: new SudokuPuzzle(response.cells, { difficulty: response.difficulty.rating }),
+            puzzle: new SudokuPuzzle(puzzleCells, { difficulty: response.difficulty.rating }),
             selectedCell: {
               x: undefined,
               y: undefined

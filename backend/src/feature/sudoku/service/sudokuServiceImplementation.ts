@@ -31,9 +31,8 @@ export class SudokuServiceImplementation extends BaseService implements SudokuSe
           throw new Error("Cannot get difficulties of hard or impossible") 
         }
         const response = await this.sudokuDataSource.getNewPuzzle(requestedBy, options);
-        // console.log(response)
         if(response.metadata.totalCount < 1000) {
-          this.workerpoolManager.execute<CreatePuzzle[]>('generatePuzzles', [100, options], async (newPuzzle) => {
+          this.workerpoolManager.execute('generatePuzzles', [100, options], async (newPuzzle: CreatePuzzle) => {
             const result = await this.createPuzzles([newPuzzle]);
             if(result !== 1) {
               console.log("A puzzle failed to be created in the database")
@@ -44,7 +43,7 @@ export class SudokuServiceImplementation extends BaseService implements SudokuSe
       } catch (err) {
         console.log(err)
         if(err instanceof DatabaseError && err.message.includes('No more puzzles')) {
-          await this.workerpoolManager.execute('generatePuzzles', [100, options], async (newPuzzles) => {
+          await this.workerpoolManager.execute('generatePuzzles', [100, options], async (newPuzzles: CreatePuzzle) => {
             const result = await this.createPuzzles([newPuzzles]);
             if(result != 1) {
               console.log("A puzzle failed to be created in the database")

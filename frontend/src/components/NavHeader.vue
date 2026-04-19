@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { useAuth0, type AppState, type RedirectLoginOptions } from '@auth0/auth0-vue';
+// import { useAuth0, type AppState, type RedirectLoginOptions } from '@auth0/auth0-vue';
 import Button from './ui/button/Button.vue';
 import { useRouter } from 'vue-router';
 import NavigationMenu from './ui/navigation-menu/NavigationMenu.vue';
@@ -14,12 +14,12 @@ import { useGameStore } from '@/stores/gameStore';
 const router = useRouter()
 const sudokuStore = useSudokuStore();
 const gameStore = useGameStore();
-const { isAuthenticated, isLoading, loginWithRedirect, logout, getAccessTokenSilently } = useAuth0();
-const loginOptions: RedirectLoginOptions<AppState> = {
-  openUrl(url) {
-    window.location.replace(url)
-  }
-}
+// const { isAuthenticated, isLoading, loginWithRedirect, logout, getAccessTokenSilently } = useAuth0();
+// const loginOptions: RedirectLoginOptions<AppState> = {
+//   openUrl(url) {
+//     window.location.replace(url)
+//   }
+// }
 
 const gotoPuzzle = async (difficulty: Difficulty) => {
   sudokuStore.$reset();
@@ -28,7 +28,7 @@ const gotoPuzzle = async (difficulty: Difficulty) => {
   if (router.currentRoute.value.name !== difficulty) {
     router.push(`/sudoku/${difficulty}`)
   } else {
-    await sudokuStore.getNewPuzzle({ difficulty }, isAuthenticated.value ? await getAccessTokenSilently() : undefined)
+    await sudokuStore.getNewPuzzle({ difficulty })
     gameStore.elapsedSeconds = 0;
   }
 }

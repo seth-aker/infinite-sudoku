@@ -26,10 +26,10 @@ async function fetchNewPuzzle(options?: SudokuOptions, token?: string) {
   }
 }
 async function fetchPuzzle(puzzleId: string) {
-  return await fetch(`${API_BASE_URL}/api/sudoku/${puzzleId}`)
+  return await fetch(`${API_BASE_URL}/sudoku/${puzzleId}`)
 }
 async function updatePuzzle(puzzleId: string, puzzle: SudokuPuzzle) {
-  return await fetch(`${API_BASE_URL}/api/sudoku/${puzzleId}`, {
+  return await fetch(`${API_BASE_URL}/sudoku/${puzzleId}`, {
     method: "POST",
     headers: {"Content-Type": "application/json"},
     body: JSON.stringify(puzzle)

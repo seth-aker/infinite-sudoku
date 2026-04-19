@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "tsx watch index.ts",
+    "dev": "tsx watch src/index.ts",
     "start": "node ./dist/index.js",
     "build": "tsup src/index.ts src/feature/sudoku/puzzleSolver/puzzleGeneratorInC.ts --format esm --clean",
     "test": "vitest"

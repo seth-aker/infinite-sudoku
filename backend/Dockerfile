@@ -16,4 +16,6 @@ RUN npm i --omit=dev
 
 EXPOSE 3666
 
+ENV NODE_ENV=production
+
 CMD [ "node", "index.js" ]

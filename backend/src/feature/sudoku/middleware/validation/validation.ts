@@ -8,6 +8,7 @@ export const getPuzzleValidator = (req: SudokuRequest, res: Response, next: Next
     if(!validationResult.success) {
         throw new ValidationError(validationResult.error);
     }
+    next()
 }
 export const getPuzzleByIdValidator = (req: Request<{puzzleId: string}>, res: Response, next: NextFunction) => {
     const validationResult = getPuzzleByIdSchema.safeParse(req.params);

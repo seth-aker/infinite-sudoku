@@ -4,7 +4,6 @@ import { SudokuPuzzleResponse, SudokuPuzzle, CreatePuzzle, UpdatePuzzle } from "
 import { SudokuDataSource } from "./sudokuDataSource";
 import type { Database, Statement } from "better-sqlite3";
 import { DatabaseError } from "@/core/errors/databaseError";
-import { Row } from "./models/row";
 import { puzzleScripts, userPuzzleScripts } from "@/core/dataSource/sqlite3";
 import { Cell } from "./models/cell";
 import {  DifficultyRating } from "./models/difficulty";
@@ -109,10 +108,9 @@ export class SqliteSudokuDataSource implements SudokuDataSource {
   }
   async createPuzzles(puzzles: CreatePuzzle[]): Promise<number> {
     puzzles.forEach((puzzle) => {
-      const {cellString} = this.serializePuzzleCells(puzzle.cells)
       try {
         this.scripts.createPuzzle.all({
-          cells: cellString, 
+          cells: puzzle.cells, 
           difficultyScore: puzzle.difficulty.score ?? 0, 
           difficultyRating: puzzle.difficulty.rating
         })
@@ -129,43 +127,14 @@ export class SqliteSudokuDataSource implements SudokuDataSource {
     throw new DatabaseError("Fn deletePuzzle() not implemented")
   }
 
-  private serializePuzzleCells(cells: Row[]) {
-    let cellString = ''
-    const candidateArray: string[] = []
-    cells.forEach((row) => {
-      row.forEach((cell) => {
-        cellString += cell.value ? cell.value.toString() : '0'
-        candidateArray.push(Array.from(cell.candidates).join(""))
-      })
-    })
-    const candidatesString = candidateArray.join(";")
-    return {
-      cellString,
-      candidatesString
-    }
-  }
-  private deserializeCells(cellString: string, candidatesString?: string) {
-    const cells: Row[] = []
-    const candidates: CandidateSet[] = candidatesString ? this.deserializeCandidates(candidatesString) : [] as CandidateSet[];
-  
-    if(cellString.length != 81) {
-      throw new DatabaseError(`Puzzle Size is not 81 cells: Size ${cellString.length}`)
-    }
-    for(let r = 0; r < 9; r++) {
-      const row: Cell[] = []
-      for(let c = 0; c < 9; c++) {
-        const cellIndex = r * 9 + c
-        const cellValue = Number.parseInt(cellString.charAt(cellIndex));
-        const cell: Cell = {
-          cellId: `r${r}c${c}`,
-          value: cellValue != 0 ? cellValue : undefined,
-          candidates: candidatesString ? candidates[cellIndex] : new CandidateSet,
-          type: cellValue > 0 ? 'prefilled': 'blank' 
-        }
-        row.push(cell)
+  private deserializeCells(cellString: string) {
+    const cells: number[] = cellString.split("").map(val => {
+      const num = Number.parseInt(val)
+      if(Number.isNaN(num)) {
+        return -1;
       }
-      cells.push(row)
-    }
+      return num;
+    })
     return cells
   }
   private deserializeCandidates(candidatesString: string) {
@@ -174,7 +143,13 @@ export class SqliteSudokuDataSource implements SudokuDataSource {
       throw new DatabaseError('Candidate Deserialization error: length not 81 cells')
     }
     const candidates = raw.map((candidateString) => {
-      const candidates = candidateString.split('').map(each => Number.parseInt(each));
+      const candidates = candidateString.split('').map(each => {
+        const num = Number.parseInt(each)
+        if(Number.isNaN(num)) {
+          return -1;
+        }
+        return num;
+      });
       return new CandidateSet(candidates);
     })
     return candidates
