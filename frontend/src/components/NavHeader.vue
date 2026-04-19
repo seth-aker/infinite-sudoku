@@ -35,8 +35,8 @@ const gotoPuzzle = async (difficulty: Difficulty) => {
 </script>
 
 <template>
-  <header class="w-full p-6 flex justify-between border-b shadow ">
-    <h1 class="text-3xl hover:cursor-pointer">
+  <header class="w-full p-4 flex justify-between border-b shadow ">
+    <h1 class="text-3xl hover:cursor-pointer text-orange-400 font-bold">
       <a @click="router.push({ name: 'home' })">Sudoku</a>
     </h1>
     <div>
@@ -64,6 +64,11 @@ const gotoPuzzle = async (difficulty: Difficulty) => {
                   @click="() => gotoPuzzle('impossible')">Impossible (Comming Soon)</Button>
               </NavigationMenuLink>
             </NavigationMenuContent>
+          </NavigationMenuItem>
+          <NavigationMenuItem>
+            <NavigationMenuLink as-child>
+              <Button class="mx-2" variant="ghost" @click="router.push({ name: 'about' })">About</Button>
+            </NavigationMenuLink>
           </NavigationMenuItem>
           <NavigationMenuItem>
             <NavigationMenuLink as-child>
