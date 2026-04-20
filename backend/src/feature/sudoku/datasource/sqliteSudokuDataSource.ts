@@ -5,7 +5,6 @@ import { SudokuDataSource } from "./sudokuDataSource";
 import type { Database, Statement } from "better-sqlite3";
 import { DatabaseError } from "@/core/errors/databaseError";
 import { puzzleScripts, userPuzzleScripts } from "@/core/dataSource/sqlite3";
-import { Cell } from "./models/cell";
 import {  DifficultyRating } from "./models/difficulty";
 import { CandidateSet } from "./models/candidateSet";
 

@@ -15,8 +15,9 @@ However, then I decided to revisit the puzzle generator portion and actually mak
 Reusing a retired PC, this app is hosted on Ubuntu Server 24.04.4 LTS. Managed by an Nginx reverse-proxy pointing to two docker containers deployed via docker-compose. While this setup likely would quickly be overwhelmed by heavy loads, it is an economical and effective for this use case where I expect traffic to be extremely light. 
 
 ## Comming Next
-- Impoved CI/CD deployments: Turn the frontend and backend into a true monorepo with pnpm workspaces.
 - User authentication: Allow users to login, see their puzzle solving statistics, and be able to retrieve puzzle progress from different devices.
+- Dark mode support
+- Impoved CI/CD deployments: Turn the frontend and backend into a true monorepo with pnpm workspaces.
 - Hard/Impossible difficulties (this technically comes from Cdoku, but it is part of the project)
 
 ## \*AI Disclosure\*

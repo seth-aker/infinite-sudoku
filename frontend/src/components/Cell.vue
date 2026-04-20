@@ -21,7 +21,7 @@ const visablePencilArray = computed(() => {
 
 <template>
   <div
-    :class="['outline-1 outline-gray-300', { 'bg-orange-200': highlighted }, { 'bg-orange-400': selected }, { 'bg-white': !highlighted && !selected }]"
+    :class="['outline-1 outline-gray-300 dark:outline-background', { 'bg-orange-200 dark:bg-orange-300': highlighted }, { 'bg-orange-400 dark:bg-orange-400': selected }, { 'bg-white dark:bg-primary': !highlighted && !selected }]"
     :style="{ height: `${width}px`, width: `${width}px` }" class="absolute">
     <div v-if="cell.value !== undefined" class="relative h-full w-full flex items-center justify-center text-black"
       :class="[{ 'font-bold': cell.type === 'prefilled' }, { 'text-red-600': hasError }]">
@@ -29,7 +29,7 @@ const visablePencilArray = computed(() => {
     <div v-else class="relative h-full w-full flex flex-wrap">
       <div v-for="(isVisable, index) in visablePencilArray"
         :style="{ width: `${100 / Math.sqrt(visablePencilArray.length)}%`, height: `${100 / Math.sqrt(visablePencilArray.length)}%` }">
-        <span v-show="isVisable" class="font-light text-2xs flex items-center justify-center">{{ index + 1 }}</span>
+        <span v-show="isVisable" class="font-light text-2xs flex items-center justify-center text-black">{{ index + 1 }}</span>
       </div>
     </div>
   </div>

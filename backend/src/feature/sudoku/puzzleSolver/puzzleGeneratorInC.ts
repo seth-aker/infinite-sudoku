@@ -3,7 +3,6 @@ import { type CreatePuzzle } from "../datasource/models/sudokuPuzzle";
 import { spawn } from 'node:child_process'
 import { env } from 'node:process'
 import { workerEmit, worker } from "workerpool";
-import { buildBlankPuzzleRows } from "../utils/buildBlankPuzzleRows";
 import { type DifficultyRating } from "../datasource/models/difficulty";
 import { config } from "../../../core/config";
 import { PuzzleGeneratorError } from "../errors/puzzleGeneratorError";

@@ -16,7 +16,6 @@ import DialogClose from '@/components/ui/dialog/DialogClose.vue';
 import { Icon } from '@iconify/vue';
 import { useRouter } from 'vue-router';
 import type { Difficulty } from '@/stores/models/difficulty';
-// import { useAuth0 } from '@auth0/auth0-vue';
 import { useUserStore } from '@/stores/userStore';
 import LoadingOverlay from '@/components/LoadingOverlay.vue';
 import ErrorDialog from '@/components/ErrorDialog.vue';
@@ -121,7 +120,7 @@ const handleReset = () => {
 
 <template>
   <div class="flex flex-col h-full items-center justify-center">
-    <div class="w-full flex items-center justify-center bg-gray-50">
+    <div class="w-full flex items-center justify-center bg-gray-50 dark:bg-accent">
       {{ difficulty.charAt(0).toUpperCase() + difficulty.substring(1) }}
       {{ gameStore.formattedElapsedTime }}
       <div class="flex items-center my-2">

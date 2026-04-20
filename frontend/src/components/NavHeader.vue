@@ -12,7 +12,7 @@ import { useSudokuStore } from '@/stores/sudokuStore';
 import type { Difficulty } from '@/stores/models/difficulty';
 import { useGameStore } from '@/stores/gameStore';
 import { Icon } from '@iconify/vue';
-import { ref } from 'vue';
+import { onMounted, ref } from 'vue';
 import Popover from './ui/popover/Popover.vue';
 import PopoverTrigger from './ui/popover/PopoverTrigger.vue';
 import PopoverContent from './ui/popover/PopoverContent.vue';
@@ -21,15 +21,18 @@ import AccordionItem from './ui/accordion/AccordionItem.vue';
 import AccordionTrigger from './ui/accordion/AccordionTrigger.vue';
 import AccordionContent from './ui/accordion/AccordionContent.vue';
 import { PopoverClose } from 'reka-ui';
+import Toggle from './ui/toggle/Toggle.vue';
+import { useColorMode } from '@vueuse/core';
+import Label from './ui/label/Label.vue';
+import Switch from './ui/switch/Switch.vue';
 const router = useRouter()
 const sudokuStore = useSudokuStore();
 const gameStore = useGameStore();
-// const { isAuthenticated, isLoading, loginWithRedirect, logout, getAccessTokenSilently } = useAuth0();
-// const loginOptions: RedirectLoginOptions<AppState> = {
-//   openUrl(url) {
-//     window.location.replace(url)
-//   }
-// }
+const colormode = useColorMode()
+
+onMounted(() => {
+  document.documentElement.style.touchAction = 'manipulation'
+})
 
 const menuPressed = ref(false)
 
@@ -52,7 +55,7 @@ const gotoPuzzle = async (difficulty: Difficulty) => {
       <a @click="router.push({ name: 'home' })">Sudoku</a>
     </h1>
     <!-- Medium and wider menu -->
-    <div class="hidden md:block">
+    <div class="hidden md:flex md:flex-row">
       <NavigationMenu>
         <NavigationMenuList>
           <NavigationMenuItem>
@@ -97,11 +100,15 @@ const gotoPuzzle = async (difficulty: Difficulty) => {
           </NavigationMenuItem> -->
         </NavigationMenuList>
       </NavigationMenu>
+      <Toggle :model-value="colormode === 'dark'" @update:model-value="(val) => val ? colormode = 'dark' : colormode = 'light'" >
+        <Icon v-if="colormode === 'dark'" icon="line-md:moon-simple" />
+        <Icon v-else icon="line-md:sunny" />
+      </Toggle>
     </div>
     <!-- Mobile Menu-->
     <Popover class="md:hidden" v-slot="{ open }">
       <PopoverTrigger class="md:hidden" as-child>
-        <Button size="icon" @click="() => menuPressed = true">
+        <Button size="icon" @click="() => menuPressed = true" variant="ghost">
           <Icon v-if="!menuPressed" icon="line-md:menu" />
           <Icon v-else-if="open" icon="line-md:menu-to-close-alt-transition" />
           <Icon v-else icon="line-md:close-to-menu-alt-transition" />
@@ -133,11 +140,15 @@ const gotoPuzzle = async (difficulty: Difficulty) => {
               <PopoverClose as-child>
                 <Button @click="() => gotoPuzzle('impossible')" variant="link" disabled>Impossible (Comming
                   Soon)</Button>
-              </PopoverClose>
-            </AccordionContent>
-          </AccordionItem>
-        </Accordion>
-      </PopoverContent>
-    </Popover>
+                </PopoverClose>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+          <div class="flex py-2">
+            <Label class="pr-2 font-medium" >Dark Mode:</Label>
+            <Switch :model-value="colormode === 'dark'" @update:model-value="(val) => val ? colormode = 'dark' : colormode = 'light'" />
+          </div>
+        </PopoverContent>
+      </Popover>
   </header>
 </template>

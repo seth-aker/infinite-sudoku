@@ -115,16 +115,16 @@ onUnmounted(() => {
 
 <template>
   <div class="flex flex-col items-center mx-4">
-    <div class="flex gap-2 md:gap-0">
+    <div class="flex gap-2 md:gap-0 w-[60%] md:w-auto justify-evenly">
       <Button :disabled="gameStore.gameState === 'paused'" @click="() => sudokuStore.undoAction()"
-        class="mx-0.5 size-14 md:size-10">
+        class="mx-0.5 size-12 md:size-10">
         <Icon icon="material-symbols:undo-rounded" />
       </Button>
-      <Button :disabled="gameStore.gameState === 'paused'" @click="eraseValue" class="mx-0.5 size-14 md:size-10">
+      <Button :disabled="gameStore.gameState === 'paused'" @click="eraseValue" class="mx-0.5 size-12 md:size-10">
         <Icon icon="material-symbols:ink-eraser-outline-rounded" />
       </Button>
-      <Toggle :disabled="gameStore.gameState === 'paused'"
-        @update:model-value="sudokuStore.usingPencil = !sudokuStore.usingPencil" class="mx-0.5 size-14 md:size-10"
+      <Toggle :disabled="gameStore.gameState === 'paused'" variant="outline"
+        @update:model-value="sudokuStore.usingPencil = !sudokuStore.usingPencil" class="mx-0.5 size-12 md:size-10 data-[state=on]:bg-orange-400/95"
         :model-value="sudokuStore.usingPencil">
         <Icon icon="material-symbols:edit-outline-rounded" />
       </Toggle>

@@ -6,7 +6,6 @@ WORKDIR /sudoku
 
 COPY ./dist ./
 
-COPY ./vue-sudoku.db .
 COPY ./.env.production ./.env
 COPY ./sql ./sql
 COPY ./package.json .

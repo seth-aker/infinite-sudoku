@@ -11,7 +11,7 @@ const router = useRouter()
 
 <template>
   <main class="w-full h-full flex items-center justify-center my-20">
-    <Card class="w-100">
+    <Card class="w-[85%] md:w-100">
       <CardHeader class="flex flex-col items-center justify-center">
         <CardTitle class="text-4xl">Sudoku</CardTitle>
         <CardDescription>Pick a difficulty to get started</CardDescription>
