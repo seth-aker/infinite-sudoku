@@ -115,22 +115,22 @@ onUnmounted(() => {
 
 <template>
   <div class="flex flex-col items-center mx-4">
-    <div>
-      <Button :disabled="gameStore.gameState === 'paused'" @click="() => sudokuStore.undoAction()" class="mx-0.5">
+    <div class="flex gap-2 md:gap-0">
+      <Button :disabled="gameStore.gameState === 'paused'" @click="() => sudokuStore.undoAction()"
+        class="mx-0.5 size-14 md:size-10">
         <Icon icon="material-symbols:undo-rounded" />
       </Button>
-      <Button :disabled="gameStore.gameState === 'paused'" @click="eraseValue" class="mx-0.5">
+      <Button :disabled="gameStore.gameState === 'paused'" @click="eraseValue" class="mx-0.5 size-14 md:size-10">
         <Icon icon="material-symbols:ink-eraser-outline-rounded" />
       </Button>
       <Toggle :disabled="gameStore.gameState === 'paused'"
-        @update:model-value="sudokuStore.usingPencil = !sudokuStore.usingPencil" class="mx-0.5"
+        @update:model-value="sudokuStore.usingPencil = !sudokuStore.usingPencil" class="mx-0.5 size-14 md:size-10"
         :model-value="sudokuStore.usingPencil">
         <Icon icon="material-symbols:edit-outline-rounded" />
       </Toggle>
     </div>
-    <div class="mx-4 my-2">
-      <Numpad />
-    </div>
+
+    <Numpad />
     <div class="flex items-center justify-center">
       <Checkbox :disabled="gameStore.gameState === 'paused'" id="auto-candidate"
         :model-value="sudokuStore.autoCandidateMode" @update:model-value="handleCheckboxChange" />

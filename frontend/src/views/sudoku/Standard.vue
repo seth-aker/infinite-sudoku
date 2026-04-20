@@ -120,7 +120,7 @@ const handleReset = () => {
 </script>
 
 <template>
-  <div class="flex flex-col items-center justify-center">
+  <div class="flex flex-col h-full items-center justify-center">
     <div class="w-full flex items-center justify-center bg-gray-50">
       {{ difficulty.charAt(0).toUpperCase() + difficulty.substring(1) }}
       {{ gameStore.formattedElapsedTime }}
@@ -134,7 +134,7 @@ const handleReset = () => {
       </div>
     </div>
 
-    <div class="flex pt-4">
+    <div class="flex pt-4 flex-col justify-end h-full md:flex-row">
       <SudokuPuzzle v-if="sudokuStore.puzzle" :puzzle="sudokuStore.puzzle"
         v-model:selected-cell="sudokuStore.selectedCell" />
       <SudokuControls />

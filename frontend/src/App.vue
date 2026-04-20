@@ -28,7 +28,7 @@ const route = useRoute();
 </script>
 
 <template>
-  <div class="max-w-screen flex flex-col">
+  <div class="max-w-screen flex flex-col min-h-screen">
     <NavHeader />
     <RouterView :key="route.fullPath" />
   </div>

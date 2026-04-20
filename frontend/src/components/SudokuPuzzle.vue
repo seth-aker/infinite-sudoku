@@ -63,13 +63,10 @@ const isCellInBlock = (columnIndex: number, rowIndex: number) => {
     return blockX === cellBlockX && blockY === cellBlockY
   }
 }
-
-
-
 </script>
 
 <template>
-  <div class="relative bg-black flex items-center justify-center"
+  <div class="relative bg-black flex items-center justify-center mb-4"
     :style="{ height: `${puzzleHeightWidth + blockGapPx * 2}px`, width: `${puzzleHeightWidth + blockGapPx * 2}px` }">
     <div class="relative bg-gray-500" :style="{ height: `${puzzleHeightWidth}px`, width: `${puzzleHeightWidth}px` }">
       <div v-for="(row, rowIndex) in puzzle?.rows" :key="`row${rowIndex}`" class="absolute w-full"
@@ -77,8 +74,7 @@ const isCellInBlock = (columnIndex: number, rowIndex: number) => {
         <div class="relative h-full w-full">
           <Cell v-for="(cell, columnIndex) in row" :key="`cell${columnIndex}`"
             @click="() => { selectedCell.x = columnIndex; selectedCell.y = rowIndex }"
-            :style="{ left: generateBlockSpacingOffset(columnIndex) }" class="absolute" 
-            :cell="cell"
+            :style="{ left: generateBlockSpacingOffset(columnIndex) }" class="absolute" :cell="cell"
             :width="cellHeightWidth" :highlighted="isCellHighlighted(columnIndex, rowIndex)"
             :selected="isCellSelected(columnIndex, rowIndex)"
             :has-error="cellHasError(puzzle, columnIndex, rowIndex)" />

@@ -22,7 +22,7 @@ onMounted(async () => {
 
 <template>
   <div
-    class="flex flex-row self-center max-w-[75%] pb-10 pr-16 pl-16 border-r-orange-300  border-l-orange-300 border-2">
+    class="flex flex-row self-center md:max-w-[75%] pb-10 pr-16 pl-16 border-r-orange-300  border-l-orange-300 border-2">
     <div class="markdown" v-html="readme"></div>
     <LoadingOverlay v-if="isLoading" />
     <ErrorDialog v-if="error" :message="error" />

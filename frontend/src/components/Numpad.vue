@@ -51,11 +51,13 @@ const numberInPuzzleCount = (number: number) => {
 </script>
 
 <template>
-  <div class="grid gap-1"
-    :style="{ gridTemplateColumns: `repeat(${Math.sqrt(sudokuStore.puzzle.cellsPerRow)}, minmax(0, 1fr))` }">
-    <Button size="icon" v-for="(input) in inputs"
-      :disabled="numberInPuzzleCount(input) === sudokuStore.puzzle.cellsPerRow || gameStore.gameState === 'paused'"
-      @click="onNumberPress(input)">{{ input
-      }}</Button>
+  <div class="mx-4 my-2 w-full justify-center flex">
+    <div class="grid gap-1 place-items-center w-[60%] md:w-auto"
+      :style="{ gridTemplateColumns: `repeat(3, minmax(0, 1fr))` }">
+      <Button class="size-14 aspect-square md:size-10" v-for="(input) in inputs"
+        :disabled="numberInPuzzleCount(input) === sudokuStore.puzzle.cellsPerRow || gameStore.gameState === 'paused'"
+        @click="onNumberPress(input)">{{ input
+        }}</Button>
+    </div>
   </div>
 </template>
