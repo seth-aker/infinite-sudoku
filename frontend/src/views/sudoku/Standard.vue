@@ -51,13 +51,6 @@ onBeforeRouteLeave(async () => {
 const loading = computed(() => {
   return userStore.userLoading || sudokuStore.loading
 })
-watch(() => loading.value, () => {
-  if (loading.value) {
-    gameStore.stopTimer()
-  } else {
-    gameStore.startTimer();
-  }
-})
 const requestNewPuzzle = async (newDifficulty: Difficulty['rating']) => {
   await sudokuStore.getNewPuzzle({ difficulty: { rating: newDifficulty } });
 }
@@ -86,7 +79,7 @@ watchDebounced(() => sudokuStore.actions.length, () => {
 }, { debounce: 5000, maxWait: 10000 })
 
 onUnmounted(() => {
-  gameStore.stopTimer();
+  gameStore.pauseGame();
   gameStore.gameState = 'not-started'
   gameStore.elapsedSeconds = 0;
 })
@@ -97,13 +90,13 @@ watch(() => sudokuStore.isPuzzleSolved, () => {
   }
 })
 const handlePuzzleSolved = async () => {
-  gameStore.stopTimer();
+  gameStore.pauseGame();
   dialogOpen.value = true;
   gameStore.gameState = 'solved';
   sudokuStore.saveGameState()
 }
 const toggleTimer = () => {
-  if (gameStore.interval === null) {
+  if (!gameStore.timerActive) {
     gameStore.startTimer();
   } else {
     gameStore.pauseGame()
@@ -124,7 +117,7 @@ const handleReset = () => {
       {{ gameStore.formattedElapsedTime }}
       <div class="flex items-center my-2">
         <Button class="mx-2" @click="toggleTimer" variant="ghost">
-          <Icon v-if="gameStore.interval" icon="material-symbols:pause-rounded" />
+          <Icon v-if="gameStore.timerActive" icon="material-symbols:pause-rounded" />
           <Icon v-else icon="material-symbols:play-arrow-rounded" />
         </Button>
         <ControlInstructions />

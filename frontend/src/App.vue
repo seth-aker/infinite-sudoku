@@ -8,10 +8,9 @@ import 'vue-sonner/style.css'
 
 const route = useRoute();
 const userStore = useUserStore();
-
+userStore.getSelf()
 onMounted(() => {
   document.documentElement.style.touchAction = 'manipulation';
-  userStore.getSelf()
 })
 </script>
 
