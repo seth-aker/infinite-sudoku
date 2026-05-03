@@ -8,154 +8,302 @@ import lodash from 'lodash'
 import { cellHasError } from "@/utils/cellHasError";
 import { numberWorksInCell } from "@/utils/numberWorksInCell";
 import { calcBlockNum } from "@/utils/calcBlockNumber";
+import { computed, ref } from "vue";
+import type { SudokuStoreState } from "./models/sudokuStoreState";
+import { useGameStore } from "./gameStore";
+import type { SaveGameOptions } from "./models/gameState";
+import { useUserStore } from "./userStore";
 const blankPuzzle = new SudokuPuzzle(buildBlankPuzzleRows())
-export const useSudokuStore = defineStore('sudoku', {
-    state: () => ({
-        puzzleId: undefined as string | undefined,
-        puzzle: blankPuzzle as SudokuPuzzle,
-        usingPencil: false,
+export const useSudokuStore = defineStore('sudokuStore', () => {
+  const gameStore = useGameStore()
+  const userStore = useUserStore()
+
+  const puzzleId = ref<string | undefined>(undefined)
+  const puzzle = ref<SudokuPuzzle>(blankPuzzle);
+  const usingPencil = ref(false)
+  const selectedCell = ref({
+    x: undefined as number | undefined,
+    y: undefined as number | undefined,
+  })
+  const actions = ref<Action[]>([])
+  const redoActions = ref<Action[]>([])
+  const autoCandidateMode = ref(false)
+  const loading = ref<boolean>(false)
+  
+  function retrieveLocalState() {
+    const state = sudokuService.retrieveLocalState();
+    if(state !== null) {
+      $patch(state)
+      return true;
+    }
+    return false
+  }
+  function saveGameStateLocal() {
+    const state = {
+      puzzleId: puzzleId.value,
+      puzzle: puzzle.value,
+      usingPencil: usingPencil.value,
+      selectedCell: selectedCell.value,
+      actions: actions.value,
+      redoActions: redoActions.value,
+      autoCandidateMode: autoCandidateMode.value
+    }
+    sudokuService.saveGameStateLocally(state)
+  }
+  function deleteGameStateLocal() {
+    sudokuService.deleteGameStateLocally();
+  }
+  async function getNewPuzzle(options: SudokuOptions) {
+    loading.value = true;
+    const response = await sudokuService.fetchNewPuzzle(options);
+    
+    if(response.success && response.body) {
+      $patch({
+        puzzleId: response.body._id,
+        puzzle: response.body.puzzle,
         selectedCell: {
-          x: undefined as number | undefined,
-          y: undefined as number | undefined,
+          x: undefined,
+          y: undefined
         },
-        actions: [] as Action[],
-        autoCandidateMode: false,
-    }),
-    actions: {
-      retrieveLocalState() {
-        const state = sudokuService.retrieveLocalState();
-        if(state !== null) {
-          this.$patch(state)
-          return true;
-        }
-        return false
-      },
-      saveGameStateLocal() {
-        const state = {
-          puzzleId: this.puzzleId,
-          puzzle: this.puzzle,
-          usingPencil: this.usingPencil,
-          selectedCell: this.selectedCell,
-          actions: this.actions,
-          autoCandidateMode: this.autoCandidateMode
-        }
-        sudokuService.saveGameStateLocally(state)
-      },
-      deleteGameStateLocal() {
-        sudokuService.deleteGameStateLocally();
-      },
-      async getNewPuzzle(options: SudokuOptions, token?: string | undefined) {
-        const response = await sudokuService.fetchNewPuzzle(options, token);
-        const puzzleCells = buildBlankPuzzleRows();
-        puzzleCells.forEach((row, rowIdx) => {
-          row.forEach((cell, colIdx) => {
-            const index = rowIdx * 9 + colIdx
-            const val: number = response.cells[index];
-            cell.value = val !== 0 ? val : undefined;
-            cell.type = val !== 0 ? 'prefilled' : 'blank'
+        actions: []
+      })
+      gameStore.elapsedSeconds = 0;
+      gameStore.startTimer()
+      saveGameStateLocal();
+    }
+    loading.value = false;
+  }
+  async function getUserPuzzle() {
+    if(!userStore.currentPuzzleId) {
+      return {success: false, message: 'No current puzzle found'}
+    }
+    const result = await sudokuService.fetchPuzzle(userStore.currentPuzzleId);
+    const userPuzzle = result.body
+    if(!result.success || !userPuzzle) {
+      return result
+    }
+    puzzleId.value = userPuzzle._id,
+    puzzle.value = userPuzzle.puzzle,
+    actions.value = userPuzzle.actions
+    gameStore.elapsedSeconds = userPuzzle.time
+    gameStore.saveElapsedSecondsLocal()
+    saveGameStateLocal()
+    return result
+  }
+  async function saveGameState(options: SaveGameOptions = {keepalive: false}) {
+    if(!puzzleId.value) {
+      return {success: false, message: 'No puzzle to save'}
+    }
+   return await sudokuService.updatePuzzle(puzzleId.value, puzzle.value, actions.value, gameStore.elapsedSeconds, isPuzzleSolved.value, options)
+  }
+  function setCell(cell: Cell, x: number, y: number) {
+    const prevCell = puzzle.value.getCell(x, y);
+    if(!prevCell) {
+      throw new Error(`Cell at r${y}c${x} undefined!`)
+    }
+    actions.value.push({prevCell: lodash.cloneDeep(prevCell), x, y, isParent: true})
+    redoActions.value = []
+    puzzle.value.setCell(cell, x, y);
+    if(!prevCell.value && cell.value) {
+      const row = puzzle.value.rows[y];
+      const col = puzzle.value.getColumn(x)!;
+      const blockNumber = calcBlockNum(y,x, puzzle.value.rows)
+      const block = puzzle.value.getBlock(blockNumber)!
+      const value = cell.value;
+      const seen: number[] = [] // cells that have been seen already
+      for(const [idx, cell] of row.entries()) {
+        if(idx !== x && cell.candidates.includes(value)) {
+          const absIndex = y * 9 + idx; // 0-80 index
+          seen.push(absIndex)
+          actions.value.push({
+            prevCell: lodash.cloneDeep(cell), 
+            x: idx,
+            y,
+            isParent: false
           })
-        })
-        if(response) {
-          this.$patch({
-            puzzleId: response._id,
-            puzzle: new SudokuPuzzle(puzzleCells, { difficulty: response.difficulty.rating }),
-            selectedCell: {
-              x: undefined,
-              y: undefined
-            },
-            actions: []
-          })
-          this.saveGameStateLocal();
-        }
-      },
-      setCell(cell: Cell, x: number, y: number) {
-        const prevCell = this.puzzle.getCell(x, y);
-        this.actions.push({prevCell, x, y})
-        this.puzzle.setCell(cell, x, y);
-        if(this.autoCandidateMode && !prevCell?.value && cell.value) {
-           const row = this.puzzle.rows[y];
-           const col = this.puzzle.getColumn(x)!;
-           const block = this.puzzle.getBlock(calcBlockNum(y,x, this.puzzle.rows))!
-           const value = cell.value;
-           for(const cell of row) {
-            if(cell.candidates.includes(value)) {
-              cell.candidates = cell.candidates.filter((candidate) => candidate !== value);
-            }
-           }
-           for(const cell of col) {
-            if(cell.candidates.includes(value)) {
-              cell.candidates = cell.candidates.filter((candidate) => candidate !== value);
-            }
-           }
-           for(const cell of block) {
-            if(cell.candidates.includes(value)) {
-              cell.candidates = cell.candidates.filter((candidate) => candidate !== value);
-            }
-           }
-        }
-        this.saveGameStateLocal();
-      },
-      getCell(x:number | undefined, y: number | undefined) {
-        const cell = this.puzzle.getCell(x,y)
-        return lodash.cloneDeep(cell);
-      },
-      undoAction() {
-        const action = this.actions.pop();
-        if(action === undefined || action.prevCell === undefined) {
-          return;
-        }
-        this.puzzle.setCell(action.prevCell, action.x, action.y)
-        this.selectedCell = { x: action.x, y: action.y}
-        this.saveGameStateLocal()
-      },
-      resetPuzzle() {
-        this.puzzle.rows = this.puzzle.originalPuzzle;
-        this.actions = []
-        this.selectedCell = {x: undefined, y: undefined}
-        this.saveGameStateLocal();
-      },
-      fillPuzzleCandidates() {
-        for(let candidate = 1; candidate <= this.puzzle.cellsPerRow; candidate++) {
-          for(let rowIndex = 0; rowIndex < this.puzzle.rows.length; rowIndex++) {
-            for(let colIndex = 0; colIndex < this.puzzle.rows.length; colIndex++) {
-              const cell = this.puzzle.rows[rowIndex][colIndex];
-              if(cell.value) {
-                continue;
-              }
-              if(numberWorksInCell(rowIndex, colIndex, candidate, this.puzzle) && !cell.candidates.includes(candidate)) {
-                cell.candidates.push(candidate);
-              }
-            }
-          }
-        }
-      },
-      clearPuzzleCandidates() {
-        for(const row of this.puzzle.rows) {
-          for(const cell of row) {
-            cell.candidates = []
-          }
+          cell.candidates = cell.candidates.filter((candidate) => candidate !== value);
         }
       }
-    },
-    getters: {
-      loading(state) {
-        return state.puzzleId === undefined
-      },
-      isPuzzleSolved(state) {
-        if(state.puzzle.rows.some((row) => row.some((cell) => cell.value === undefined))) {
-          return false;
+      for(const [idx, cell] of col.entries()) {
+        if(idx !== y && cell.candidates.includes(value)) {
+          const absIndex = idx * 9 + x;
+          seen.push(absIndex)
+          actions.value.push({
+            prevCell: lodash.cloneDeep(cell),
+            x,
+            y: idx,
+            isParent: false
+          })
+          cell.candidates = cell.candidates.filter((candidate) => candidate !== value);
         }
-        let hasError = false;
-        for(let rowIndex = 0; rowIndex < state.puzzle.cellsPerRow; rowIndex++) {
-          for(let columnIndex = 0; columnIndex < state.puzzle.cellsPerRow; columnIndex++) {
-            hasError = cellHasError(state.puzzle, columnIndex, rowIndex)
-            if(hasError) {
-              console.log(`Error found at x:${columnIndex}, y:${rowIndex}`)
-              return false
-            }
-          }
+      }
+      for(const [idx, cell] of block.entries()) {
+        const xOffset = (blockNumber % 3) * 3 
+        const yOffset = (Math.floor(blockNumber / 3) * 3)
+        const cellX = (xOffset + idx % 3)
+        const cellY = (yOffset + (Math.floor(idx / 3)))
+        const cellAbsIdx = cellY * 9 + cellX;
+
+        if((cellX !== x && cellY !== y) && !seen.includes(cellAbsIdx) && cell.candidates.includes(value)) {
+          actions.value.push({
+            prevCell: lodash.cloneDeep(cell),
+            x: cellX,
+            y: cellY,
+            isParent: false
+          })
+          cell.candidates = cell.candidates.filter((candidate) => candidate !== value);
         }
-        return true;
       }
     }
+    saveGameStateLocal();
+  }
+  function getCell(x:number | undefined, y: number | undefined) {
+    const cell = puzzle.value.getCell(x,y)
+    return lodash.cloneDeep(cell);
+  }
+  function undoAction() {
+    let lastAction = actions.value.pop();
+    while(lastAction && !lastAction.isParent) {
+      const prevCell = getCell(lastAction.x, lastAction.y);
+      redoActions.value.push({
+        prevCell: prevCell!, 
+        x: lastAction.x, 
+        y: lastAction.y, 
+        isParent: false
+      })
+      puzzle.value.setCell(lastAction.prevCell, lastAction.x, lastAction.y);
+      lastAction = actions.value.pop()
+    }
+    if(lastAction) {
+      const prevCell = getCell(lastAction.x, lastAction.y);
+      redoActions.value.push({
+        prevCell: prevCell!, 
+        x: lastAction.x, 
+        y: lastAction.y, 
+        isParent: true
+      })
+      puzzle.value.setCell(lastAction.prevCell, lastAction.x, lastAction.y)
+      selectedCell.value = { x: lastAction.x, y: lastAction.y}
+    }
+    saveGameStateLocal()
+  }
+  function redoAction() {
+    let lastAction = redoActions.value.pop()
+    if(lastAction) {
+      const prevCell = getCell(lastAction.x, lastAction.y);
+      puzzle.value.setCell(lastAction.prevCell, lastAction.x, lastAction.y);
+      actions.value.push({
+        prevCell: prevCell!, 
+        x: lastAction.x, 
+        y: lastAction.y, 
+        isParent: true
+      });
+      selectedCell.value = { x: lastAction.x, y: lastAction.y };
+      lastAction = redoActions.value.pop()
+    }
+    while (lastAction && !lastAction.isParent) {
+      const prevCell = getCell(lastAction.x, lastAction.y);
+      puzzle.value.setCell(lastAction.prevCell, lastAction.x, lastAction.y)
+      actions.value.push({
+        prevCell: prevCell!, 
+        x: lastAction.x,
+        y: lastAction.y,
+        isParent: false
+      })
+      lastAction = redoActions.value.pop()
+
+    }
+    if(lastAction) {
+      redoActions.value.push(lastAction)
+    }
+    saveGameStateLocal()
+  }
+  function resetPuzzle() {
+    puzzle.value.rows = puzzle.value.originalPuzzle;
+    actions.value = []
+    redoActions.value = []
+    selectedCell.value = {x: undefined, y: undefined}
+    saveGameStateLocal();
+  }
+  function fillPuzzleCandidates() {
+    for(let candidate = 1; candidate <= puzzle.value.cellsPerRow; candidate++) {
+      for(let rowIndex = 0; rowIndex < puzzle.value.rows.length; rowIndex++) {
+        for(let colIndex = 0; colIndex < puzzle.value.rows.length; colIndex++) {
+          const cell = puzzle.value.rows[rowIndex][colIndex];
+          if(cell.value) {
+            continue;
+          }
+          if(numberWorksInCell(rowIndex, colIndex, candidate, puzzle.value) && !cell.candidates.includes(candidate)) {
+            cell.candidates.push(candidate);
+          }
+        }
+      }
+    }
+  }
+  function clearPuzzleCandidates() {
+    for(const row of puzzle.value.rows) {
+      for(const cell of row) {
+        cell.candidates = []
+      }
+    }
+  }
+  function $patch(state: Partial<SudokuStoreState>) {
+    if(state.puzzleId) puzzleId.value = state.puzzleId
+    if(state.puzzle) puzzle.value = state.puzzle
+    if(state.usingPencil !== undefined) usingPencil.value = state.usingPencil 
+    if(state.autoCandidateMode !== undefined) autoCandidateMode.value = state.autoCandidateMode
+    if(state.actions) actions.value = state.actions
+    if(state.selectedCell) selectedCell.value = state.selectedCell
+  }
+
+  function $reset() {
+    puzzleId.value = undefined,
+    puzzle.value = new SudokuPuzzle(buildBlankPuzzleRows())
+    actions.value = []
+    selectedCell.value = {x: undefined, y: undefined}
+    usingPencil.value = false,
+    autoCandidateMode.value = false
+  }
+  const isPuzzleSolved = computed(() => {
+    if(puzzle.value.rows.some((row) => row.some((cell) => cell.value === undefined))) {
+      return false;
+    }
+    let hasError = false;
+    for(let rowIndex = 0; rowIndex < puzzle.value.cellsPerRow; rowIndex++) {
+      for(let columnIndex = 0; columnIndex < puzzle.value.cellsPerRow; columnIndex++) {
+        hasError = cellHasError(puzzle.value, columnIndex, rowIndex)
+        if(hasError) {
+          console.log(`Error found at x:${columnIndex}, y:${rowIndex}`)
+          return false
+        }
+      }
+    }
+    return true;
+  })
+  return {
+    puzzleId, 
+    puzzle, 
+    actions, 
+    redoActions,
+    selectedCell, 
+    usingPencil, 
+    autoCandidateMode, 
+    retrieveLocalState, 
+    saveGameState, 
+    saveGameStateLocal, 
+    deleteGameStateLocal, 
+    getNewPuzzle, 
+    getUserPuzzle,
+    setCell, 
+    getCell, 
+    undoAction, 
+    redoAction,
+    resetPuzzle, 
+    fillPuzzleCandidates, 
+    clearPuzzleCandidates, 
+    $patch, 
+    $reset, 
+    loading, 
+    isPuzzleSolved 
+  }
 })

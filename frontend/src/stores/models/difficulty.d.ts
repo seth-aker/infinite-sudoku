@@ -1,1 +1,4 @@
-export type Difficulty = 'beginner' | 'easy' | 'medium' | 'hard' | 'impossible';
+export interface Difficulty {
+  rating: 'beginner' | 'easy' | 'medium' | 'hard' | 'impossible'
+  score?: number
+} 

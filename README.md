@@ -7,18 +7,19 @@ However, then I decided to revisit the puzzle generator portion and actually mak
 
 ## The Stack
 - **Cdoku**: The root of the application, written in plain C99, generates the puzzles and passes them to the database.
-- **SQLite**: Fast and simple database
+- **Postgres**: High quality, open source SQL database
 - **Node/Express.js**: Tried and true javascript server library. Implements Controller-Service-Repository architecture.
 - **Vue/Vite**: Simple SPA that displays the puzzles. Vue is lowkey better than React IMO which is why it is my go-to frontend framework.
 
 ## Infrastructure
-Reusing a retired PC, this app is hosted on Ubuntu Server 24.04.4 LTS. Managed by an Nginx reverse-proxy pointing to two docker containers deployed via docker-compose. While this setup likely would quickly be overwhelmed by heavy loads, it is an economical and effective for this use case where I expect traffic to be extremely light. 
+Reusing a retired PC, this app is *self-hosted* on Ubuntu Server 24.04.4 LTS. Managed by an Nginx reverse-proxy pointing to two docker containers deployed via docker-compose. While this setup likely would quickly be overwhelmed by heavy loads, it is an economical and effective for this use case where I expect traffic to be extremely light. 
 
 ## Comming Next
-- User authentication: Allow users to login, see their puzzle solving statistics, and be able to retrieve puzzle progress from different devices.
-- Dark mode support
-- Impoved CI/CD deployments: Turn the frontend and backend into a true monorepo with pnpm workspaces.
+- ~~User authentication: Allow users to login, see their puzzle solving statistics, and be able to retrieve puzzle progress from different devices.~~ Complete
+- ~~Dark mode support~~ Complete
 - Hard/Impossible difficulties (this technically comes from Cdoku, but it is part of the project)
+- Admin page
+- User stats and leaderboard page
 
 ## \*AI Disclosure\*
 Absolutely no generative AI was used in the production of this site.

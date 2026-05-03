@@ -9,22 +9,6 @@ import { onMounted, onUnmounted } from 'vue';
 import { useGameStore } from '@/stores/gameStore';
 const sudokuStore = useSudokuStore()
 const gameStore = useGameStore()
-const eraseValue = () => {
-  const { x, y } = sudokuStore.selectedCell;
-  if (x === undefined || y === undefined) {
-    return;
-  }
-  const cell = sudokuStore.getCell(x, y)
-  if (!cell) {
-    console.error(`Cell at ${x}, ${y} could not be found.`)
-    return;
-  }
-  if (cell.value === undefined) {
-    cell.candidates = [];
-  }
-  cell.value = undefined;
-  sudokuStore.setCell(cell, x, y)
-}
 
 
 const handleCheckboxChange = (isChecked: boolean | string) => {
@@ -88,6 +72,11 @@ const handleKeyPress = (event: KeyboardEvent) => {
         sudokuStore.undoAction()
       }
       break;
+    case 'y':
+    case 'Y':
+      if (event.ctrlKey) {
+        sudokuStore.redoAction()
+      }
     default:
       for (let i = 0; i < sudokuStore.puzzle.cellsPerRow; i++) {
         if (`${i + 1}` === event.key) {
@@ -120,17 +109,19 @@ onUnmounted(() => {
         class="mx-0.5 size-12 md:size-10">
         <Icon icon="material-symbols:undo-rounded" />
       </Button>
-      <Button :disabled="gameStore.gameState === 'paused'" @click="eraseValue" class="mx-0.5 size-12 md:size-10">
-        <Icon icon="material-symbols:ink-eraser-outline-rounded" />
+      <Button :disabled="gameStore.gameState === 'paused'" @click="() => sudokuStore.redoAction()"
+        class="mx-0.5 size-12 md:size-10">
+        <Icon icon="material-symbols:redo-rounded" />
       </Button>
       <Toggle :disabled="gameStore.gameState === 'paused'" variant="outline"
-        @update:model-value="sudokuStore.usingPencil = !sudokuStore.usingPencil" class="mx-0.5 size-12 md:size-10 data-[state=on]:bg-orange-400/95"
-        :model-value="sudokuStore.usingPencil">
+        @update:model-value="sudokuStore.usingPencil = !sudokuStore.usingPencil"
+        class="mx-0.5 size-12 md:size-10 data-[state=on]:bg-orange-400/95" :model-value="sudokuStore.usingPencil">
         <Icon icon="material-symbols:edit-outline-rounded" />
       </Toggle>
     </div>
 
     <Numpad />
+
     <div class="flex items-center justify-center">
       <Checkbox :disabled="gameStore.gameState === 'paused'" id="auto-candidate"
         :model-value="sudokuStore.autoCandidateMode" @update:model-value="handleCheckboxChange" />

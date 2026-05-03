@@ -12,7 +12,7 @@ export class SudokuPuzzle {
     rows: Array<Row>;
     constructor(rows: Array<Row>, options?: SudokuOptions);
     constructor(rows: Array<Row>, options: SudokuOptions, originalPuzzle: Row[])
-    constructor(rows: Array<Row>, options: SudokuOptions = {difficulty: 'medium'}, originalPuzzle?: Row[]) {
+    constructor(rows: Array<Row>, options: SudokuOptions = {difficulty: {rating: 'medium'}}, originalPuzzle?: Row[]) {
         if(!Number.isInteger(Math.sqrt(rows.length))) {
           throw new Error(`Row length of ${rows.length} is invalid for proper sudoku puzzles.`)
         }

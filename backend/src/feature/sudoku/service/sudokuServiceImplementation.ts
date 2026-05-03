@@ -1,7 +1,7 @@
 import { SudokuDataSource } from "../datasource/sudokuDataSource";
 import { PuzzleArray } from "../datasource/models/puzzleArray";
 import { type PuzzleOptions} from "../datasource/models/puzzleOptions";
-import { SudokuPuzzle, CreatePuzzle, UpdatePuzzle } from "../datasource/models/sudokuPuzzle";
+import { SudokuPuzzle, CreatePuzzle, UpdatePuzzle, UserPuzzleDto } from "../datasource/models/sudokuPuzzle";
 import { SudokuService } from "./sudokuService";
 import { BaseService } from "../../../core/service/baseService";
 import { WorkerPoolManager } from "@/core/workers/workerpoolManager";
@@ -24,7 +24,7 @@ export class SudokuServiceImplementation extends BaseService implements SudokuSe
     return SudokuServiceImplementation.instance
   }
 
-  async getNewPuzzle(requestedBy: string, options: PuzzleOptions): Promise<SudokuPuzzle>{
+  async getNewPuzzle(requestedBy: string | undefined, options: PuzzleOptions): Promise<SudokuPuzzle>{
     return await this.callDataSource(async () => {
       try {
         if(options.difficulty == "hard" || options.difficulty === 'impossible') {
@@ -41,7 +41,6 @@ export class SudokuServiceImplementation extends BaseService implements SudokuSe
         }
         return response.puzzle
       } catch (err) {
-        console.log(err)
         if(err instanceof DatabaseError && err.message.includes('No more puzzles')) {
           await this.workerpoolManager.execute('generatePuzzles', [100, options], async (newPuzzles: CreatePuzzle) => {
             const result = await this.createPuzzles([newPuzzles]);
@@ -57,12 +56,6 @@ export class SudokuServiceImplementation extends BaseService implements SudokuSe
       }
     });
   };
-  async getPuzzleById(requestedBy: string, puzzleId: string): Promise<SudokuPuzzle> {
-    return await this.callDataSource(async () => {
-      return await this.sudokuDataSource.getPuzzleById(requestedBy, puzzleId);
-    })
-  }
-
   async getPuzzles(options: PuzzleOptions, page?: number, limit?: number): Promise<PuzzleArray>{
     return await this.callDataSource(async () => {
       return await this.sudokuDataSource.getPuzzles(options, page, limit);
@@ -73,9 +66,32 @@ export class SudokuServiceImplementation extends BaseService implements SudokuSe
       return await this.sudokuDataSource.createPuzzles(puzzles);
     })
   };
-  async updatePuzzle(puzzle: UpdatePuzzle): Promise<number> {
+  async getUserPuzzle(userId: string, puzzleId: string): Promise<UserPuzzleDto> {
+    return await this.callDataSource(async () => {
+      const sqlUserPuzle = await this.sudokuDataSource.getUserPuzzle(userId, puzzleId);
+      return {
+        _id: sqlUserPuzle.puzzle_id,
+        currentCells: sqlUserPuzle.current_cells,
+        currentCandidates: sqlUserPuzle.current_candidates,
+        originalCells: sqlUserPuzle.original_cells,
+        time: sqlUserPuzle.time,
+        isCompleted: sqlUserPuzle.is_completed,
+        actions: sqlUserPuzle.actions,
+        difficulty: {
+          score: sqlUserPuzle.difficulty_score,
+          rating: sqlUserPuzle.difficulty_rating
+        }
+      }
+    })
+  }
+  async updateUserPuzzle(userId: string, puzzle: UpdatePuzzle): Promise<number> {
     return await this.callDataSource(async () => {  
-      return await this.sudokuDataSource.updatePuzzle(puzzle)
+      // don't trust that the puzzle is actually complete, verfiy
+      if(puzzle.isCompleted) {
+        const existingPuzzle = await this.sudokuDataSource.getPuzzleById(puzzle._id)
+        puzzle.isCompleted = existingPuzzle.solved_cells === puzzle.cells
+      }
+      return await this.sudokuDataSource.updateUserPuzzle(userId, puzzle)
     });
   };
   async deletePuzzle(puzzleId: string): Promise<number>{

@@ -1,45 +1,31 @@
-import { SudokuPuzzle } from "@/feature/sudoku/datasource/models/sudokuPuzzle";
-// import mongoose from "mongoose";
-// import { ObjectId, OptionalId } from "mongodb";
+import { UserPuzzleDto } from "@/feature/sudoku/datasource/models/sudokuPuzzle"
 
-// const userSchema = new mongoose.Schema({
-//   auth0_id: {
-//     type: String,
-//     required: true,
-//     unique: true,
-//     index: true
-//   },
-//   email: {
-//     type: String,
-//     required: true,
-//     unique: true,
-//   },
-//   name: {
-//     type: String
-//   },
-//   puzzlesPlayed: [mongoose.Schema.Types.ObjectId],
-//   currentPuzzle: sudokuPuzzleSchema,
-//   createdAt: {
-//     type: Date,
-//     default: Date.now
-//   }
-// })
-
-// export const UserModel = mongoose.model('user', userSchema);
-export interface IUser {
-  _id: string,
-  name?: string,
-  email?: string,
-  image?: string,
-  auth0_id: string; 
-  puzzlesPlayed: string[];
-  currentPuzzle: SudokuPuzzle,
+export interface ISqlUser {
+  user_id: string,
+  display_name?: string,
+  username: string,
+  role: string,
+  password_hash?: string,
+  salt?: string,
+  image_url?: string,
+  current_puzzle_id?: string,
+  created_at: string,
+  updated_at: string,
+  deleted_at?: string | null
 }
-export interface CreateUser extends Omit<IUser, '_id'> {}
-export interface UpdateUser extends Partial<Omit<IUser, '_id'>> {};
 
-// export interface IMongoUser extends Omit<IUser, '_id' | 'puzzlesPlayed'> {
-//   _id: ObjectId,
-//   puzzlesPlayed: ObjectId[]
-// }
-// export interface IUpdateMongoUser extends Partial<IMongoUser> {};
+export interface ICreateUser {
+  displayName?: string,
+  username: string,
+  passwordHash: string,
+  salt: string
+}
+
+export interface IUserDTO {
+  id: string,
+  username: string,
+  role: string,
+  displayName?: string,
+  imageUrl?: string,
+  currentPuzzleId?: string
+}

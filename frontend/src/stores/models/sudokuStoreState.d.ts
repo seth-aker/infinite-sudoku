@@ -10,5 +10,6 @@ export interface SudokuStoreState {
     y: number | undefined
   },
   actions: Action[],
+  redoActions: Action[]
   autoCandidateMode: boolean
 }

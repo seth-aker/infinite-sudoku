@@ -65,7 +65,7 @@ export function generatePuzzles(number: number, options: PuzzleOptions) {
 worker({generatePuzzles})
 
 function processPuzzle(puzzleString: string): CreatePuzzle {
-  const [cellValues, difficultyScoreStr, difficultyRatingNum] = puzzleString.split(":");
+  const [cellValues, solvedCells, difficultyScoreStr, difficultyRatingNum] = puzzleString.split(":");
   const difficultyScore = Number.parseInt(difficultyScoreStr);
   let difficultyRating: DifficultyRating;
   switch (difficultyRatingNum) {
@@ -88,6 +88,7 @@ function processPuzzle(puzzleString: string): CreatePuzzle {
   
   return {
     cells: cellValues,
+    solvedCells,
     difficulty: {
       score: difficultyScore,
       rating: difficultyRating

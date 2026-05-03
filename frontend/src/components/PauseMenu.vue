@@ -9,6 +9,7 @@ import DialogFooter from './ui/dialog/DialogFooter.vue';
 import DialogClose from './ui/dialog/DialogClose.vue';
 import Button from './ui/button/Button.vue';
 import { computed } from 'vue';
+import DialogDescription from './ui/dialog/DialogDescription.vue';
 const gameStore = useGameStore()
 const sudokuStore = useSudokuStore();
 let progressPercent = computed(() => {
@@ -29,6 +30,7 @@ let progressPercent = computed(() => {
     @update:open="(isOpen) => !isOpen ? gameStore.startTimer() : undefined">
     <DialogContent>
       <DialogTitle>Game Paused</DialogTitle>
+      <DialogDescription hidden>Pause Menu</DialogDescription>
       <div class="flex flex-row">
         <Label class="pr-1">Game Time: </Label>
         <div>{{ gameStore.formattedElapsedTime }}</div>

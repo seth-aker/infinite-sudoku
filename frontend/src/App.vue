@@ -1,35 +1,28 @@
 <script setup lang="ts">
 import { RouterView, useRoute } from 'vue-router'
 import NavHeader from './components/NavHeader.vue';
-// import { watch } from 'vue';
-// import { useAuth0 } from '@auth0/auth0-vue';
-// import { useUserStore } from '@/stores/userStore'
+import { onMounted } from 'vue';
+import { useUserStore } from './stores/userStore';
+import { Toaster } from './components/ui/sonner';
+import 'vue-sonner/style.css'
+
 const route = useRoute();
-// const { isAuthenticated, user, getAccessTokenSilently } = useAuth0();
-// const userStore = useUserStore();
+const userStore = useUserStore();
 
-// watch(user, async () => {
-//   if (isAuthenticated.value) {
-//     userStore.userLoading = true;
-//     console.log("isAuthenticated run")
-//     userStore.$patch({
-//       name: user.value?.name,
-//       email: user.value?.email,
-//       image: user.value?.picture
-//     })
-//     if (userStore.id === undefined) {
-//       const token = await getAccessTokenSilently()
-//       await userStore.getUser(token)
-//     }
-//   }
-//   userStore.userLoading = false;
-// })
-
+onMounted(() => {
+  document.documentElement.style.touchAction = 'manipulation';
+  userStore.getSelf()
+})
 </script>
 
 <template>
-  <div class="max-w-screen flex flex-col min-h-screen">
+  <div class="max-w-screen flex flex-col h-full">
     <NavHeader />
     <RouterView :key="route.fullPath" />
+    <Toaster position="top-center" :toast-options="{
+      style: {
+        boxShadow: '0 0 10px var(--color-orange-400)'
+      }
+    }" />
   </div>
 </template>

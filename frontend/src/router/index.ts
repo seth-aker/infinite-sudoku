@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
-
+export const PUZZLE_DIFFICULTY_ROUTES = ['beginner', 'easy', 'medium']
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
@@ -12,24 +12,17 @@ const router = createRouter({
     {
       path: '/about',
       name: 'about',
-      // route level code-splitting
-      // this generates a separate chunk (About.[hash].js) for this route
-      // which is lazy-loaded when the route is visited.
       component: () => import('../views/AboutView.vue'),
     },
     {
-      path: '/sudoku/beginner',
-      name: 'beginner',
-      component: () => import('../views/sudoku/Standard.vue')
-    },
-    {
-      path: '/sudoku/easy',
-      name: 'easy',
-      component: () => import('../views/sudoku/Standard.vue')
-    },
-    {
-      path: '/sudoku/medium',
-      name: 'medium',
+      path: '/sudoku/:difficulty',
+      name: 'sudoku',
+      props: true,
+      beforeEnter: (to, _from) => {
+        if(typeof to.params.difficulty !== 'string' || !PUZZLE_DIFFICULTY_ROUTES.includes(to.params.difficulty)) {
+          return false
+        }
+      },
       component: () => import('../views/sudoku/Standard.vue')
     },
     // {

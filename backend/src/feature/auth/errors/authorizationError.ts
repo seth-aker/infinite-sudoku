@@ -5,5 +5,5 @@ export class AuthorizationError extends CustomError {
         super()
         this.message = `[Authorization Error] ${message}`
     }
-    statusCode: number = 401;
+    statusCode: number = 403;
 }

@@ -4,10 +4,7 @@ import { Button } from './ui/button';
 import { useGameStore } from '@/stores/gameStore';
 const sudokuStore = useSudokuStore();
 const gameStore = useGameStore()
-const inputs = [] as number[];
-for (let i = sudokuStore.puzzle.cellsPerRow; i > 0; i--) {
-  inputs.push(i);
-}
+const inputs = [1, 2, 3, 4, 5, 6, 7, 8, 9] as number[];
 const onNumberPress = (value: number) => {
   const { x, y } = sudokuStore.selectedCell
   const cell = sudokuStore.getCell(x, y);
