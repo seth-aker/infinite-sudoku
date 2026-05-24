@@ -2,8 +2,6 @@
 import SudokuControls from '@/components/SudokuControls.vue';
 import ControlInstructions from '@/components/ControlInstructions.vue';
 import SudokuPuzzle from '@/components/SudokuPuzzle.vue';
-import { useSudokuStore } from '@/stores/sudokuStore'
-import { useGameStore } from '@/stores/gameStore'
 import { Dialog } from '@/components/ui/dialog';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import DialogContent from '@/components/ui/dialog/DialogContent.vue';
@@ -14,8 +12,6 @@ import DialogFooter from '@/components/ui/dialog/DialogFooter.vue';
 import Button from '@/components/ui/button/Button.vue';
 import DialogClose from '@/components/ui/dialog/DialogClose.vue';
 import { Icon } from '@iconify/vue';
-import type { Difficulty } from '@/stores/models/difficulty';
-import { useUserStore } from '@/stores/userStore';
 import LoadingOverlay from '@/components/LoadingOverlay.vue';
 import ErrorDialog from '@/components/ErrorDialog.vue';
 import PauseMenu from '@/components/PauseMenu.vue';
@@ -23,13 +19,32 @@ import { watchDebounced } from '@vueuse/core';
 import { onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router';
 import { PUZZLE_DIFFICULTY_ROUTES } from '@/router';
 import { toast } from 'vue-sonner';
+import { useGameStore, type DifficultyRating } from '@/stores/gameStore';
+import { useUserStore } from '@/stores/userStore';
+import { useGameSession } from '@/composables/useGameSession';
+import { useGameClock } from '@/composables/useGameClock';
+import { useSudokuGame } from '@/composables/useSudokuGame';
+import { useDialog } from '@/composables/useDialog';
 
-const { difficulty } = defineProps<{ difficulty: Difficulty['rating'] }>()
-const sudokuStore = useSudokuStore();
+const { difficulty } = defineProps<{ difficulty: DifficultyRating }>()
+const userStore = useUserStore()
 const gameStore = useGameStore()
-const userStore = useUserStore();
+const { resetBoard } = useSudokuGame()
+const { showDialog } = useDialog()
+const clock = useGameClock()
+const { saveToServer, startNewPuzzle, loadLocal, saveLocal } = useGameSession()
 const error = ref<string | null>(null)
 const dialogOpen = ref(false);
+
+onMounted(async () => {
+  gameStore.loading = true;
+  loadLocal()
+  if (!gameStore.puzzleId || gameStore.difficultyRating !== difficulty) {
+    await startNewPuzzle(difficulty)
+  }
+  clock.start()
+  gameStore.loading = false
+})
 
 onBeforeRouteUpdate((to, _from) => {
   if (typeof to.params.difficulty !== 'string' || !PUZZLE_DIFFICULTY_ROUTES.includes(to.params.difficulty)) {
@@ -39,8 +54,9 @@ onBeforeRouteUpdate((to, _from) => {
 })
 
 onBeforeRouteLeave(async () => {
-  if (userStore.isAuthenticated && sudokuStore.puzzleId) {
-    toast.promise(sudokuStore.saveGameState(), {
+  saveLocal()
+  if (userStore.isAuthenticated && gameStore.puzzleId) {
+    toast.promise(saveToServer(), {
       success: 'Game Saved!',
       loading: 'Saving game state...',
       error: 'Oops! An error occured saving!'
@@ -49,64 +65,64 @@ onBeforeRouteLeave(async () => {
 })
 
 const loading = computed(() => {
-  return userStore.userLoading || sudokuStore.loading
-})
-const requestNewPuzzle = async (newDifficulty: Difficulty['rating']) => {
-  await sudokuStore.getNewPuzzle({ difficulty: { rating: newDifficulty } });
-}
-
-onMounted(async () => {
-  sudokuStore.$reset()
-  if (!sudokuStore.retrieveLocalState() || sudokuStore.puzzle.options.difficulty.rating !== difficulty) {
-    try {
-      await requestNewPuzzle(difficulty)
-    } catch (err) {
-      if (typeof err === 'string') {
-        error.value = err
-      } else if (typeof err === 'object' && err instanceof Error) {
-        error.value = err.message
-      }
-    }
-  } else {
-    // If sudokuStore.retrieveLocalState returns true, start game timer where it left off.
-    gameStore.loadElapsedSecondsLocal()
-    gameStore.startTimer()
-  }
+  return userStore.loading || gameStore.loading
 })
 
-watchDebounced(() => sudokuStore.actions.length, () => {
-  sudokuStore.saveGameState()
+
+
+watchDebounced(() => gameStore.history.length, () => {
+  saveToServer()
 }, { debounce: 5000, maxWait: 10000 })
 
 onUnmounted(() => {
-  gameStore.pauseGame();
-  gameStore.gameState = 'not-started'
-  gameStore.elapsedSeconds = 0;
+  clock.pause()
+  saveLocal()
 })
 
-watch(() => sudokuStore.isPuzzleSolved, () => {
-  if (sudokuStore.isPuzzleSolved) {
+watch(() => gameStore.isSolved, () => {
+  if (gameStore.isSolved) {
     handlePuzzleSolved()
   }
 })
 const handlePuzzleSolved = async () => {
-  gameStore.pauseGame();
+  clock.halt()
   dialogOpen.value = true;
-  gameStore.gameState = 'solved';
-  sudokuStore.saveGameState()
+  gameStore.state = 'solved';
+  saveLocal()
+  saveToServer()
 }
 const toggleTimer = () => {
-  if (!gameStore.timerActive) {
-    gameStore.startTimer();
+  if (!clock.isRunning) {
+    clock.start()
   } else {
-    gameStore.pauseGame()
+    clock.pause()
   }
 }
 
 const handleReset = () => {
-  if (confirm('This action cannot be undone, are you sure you want to continue?')) {
-    sudokuStore.resetPuzzle();
-  }
+  clock.pause()
+  showDialog({
+    title: "Reset Board",
+    message: 'This action cannot be undone, are you sure you want to continue?',
+    buttons: [
+      {
+        text: 'Cancel',
+        onClick: () => {
+          clock.start()
+        },
+        closeOnClick: true
+      },
+      {
+        text: "Reset",
+        onClick: () => {
+          resetBoard();
+          clock.start();
+        },
+        variant: 'destructive',
+        closeOnClick: true
+      }
+    ]
+  })
 }
 </script>
 
@@ -114,10 +130,10 @@ const handleReset = () => {
   <div class="flex flex-col h-full items-center justify-center">
     <div class="w-full flex items-center justify-center bg-gray-50 dark:bg-accent">
       {{ difficulty.charAt(0).toUpperCase() + difficulty.substring(1) }}
-      {{ gameStore.formattedElapsedTime }}
+      {{ gameStore.formattedTime }}
       <div class="flex items-center my-2">
         <Button class="mx-2" @click="toggleTimer" variant="ghost">
-          <Icon v-if="gameStore.timerActive" icon="material-symbols:pause-rounded" />
+          <Icon v-if="clock.isRunning" icon="material-symbols:pause-rounded" />
           <Icon v-else icon="material-symbols:play-arrow-rounded" />
         </Button>
         <ControlInstructions />
@@ -126,8 +142,7 @@ const handleReset = () => {
     </div>
 
     <div class="flex pt-4 flex-col justify-end h-full md:flex-row">
-      <SudokuPuzzle v-if="sudokuStore.puzzle" :puzzle="sudokuStore.puzzle"
-        v-model:selected-cell="sudokuStore.selectedCell" />
+      <SudokuPuzzle v-if="gameStore.puzzleId" />
       <SudokuControls />
     </div>
     <Dialog :open="dialogOpen" @update:open="(event) => dialogOpen = event">
@@ -140,14 +155,14 @@ const handleReset = () => {
             You did it!
           </DialogDescription>
         </DialogHeader>
-        Time: {{ gameStore.formattedElapsedTime }}
+        Time: {{ gameStore.formattedTime }}
         <DialogFooter class="gap-1">
           <DialogClose as-child>
             <Button variant="secondary" @click="dialogOpen = false">
               Close
             </Button>
           </DialogClose>
-          <Button @click="() => { requestNewPuzzle(difficulty); dialogOpen = false }">
+          <Button @click="() => { startNewPuzzle(difficulty); dialogOpen = false }">
             New Puzzle
           </Button>
         </DialogFooter>

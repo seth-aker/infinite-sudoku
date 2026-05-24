@@ -2,7 +2,7 @@ import { Sql } from "postgres";
 import { UserDataSource } from "./userDataSource";
 import { ICreateUser, ISqlUser } from "./models/user";
 import { DatabaseError } from "@/core/errors/databaseError";
-import { SqlUserPuzzle } from "@/feature/sudoku/datasource/models/sudokuPuzzle";
+import { IDifficultyStats, IUserStats } from "./models/userStats";
 
 export class PgUserDataSource implements UserDataSource {
   static instance: PgUserDataSource | null = null;
@@ -55,6 +55,30 @@ export class PgUserDataSource implements UserDataSource {
       throw new DatabaseError("User not found")
     }
     return user;
+  }
+  async getUserStats(userId: string): Promise<IUserStats> {
+    const res = await this.client`
+      SELECT 
+        p.difficulty_rating AS rating,
+        AVG(p.difficulty_score) AS avg_score,
+        COUNT(up.puzzle_id) as total_started,
+        COUNT(up.completed_at) AS completed,
+        AVG(up.time) AS avg_time_sec,
+        SUM(up.time) AS total_time_sec
+      FROM user_puzzles AS up
+      LEFT JOIN puzzles AS p ON p.puzzle_id = up.puzzle_id
+      WHERE up.user_id = ${userId}
+      GROUP BY p.difficulty_rating
+    `
+    const userStats: IDifficultyStats[] = res.map(eachRow => ({
+      rating: eachRow.rating,
+      avgScore: eachRow.avg_score,
+      totalStarted: eachRow.total_started,
+      completed: eachRow.completed,
+      avgTimeSec: eachRow.avg_time_sec,
+      totalTimeSec: eachRow.total_time_sec
+    }))
+    return userStats
   }
   async deleteUser(userId: string): Promise<number> {
     const res = await this.client`

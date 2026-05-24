@@ -1,83 +1,38 @@
 <script setup lang="ts">
-import Cell from './Cell.vue';
-import { SudokuPuzzle } from '@/stores/models/puzzle';
-import { cellHasError } from '@/utils/cellHasError';
-const { puzzle } = defineProps<{
-  puzzle: SudokuPuzzle,
-}>();
+import { useSudokuGame } from '@/composables/useSudokuGame';
+import { type Cell as ICell } from '@/stores/gameStore';
+import { computed } from 'vue';
+import Cell from './Cell.vue'
+const { selectCell, getRow } = useSudokuGame()
 
-const selectedCell = defineModel<{
-  x: number | undefined, y: number | undefined
-}>('selectedCell', {
-  default: {
-    x: undefined,
-    y: undefined,
-  }, required: true
-})
+const BLOCK_LEN = 3;
+const GAP_PX = 3;
+const CELL_SIDE = 40;
+const PUZZLE_SIZE = (CELL_SIDE * 9) + ((BLOCK_LEN - 1) * GAP_PX)
 
-const blockLength = Math.sqrt(puzzle?.cellsPerRow ?? 0)
-const blockGapPx = 3;
-const cellHeightWidth = 40;
-const puzzleHeightWidth = (cellHeightWidth * puzzle?.cellsPerRow!) + ((blockLength - 1) * blockGapPx)
-
-const generateBlockSpacingOffset = (columnIndex: number) => {
-  const offset = (cellHeightWidth * columnIndex) + (Math.floor(columnIndex / blockLength) * blockGapPx);
+const getBlockSpacing = (idx: number) => {
+  const offset = (CELL_SIDE * idx) + (Math.floor(idx / BLOCK_LEN) * GAP_PX);
   return `${offset}px`
 }
-const isCellSelected = (columnIndex: number, rowIndex: number) => {
-  if (selectedCell.value?.x === undefined || selectedCell.value?.y === undefined) {
-    return false;
-  } else {
-    return selectedCell.value?.x === columnIndex && selectedCell.value?.y === rowIndex
+const rows = computed(() => {
+  const arr: ICell[][] = []
+  for (let i = 0; i < 9; i++) {
+    arr.push(getRow(i))
   }
-}
-const isCellHighlighted = (columnIndex: number, rowIndex: number) => {
-  if (selectedCell.value?.x === undefined || selectedCell.value?.y === undefined) {
-    return false;
-  } else {
-    return isCellInRow(rowIndex, selectedCell.value.y) || isCellInColumn(columnIndex, selectedCell.value.x) || isCellInBlock(columnIndex, rowIndex)
-  }
-}
-const isCellInRow = (rowIndex: number, cellY: number | undefined) => {
-  if (cellY === undefined) {
-    return false;
-  } else {
-    return cellY === rowIndex
-  }
-}
-const isCellInColumn = (columnIndex: number, cellX: number | undefined) => {
-  if (cellX === undefined) {
-    return false;
-  } else {
-    return cellX === columnIndex
-  }
-}
-const isCellInBlock = (columnIndex: number, rowIndex: number) => {
-  if (selectedCell.value?.x === undefined || selectedCell.value?.y === undefined) {
-    return false;
-  } else {
-    const blockX = Math.floor(selectedCell.value?.x / blockLength)
-    const blockY = Math.floor(selectedCell.value?.y / blockLength)
-    const cellBlockX = Math.floor(columnIndex / blockLength)
-    const cellBlockY = Math.floor(rowIndex / blockLength)
-    return blockX === cellBlockX && blockY === cellBlockY
-  }
-}
+  return arr;
+})
 </script>
 
 <template>
   <div class="relative bg-black flex items-center justify-center mb-4"
-    :style="{ height: `${puzzleHeightWidth + blockGapPx * 2}px`, width: `${puzzleHeightWidth + blockGapPx * 2}px` }">
-    <div class="relative bg-gray-500 dark:bg-background" :style="{ height: `${puzzleHeightWidth}px`, width: `${puzzleHeightWidth}px` }">
-      <div v-for="(row, rowIndex) in puzzle?.rows" :key="`row${rowIndex}`" class="absolute w-full"
-        :style="{ top: generateBlockSpacingOffset(rowIndex), height: `${cellHeightWidth}px` }">
+    :style="{ height: `${PUZZLE_SIZE + GAP_PX * 2}px`, width: `${PUZZLE_SIZE + GAP_PX * 2}px` }">
+    <div class="relative bg-gray-500 dark:bg-background"
+      :style="{ height: `${PUZZLE_SIZE}px`, width: `${PUZZLE_SIZE}px` }">
+      <div v-for="(row, rowIndex) in rows" :key="`row${rowIndex}`" class="absolute w-full"
+        :style="{ top: getBlockSpacing(rowIndex), height: `${CELL_SIDE}px` }">
         <div class="relative h-full w-full">
-          <Cell v-for="(cell, columnIndex) in row" :key="`cell${columnIndex}`"
-            @click="() => { selectedCell.x = columnIndex; selectedCell.y = rowIndex }"
-            :style="{ left: generateBlockSpacingOffset(columnIndex) }" class="absolute" :cell="cell"
-            :width="cellHeightWidth" :highlighted="isCellHighlighted(columnIndex, rowIndex)"
-            :selected="isCellSelected(columnIndex, rowIndex)"
-            :has-error="cellHasError(puzzle, columnIndex, rowIndex)" />
+          <Cell v-for="(cell, columnIndex) in row" :key="`cell${columnIndex}`" @click="() => { selectCell(cell.idx) }"
+            :style="{ left: getBlockSpacing(columnIndex) }" class="absolute" :cell="cell" :width="CELL_SIDE" />
         </div>
       </div>
     </div>

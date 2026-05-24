@@ -1,6 +1,5 @@
 import session from 'express-session'
 import { authConfig } from '../config'
-import { config } from '@/core/config'
 import { Request } from 'express'
 import { PgSessionStore } from '../datasource/pgSessionStore'
 import sql from '@/core/dataSource/postgres'
@@ -13,13 +12,13 @@ export const sessionHandler = () => {
     saveUninitialized: false,
     cookie: function (req: Request) {
       return {
-        maxAge: 1000 * 60 * 60 * 24, // 24 hours
+        maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
         // domain: config.audience,
         secure: req.secure || process.env.NODE_ENV === 'production',
-        sameSite: process.env.NODE_ENV === 'production' ? true : false
+        sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax'
       }
       
     },
-    name: 'sudoku',
+    name: authConfig.cookieName,
   })
 }

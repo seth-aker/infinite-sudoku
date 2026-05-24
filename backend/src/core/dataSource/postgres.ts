@@ -5,7 +5,6 @@ const sql = postgres(config.dbConnectionString)
 
 prexit(async () => {
   await sql.end({timeout: 5})
-  
 })
 
 export default sql

@@ -76,7 +76,7 @@ export class PgSudokuDataSource implements SudokuDataSource {
           totalCount: res.total_count
         },
         puzzle: {
-          _id: res.puzzle_id,
+          puzzleId: res.puzzle_id,
           cells: res.cells,
           difficulty: {
             score: res.difficulty_score,
@@ -147,7 +147,7 @@ export class PgSudokuDataSource implements SudokuDataSource {
           time = ${puzzle.time},
           actions = ${puzzle.actions}
           ${puzzle.isCompleted ? this.client`, completed_at = CURRENT_TIMESTAMP `: this.client``}
-        WHERE user_id = ${userId} AND puzzle_id = ${puzzle._id}
+        WHERE user_id = ${userId} AND puzzle_id = ${puzzle.puzzleId}
       `
       if(updateUpRes.count !== 1) {
         const insertRes = await sql`
@@ -163,7 +163,7 @@ export class PgSudokuDataSource implements SudokuDataSource {
           )
           VALUES (
             ${userId},
-            ${puzzle._id},
+            ${puzzle.puzzleId},
             ${puzzle.cells},
             ${puzzle.candidates},
             ${puzzle.isCompleted},
@@ -184,7 +184,7 @@ export class PgSudokuDataSource implements SudokuDataSource {
       }
       const userRes = await sql`
         UPDATE users 
-        SET current_puzzle_id = ${puzzle._id}
+        SET current_puzzle_id = ${puzzle.puzzleId}
         WHERE user_id = ${userId}
       `
       if(userRes.count !== 1) {

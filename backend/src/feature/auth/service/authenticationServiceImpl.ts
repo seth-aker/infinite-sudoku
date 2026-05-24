@@ -8,7 +8,6 @@ import z from "zod";
 import { DatabaseError } from "@/core/errors/databaseError";
 import { CustomError } from "@/core/errors/customError";
 import { Sql } from "postgres";
-import { SqlUserPuzzle } from "@/feature/sudoku/datasource/models/sudokuPuzzle";
 
 declare global {
     namespace Express {
@@ -19,6 +18,11 @@ declare global {
         }
     }
 }
+const SCRYPT_KEYLEN = 64
+const SALT_LEN = 16
+
+const DUMMY_SALT = randomBytes(SALT_LEN)
+const DUMMY_HASHED = scryptSync('not-a-real-password', DUMMY_SALT, SCRYPT_KEYLEN)
 
 export class AuthenticationServiceImpl implements AuthenticationService {
   static instance: AuthenticationServiceImpl | null = null;
@@ -37,11 +41,12 @@ export class AuthenticationServiceImpl implements AuthenticationService {
   async verify(username: string, password: string): Promise<IVerifyResponse> {
     try {
       const [res] = await this.client<ISqlUser[]>`SELECT * FROM users WHERE username = ${username}`
-      if(!res || !res.password_hash || !res.salt) {
-        return {err: new AuthenticationError("Incorrect Username or Password")}
-      }
-      const hashedPassword = scryptSync(password.normalize(), Buffer.from(res.salt, 'hex'), 64)
-      if(!timingSafeEqual(Buffer.from(res.password_hash, 'hex'), hashedPassword)) {
+
+      const salt = res.salt ? Buffer.from(res.salt, 'hex') : DUMMY_SALT
+      const storedPassword = res.password_hash ? Buffer.from(res.password_hash, 'hex'): DUMMY_HASHED
+      const hashedPassword = scryptSync(password.normalize(), salt, SCRYPT_KEYLEN)
+      const matches = timingSafeEqual(storedPassword, hashedPassword)
+      if(!res || !res.salt || !res.password_hash || !matches) {
         return {err: new AuthenticationError("Incorrect Username or Password")}
       }
       

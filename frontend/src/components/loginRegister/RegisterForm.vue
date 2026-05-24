@@ -18,9 +18,10 @@ import Button from '../ui/button/Button.vue'
 import { passwordSchema, usernameSchema } from '@/validation/registerValidation'
 import FieldError from '../ui/field/FieldError.vue'
 import { toast } from 'vue-sonner'
+import { useAuth } from '@/composables/useAuth'
 const popoverOpen = defineModel<boolean>('popover-open', { required: true })
 const userStore = useUserStore()
-
+const { register } = useAuth()
 const name = ref<string>('')
 const username = ref<string>('');
 const usernameErrorMessage = ref<string | undefined>(undefined);
@@ -38,7 +39,7 @@ watchDebounced(username,
       usernameErrorMessage.value = undefined
     }
   },
-  { debounce: 1000 }
+  { debounce: 500 }
 )
 watchDebounced(password,
   (value) => {
@@ -49,7 +50,7 @@ watchDebounced(password,
       passwordErrorMessage.value = undefined
     }
   },
-  { debounce: 1000 }
+  { debounce: 500 }
 )
 
 watchDebounced(confirmPassword,
@@ -73,20 +74,15 @@ const handleRegister = async (event: SubmitEvent) => {
   }
   toast.promise(
     Promise.all([
-      userStore.register(username.value, password.value, name.value),
+      register(username.value, password.value, name.value),
       new Promise((resolve) => setTimeout(resolve, 500))
     ])
   ),
   {
     loading: 'Loading...',
     success: () => {
-      if (userStore.error) {
-        return 'Oops! An error occured during registration. Please try again.'
-      }
       popoverOpen.value = false
-      return `Welcome ${!name.value ? username.value : name.value}! Time to play!`
-    },
-    error: 'Oops! An error occured during registration. Please try again.'
+    }
   }
 }
 
@@ -146,7 +142,7 @@ const { pressed: showConfirmPassword } = useMousePressed({ target: showConfirmPa
         </FieldGroup>
       </FieldSet>
       <Field orientation="horizontal" class="justify-end">
-        <Button type="submit" v-if="!userStore.userLoading"
+        <Button type="submit" v-if="!userStore.loading"
           :disabled="usernameErrorMessage || passwordErrorMessage || confirmPasswordErrorMessage"
           class="w-30 bg-orange-400 hover:bg-orange-400/60">Create
           Account</Button>

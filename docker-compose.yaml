@@ -1,44 +1,106 @@
 services: 
   postgres-db: 
-    image: postgres
+    image: postgres:18-alpine
     restart: unless-stopped
     container_name: sudoku_postgres
     environment: 
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME}
-    ports:
-      - "5432:5432"
+    security_opt: 
+      - no-new-privileges:true
+    cap_drop: 
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_READ_SEARCH
+      - FOWNER
+      - SETGID
+      - SETUID
     volumes:
       - postgres_data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
-      interval: 5s
+      interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 5s
+    networks: 
+      - backend_net
     
   backend-api:
+    container_name: sudoku_backend
     build:
-      context: ./backend
+      context: .
+      additional_contexts: 
+        generator_src: https://github.com/seth-aker/cdoku.git
+      target: backend
       dockerfile: Dockerfile
+      args:
+      - DEPLOY_MODE=${DEPLOY_MODE}
     ports:
       - "3666:3666"
+    cap_drop: 
+      - ALL
+    security_opt: 
+      - no-new-privileges:true
+    read_only: true
+    user: node:node
+    volumes: 
+      - type: volume
+        source: generator_logs
+        target: ${LOG_DIR}
+        read_only: false
+    tmpfs:
+      - /tmp:size=64m
     depends_on: 
       postgres-db:
         condition: service_healthy
     restart: unless-stopped
-    container_name: sudoku_backend
+    env_file:
+      - ./backend/.env.production
+    networks:
+      - frontend_net
+      - backend_net
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0' 
+          memory: 2G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3666/api/_health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
 
   frontend-spa:
+    container_name: sudoku_frontend
     build: 
-      context: ./frontend
+      context: .
+      target: frontend
       dockerfile: Dockerfile
+      args:
+        - DEPLOY_MODE=${DEPLOY_MODE}
     ports:
-      - "8081:80"
+      - "8081:8080"
+    cap_drop: 
+      - ALL
+    security_opt: 
+      - no-new-privileges:true
     restart: unless-stopped
     depends_on:
-      - backend-api
-    container_name: sudoku_frontend
+      backend-api:
+        condition: service_healthy
+    networks:
+      - frontend_net
+
+networks:
+  frontend_net:
+    driver: bridge
+  backend_net:
+    driver: bridge
 
 volumes: 
   postgres_data:
+  generator_logs:

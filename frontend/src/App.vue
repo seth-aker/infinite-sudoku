@@ -2,14 +2,16 @@
 import { RouterView, useRoute } from 'vue-router'
 import NavHeader from './components/NavHeader.vue';
 import { onMounted } from 'vue';
-import { useUserStore } from './stores/userStore';
 import { Toaster } from './components/ui/sonner';
 import 'vue-sonner/style.css'
+import AppDialog from './components/AppDialog.vue';
+import { useAuth } from './composables/useAuth';
 
 const route = useRoute();
-const userStore = useUserStore();
-userStore.getSelf()
+const { getSession } = useAuth()
+
 onMounted(() => {
+  getSession()
   document.documentElement.style.touchAction = 'manipulation';
 })
 </script>
@@ -23,5 +25,6 @@ onMounted(() => {
         boxShadow: '0 0 10px var(--color-orange-400)'
       }
     }" />
+    <AppDialog />
   </div>
 </template>

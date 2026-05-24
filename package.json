@@ -6,10 +6,11 @@
   "scripts": {
     "dev": "bash start.sh DEV",
     "build": "bash start.sh PROD",
+    "build:test": "bash start.sh TEST",
     "install": "bash install.sh"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "packageManager": "pnpm@10.33.0"
+  "packageManager": "pnpm@11.2.2"
 }

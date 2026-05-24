@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import Button from '@/components/ui/button/Button.vue';
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import Popover from '../ui/popover/Popover.vue';
 import PopoverTrigger from '../ui/popover/PopoverTrigger.vue';
 import PopoverContent from '../ui/popover/PopoverContent.vue';
@@ -10,9 +10,15 @@ import TabsTrigger from '../ui/tabs/TabsTrigger.vue';
 import TabsContent from '../ui/tabs/TabsContent.vue';
 import LoginForm from './LoginForm.vue';
 import RegisterForm from './RegisterForm.vue';
+import { useGameStore } from '@/stores/gameStore';
 
 const popoverOpen = ref<boolean>(false);
-
+const store = useGameStore()
+watch(popoverOpen, () => {
+  if (popoverOpen) {
+    store.selectedIdx = undefined
+  }
+})
 </script>
 
 <template>

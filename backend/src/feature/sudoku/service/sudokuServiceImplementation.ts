@@ -37,7 +37,7 @@ export class SudokuServiceImplementation extends BaseService implements SudokuSe
             if(result !== 1) {
               console.log("A puzzle failed to be created in the database")
             }
-          })
+          }).catch((err) => console.error("Background puzzle generation failed:", err.message))
         }
         return response.puzzle
       } catch (err) {
@@ -51,7 +51,7 @@ export class SudokuServiceImplementation extends BaseService implements SudokuSe
           const response = await this.sudokuDataSource.getNewPuzzle(requestedBy, options);
           return response.puzzle;
         } else {
-          throw err;
+          throw err
         }
       }
     });
@@ -70,7 +70,7 @@ export class SudokuServiceImplementation extends BaseService implements SudokuSe
     return await this.callDataSource(async () => {
       const sqlUserPuzle = await this.sudokuDataSource.getUserPuzzle(userId, puzzleId);
       return {
-        _id: sqlUserPuzle.puzzle_id,
+        puzzleId: sqlUserPuzle.puzzle_id,
         currentCells: sqlUserPuzle.current_cells,
         currentCandidates: sqlUserPuzle.current_candidates,
         originalCells: sqlUserPuzle.original_cells,
@@ -88,7 +88,7 @@ export class SudokuServiceImplementation extends BaseService implements SudokuSe
     return await this.callDataSource(async () => {  
       // don't trust that the puzzle is actually complete, verfiy
       if(puzzle.isCompleted) {
-        const existingPuzzle = await this.sudokuDataSource.getPuzzleById(puzzle._id)
+        const existingPuzzle = await this.sudokuDataSource.getPuzzleById(puzzle.puzzleId)
         puzzle.isCompleted = existingPuzzle.solved_cells === puzzle.cells
       }
       return await this.sudokuDataSource.updateUserPuzzle(userId, puzzle)

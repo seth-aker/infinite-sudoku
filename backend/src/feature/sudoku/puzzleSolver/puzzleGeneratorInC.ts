@@ -46,7 +46,7 @@ export function generatePuzzles(number: number, options: PuzzleOptions) {
         }
       }  
     })
-    generator.on('close', (code) => {
+    generator.on('close', (code, signal) => {
       if(buffer.trim().length > 0) {
         const puzzle = processPuzzle(buffer);
         workerEmit(puzzle);
@@ -54,7 +54,7 @@ export function generatePuzzles(number: number, options: PuzzleOptions) {
       if(code === 0) {
         resolve();
       } else {
-        reject(new PuzzleGeneratorError(`Generator exited with code ${code}`))
+        reject(new PuzzleGeneratorError(`Generator exited with code ${code}. Node signal: ${signal ?? "NULL"}`))
       }
     })
     generator.on('error', (err) => {

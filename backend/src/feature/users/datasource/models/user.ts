@@ -1,4 +1,3 @@
-import { UserPuzzleDto } from "@/feature/sudoku/datasource/models/sudokuPuzzle"
 
 export interface ISqlUser {
   user_id: string,

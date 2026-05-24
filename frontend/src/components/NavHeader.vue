@@ -7,9 +7,6 @@ import NavigationMenuItem from './ui/navigation-menu/NavigationMenuItem.vue';
 import NavigationMenuTrigger from './ui/navigation-menu/NavigationMenuTrigger.vue';
 import NavigationMenuLink from './ui/navigation-menu/NavigationMenuLink.vue';
 import NavigationMenuContent from './ui/navigation-menu/NavigationMenuContent.vue';
-import { useSudokuStore } from '@/stores/sudokuStore';
-import type { Difficulty } from '@/stores/models/difficulty';
-import { useGameStore } from '@/stores/gameStore';
 import { Icon } from '@iconify/vue';
 import { ref } from 'vue';
 import Popover from './ui/popover/Popover.vue';
@@ -24,27 +21,26 @@ import Toggle from './ui/toggle/Toggle.vue';
 import { useColorMode } from '@vueuse/core';
 import Label from './ui/label/Label.vue';
 import Switch from './ui/switch/Switch.vue';
-import { useUserStore } from '@/stores/userStore';
 import LoginPopover from './loginRegister/LoginPopover.vue';
 import LoginDrawer from './loginRegister/LoginDrawer.vue';
 import { PUZZLE_DIFFICULTY_ROUTES } from '@/router';
+import { useUserStore } from '@/stores/userStore';
+import { useAuth } from '@/composables/useAuth';
+import { type DifficultyRating } from '@/stores/gameStore';
+import { useGameSession } from '@/composables/useGameSession';
 const router = useRouter()
 const route = useRoute()
-const sudokuStore = useSudokuStore();
-const userStore = useUserStore();
-const gameStore = useGameStore();
+const userStore = useUserStore()
+const { startNewPuzzle } = useGameSession()
+const { logout } = useAuth()
 const colormode = useColorMode()
 
 
 const menuPressed = ref(false)
 
-const gotoPuzzle = async (difficulty: Difficulty['rating']) => {
-  sudokuStore.$reset();
-  sudokuStore.deleteGameStateLocal()
-  gameStore.elapsedSeconds = 0;
-  gameStore.clearElapsedSecondsLocal()
+const gotoPuzzle = async (difficulty: DifficultyRating) => {
   if (route.params.difficulty && PUZZLE_DIFFICULTY_ROUTES.includes(route.params.difficulty as string)) {
-    await sudokuStore.getNewPuzzle({ difficulty: { rating: difficulty } })
+    await startNewPuzzle(difficulty)
   }
   router.push({ name: 'sudoku', params: { difficulty } })
 }
@@ -95,7 +91,7 @@ const gotoPuzzle = async (difficulty: Difficulty['rating']) => {
           <NavigationMenuItem>
             <NavigationMenuLink as-child>
               <LoginPopover v-if="!userStore.isAuthenticated" />
-              <Button v-else @click="userStore.logout()" variant="link" class="mr-2 ml-0">Logout</Button>
+              <Button v-else @click="logout()" variant="link" class="mr-2 ml-0">Logout</Button>
             </NavigationMenuLink>
           </NavigationMenuItem>
         </NavigationMenuList>
@@ -152,7 +148,7 @@ const gotoPuzzle = async (difficulty: Difficulty['rating']) => {
           </AccordionItem>
         </Accordion>
         <LoginDrawer v-if="!userStore.isAuthenticated" />
-        <Button v-else variant="link" @click="userStore.logout()">Logout</Button>
+        <Button v-else variant="link" @click="logout()">Logout</Button>
         <div class="flex py-2">
           <Label class="pr-2 font-medium">Dark Mode: </Label>
           <Switch :model-value="colormode === 'dark'"

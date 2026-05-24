@@ -1,77 +1,106 @@
+import { createBlankCells, isPuzzleSolved } from "@/utils/puzzleUtils";
 import { defineStore } from "pinia";
-import type { Difficulty } from "./models/difficulty";
-import type { GameState } from "./models/gameState";
 import { computed, ref } from "vue";
-import { useIntervalFn } from "@vueuse/core";
-import { useSudokuStore } from "./sudokuStore";
 
-const ONE_MINUTE_SECONDS = 60;
-const ONE_HOUR_SECONDS = 60 * ONE_MINUTE_SECONDS;
+export interface Cell {
+  idx: number;
+  value: number,
+  candidates: number[]
+}
+export type DifficultyRating = 'beginner' | 'easy' | 'medium' | 'hard' | 'impossible'
+
+export interface Action {
+  cell: Cell,
+  isParent: boolean
+}
+export type GameStatus = 'idle' | 'playing' | 'paused' | 'solved'
+
+const HOUR = 60 * 60;
+const MINUTE = 60;
+
 export const useGameStore = defineStore('gameStore', () => {
-    const sudokuStore = useSudokuStore();
-    const difficulty = ref<Difficulty | undefined>(undefined);
-    const elapsedSeconds = ref(0)
-    const gameState = ref<GameState>('not-started');
-    const { pause, resume, isActive } = useIntervalFn(() => {
-        elapsedSeconds.value++
-        if(elapsedSeconds.value % 10 === 0) {
-          sudokuStore.saveGameState()
-        }
-        saveElapsedSecondsLocal()
-      },
-      1000
-    );
+  const state = ref<GameStatus>('idle')
+  const elapsedSeconds = ref<number>(0);
+  const loading = ref(false);
   
-    function startTimer() {
-      resume()
-      gameState.value = 'playing'
+  const puzzleId = ref<string>();
+  const cells = ref<Cell[]>(createBlankCells());
+  const originalCells = ref<Cell[]>(createBlankCells())
+  const difficultyRating = ref<DifficultyRating>();
+  const difficultyScore = ref<number>(0);
+
+  const usingPencil = ref(false);
+  const selectedIdx = ref<number>();
+
+  const history = ref<Action[]>([]);
+  const redoActions = ref<Action[]>([])
+
+  const autoCandidateMode = ref<boolean>(false);
+
+  const formattedTime = computed(() => {
+    const hours = Math.floor(elapsedSeconds.value / HOUR);
+    const mins = Math.floor((elapsedSeconds.value % HOUR) / MINUTE);
+    const secs = (elapsedSeconds.value % HOUR) % MINUTE;
+    let timeString = '';
+    if(hours > 0) {
+        timeString += `${hours}:`
     }
-    function pauseGame() {
-      pause()
-      gameState.value = 'paused'
+    if(hours > 0 && mins < 10) {
+        timeString += `0${mins}:`
+    } else {
+        timeString += `${mins}:`
     }
-    function clearElapsedSecondsLocal() {
-      localStorage.removeItem('elapsedSeconds');
+    if(secs < 10) {
+        timeString += `0${secs}`
+    } else {
+        timeString += secs.toString()
     }
-    function saveElapsedSecondsLocal() {
-      localStorage.setItem('elapsedSeconds', elapsedSeconds.value.toString())
-    }
-    function loadElapsedSecondsLocal() {
-      const secondString = localStorage.getItem('elapsedSeconds');
-      if(secondString !== null) {
-        elapsedSeconds.value = Number.parseInt(secondString)
-      }
-    }
-    const formattedElapsedTime = computed(() => {
-      const hours = Math.floor(elapsedSeconds.value / ONE_HOUR_SECONDS);
-      const mins = Math.floor((elapsedSeconds.value % ONE_HOUR_SECONDS) / ONE_MINUTE_SECONDS);
-      const secs = (elapsedSeconds.value % ONE_HOUR_SECONDS) % ONE_MINUTE_SECONDS;
-      let timeString = '';
-      if(hours > 0) {
-          timeString += `${hours}:`
-      }
-      if(hours > 0 && mins < 10) {
-          timeString += `0${mins}:`
-      } else {
-          timeString += `${mins}:`
-      }
-      if(secs < 10) {
-          timeString += `0${secs}`
-      } else {
-          timeString += secs.toString()
-      }
-      return timeString
+    return timeString
   })
+  const isSolved = computed(() => isPuzzleSolved(cells.value))
+  const progressPercent = computed(() => {
+    let count = 0;
+    cells.value.forEach(each => {
+      if(each.value !== 0) {
+        count++
+      }
+    })
+    return Math.round((count / 81) * 100)
+  })
+  
+  function $reset() {
+    state.value = 'idle'
+    elapsedSeconds.value = 0;
+    puzzleId.value = undefined;
+    cells.value = createBlankCells()
+    originalCells.value = createBlankCells()
+    difficultyRating.value = undefined
+    difficultyScore.value = 0;
+    usingPencil.value = false;
+    selectedIdx.value = undefined
+    history.value = []
+    redoActions.value = []
+    autoCandidateMode.value = false,
+    loading.value = false
+  }
+
   return {
-    difficulty,
+    state,
+    loading,
     elapsedSeconds,
-    gameState,
-    startTimer,
-    pauseGame,
-    clearElapsedSecondsLocal,
-    saveElapsedSecondsLocal,
-    loadElapsedSecondsLocal,
-    formattedElapsedTime,
-    timerActive: isActive
+    puzzleId,
+    cells,
+    originalCells,
+    difficultyRating,
+    difficultyScore,
+    usingPencil,
+    selectedIdx,
+    history,
+    redoActions,
+    autoCandidateMode,
+    formattedTime,
+    isSolved,
+    progressPercent,
+    $reset
   }
 })

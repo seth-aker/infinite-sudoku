@@ -5,5 +5,6 @@ if(!process.env.SESSION_SECRET) {
 }
 
 export const authConfig = {
-  secret: process.env.SESSION_SECRET
+  secret: process.env.SESSION_SECRET,
+  cookieName: 'sudoku'
 }

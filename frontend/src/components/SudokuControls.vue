@@ -2,120 +2,100 @@
 import { Icon } from '@iconify/vue'
 import { Button } from './ui/button';
 import Toggle from './ui/toggle/Toggle.vue';
-import { useSudokuStore } from '@/stores/sudokuStore'
 import Numpad from './Numpad.vue';
 import Checkbox from './ui/checkbox/Checkbox.vue';
-import { onMounted, onUnmounted } from 'vue';
 import { useGameStore } from '@/stores/gameStore';
-const sudokuStore = useSudokuStore()
-const gameStore = useGameStore()
-
+import { useSudokuGame } from '@/composables/useSudokuGame';
+import { useEventListener } from '@vueuse/core';
+const store = useGameStore()
+const { setAutoCandidateMode, selectCell, clearCell, togglePencil, undo, redo, placeValue, toggleCandidate } = useSudokuGame();
 
 const handleCheckboxChange = (isChecked: boolean | string) => {
   if (typeof isChecked === 'string') return;
-  sudokuStore.autoCandidateMode = isChecked;
-  if (sudokuStore.autoCandidateMode) {
-    sudokuStore.fillPuzzleCandidates();
-  } else {
-    sudokuStore.clearPuzzleCandidates();
-  }
+  setAutoCandidateMode(isChecked)
 }
 const handleKeyPress = (event: KeyboardEvent) => {
-  if (sudokuStore.selectedCell.x === undefined || sudokuStore.selectedCell.y === undefined) return;
+  if (store.selectedIdx === undefined) {
+    return;
+  }
   switch (event.key) {
     case 'ArrowUp':
-      if (sudokuStore.selectedCell.y === 0) {
-        sudokuStore.selectedCell.y = sudokuStore.puzzle.cellsPerRow - 1;
-      } else {
-        sudokuStore.selectedCell.y--;
+      let idx = store.selectedIdx - 9;
+      if (idx < 0) {
+        idx = 81 + idx;
       }
+      selectCell(idx)
       break;
     case 'ArrowDown':
-      if (sudokuStore.selectedCell.y === sudokuStore.puzzle.cellsPerRow - 1) {
-        sudokuStore.selectedCell.y = 0;
-      } else {
-        sudokuStore.selectedCell.y++;
+      idx = store.selectedIdx + 9;
+      if (idx > 80) {
+        idx = 0 + (idx % 81)
       }
+      selectCell(idx)
       break;
     case 'ArrowLeft':
-      if (sudokuStore.selectedCell.x === 0) {
-        sudokuStore.selectedCell.x = sudokuStore.puzzle.cellsPerRow - 1;
+      if (store.selectedIdx === 0) {
+        idx = 80
       } else {
-        sudokuStore.selectedCell.x--;
+        idx = store.selectedIdx - 1
       }
+      selectCell(idx)
       break;
     case 'ArrowRight':
-      if (sudokuStore.selectedCell.x === sudokuStore.puzzle.cellsPerRow - 1) {
-        sudokuStore.selectedCell.x = 0;
+      if (store.selectedIdx === 80) {
+        idx = 0;
       } else {
-        sudokuStore.selectedCell.x++
+        idx = store.selectedIdx + 1
       }
+      selectCell(idx)
       break;
     case 'Backspace':
-      const cell = sudokuStore.getCell(sudokuStore.selectedCell.x, sudokuStore.selectedCell.y);
-      if (!cell) return;
-      if (sudokuStore.usingPencil) {
-        cell.candidates = [];
-        cell.value = undefined
-      } else {
-        cell.value = undefined;
-      }
-      sudokuStore.setCell(cell, sudokuStore.selectedCell.x, sudokuStore.selectedCell.y)
+      clearCell(store.selectedIdx)
       break;
     case 'p':
     case 'P':
-      sudokuStore.usingPencil = !sudokuStore.usingPencil
+      togglePencil()
       break;
     case 'z':
     case 'Z':
       if (event.ctrlKey) {
-        sudokuStore.undoAction()
+        undo()
       }
       break;
     case 'y':
     case 'Y':
       if (event.ctrlKey) {
-        sudokuStore.redoAction()
+        redo()
       }
+      break;
     default:
-      for (let i = 0; i < sudokuStore.puzzle.cellsPerRow; i++) {
-        if (`${i + 1}` === event.key) {
-          const cell = sudokuStore.getCell(sudokuStore.selectedCell.x, sudokuStore.selectedCell.y);
-          if (!cell || cell.type === 'prefilled') return;
-          if (sudokuStore.usingPencil) {
-            cell.candidates.includes(i + 1) ? cell.candidates = cell.candidates.filter((value) => value !== i + 1) : cell.candidates.push(i + 1)
-          } else {
-            cell.value = cell.value === (i + 1) ? undefined : (i + 1)
-          }
-          sudokuStore.setCell(cell, sudokuStore.selectedCell.x, sudokuStore.selectedCell.y)
-          break;
-        }
+      const key = Number.parseInt(event.key)
+      if (Number.isNaN(key)) {
+        return;
       }
+      if (store.usingPencil) {
+        toggleCandidate(key, store.selectedIdx)
+      } else {
+        placeValue(key, store.selectedIdx)
+      }
+      break
   }
 }
+useEventListener('keyup', handleKeyPress)
 
-onMounted(() => {
-  window.addEventListener('keyup', handleKeyPress);
-})
-onUnmounted(() => {
-  window.removeEventListener('keyup', handleKeyPress);
-})
 </script>
 
 <template>
   <div class="flex flex-col items-center mx-4">
     <div class="flex gap-2 md:gap-0 w-[60%] md:w-auto justify-evenly">
-      <Button :disabled="gameStore.gameState === 'paused'" @click="() => sudokuStore.undoAction()"
-        class="mx-0.5 size-12 md:size-10">
+      <Button :disabled="store.state === 'paused'" @click="() => undo()" class="mx-0.5 size-12 md:size-10">
         <Icon icon="material-symbols:undo-rounded" />
       </Button>
-      <Button :disabled="gameStore.gameState === 'paused'" @click="() => sudokuStore.redoAction()"
-        class="mx-0.5 size-12 md:size-10">
+      <Button :disabled="store.state === 'paused'" @click="() => redo()" class="mx-0.5 size-12 md:size-10">
         <Icon icon="material-symbols:redo-rounded" />
       </Button>
-      <Toggle :disabled="gameStore.gameState === 'paused'" variant="outline"
-        @update:model-value="sudokuStore.usingPencil = !sudokuStore.usingPencil"
-        class="mx-0.5 size-12 md:size-10 data-[state=on]:bg-orange-400/95" :model-value="sudokuStore.usingPencil">
+      <Toggle :disabled="store.state === 'paused'" variant="outline" @update:model-value="() => togglePencil()"
+        class="mx-0.5 size-12 md:size-10 data-[state=on]:bg-orange-400/95" :model-value="store.usingPencil">
         <Icon icon="material-symbols:edit-outline-rounded" />
       </Toggle>
     </div>
@@ -123,8 +103,8 @@ onUnmounted(() => {
     <Numpad />
 
     <div class="flex items-center justify-center">
-      <Checkbox :disabled="gameStore.gameState === 'paused'" id="auto-candidate"
-        :model-value="sudokuStore.autoCandidateMode" @update:model-value="handleCheckboxChange" />
+      <Checkbox :disabled="store.state === 'paused'" id="auto-candidate" :model-value="store.autoCandidateMode"
+        @update:model-value="handleCheckboxChange" />
       <label for="auto-candidate" class="text-xs ml-1">
         Auto-fill candidates
       </label>

@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:test": "vite build --mode test",
     "preview": "vite preview",
     "test": "vitest",
     "build-only": "vite build",
@@ -17,7 +18,6 @@
     "@vueuse/core": "^13.9.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "lodash": "^4.18.1",
     "lucide-vue-next": "^0.525.0",
     "markdown-it": "^14.1.1",
     "pinia": "^3.0.4",
@@ -35,7 +35,6 @@
     "@iconify/vue": "^5.0.0",
     "@tsconfig/node22": "^22.0.5",
     "@types/jsdom": "^21.1.7",
-    "@types/lodash": "^4.17.24",
     "@types/markdown-it": "^14.1.2",
     "@types/node": "^22.19.17",
     "@vitejs/plugin-vue": "^6.0.6",
@@ -54,5 +53,5 @@
     "vitest": "^3.2.4",
     "vue-tsc": "^2.2.12"
   },
-  "packageManager": "pnpm@10.33.0"
+  "packageManager": "pnpm@11.1.3"
 }

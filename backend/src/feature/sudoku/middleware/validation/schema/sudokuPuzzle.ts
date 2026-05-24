@@ -13,7 +13,7 @@ export const createPuzzleSchema = z.object({
     difficulty: difficultySchema,
 })
 export const updateUserPuzzleSchema = z.object({
-    _id: z.uuid(),
+    puzzleId: z.uuid(),
     cells: z.string().refine((val) => val.length === 81, {message: 'Error, cell string must be 81 numbers long'}),
     candidates: candidateStringSchema,
     isCompleted: z.boolean(),

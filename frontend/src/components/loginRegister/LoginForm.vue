@@ -16,8 +16,9 @@ import InputGroupButton from '../ui/input-group/InputGroupButton.vue'
 import { Icon } from '@iconify/vue'
 import Button from '../ui/button/Button.vue'
 import { toast } from 'vue-sonner';
+import { useAuth } from '@/composables/useAuth';
 const userStore = useUserStore()
-
+const { login } = useAuth()
 const popoverOpen = defineModel<boolean>('popover-open', { required: true })
 
 const username = ref<string>('')
@@ -29,7 +30,7 @@ const handleLogin = async (event: SubmitEvent) => {
   event.preventDefault()
   toast.promise(() =>
     Promise.all([
-      userStore.login(username.value, password.value),
+      login(username.value, password.value),
       new Promise((resolve) => setTimeout(resolve, 500))
     ])
     , {
@@ -37,14 +38,13 @@ const handleLogin = async (event: SubmitEvent) => {
         if (userStore.isAuthenticated) {
           popoverOpen.value = false
           return `Welcome back, ${!userStore.displayName ? userStore.username : userStore.displayName}!`
-        } else {
-          return userStore.error ?? `Invalid username or password`
         }
       },
       loading: "Loading...",
-      error: userStore.error ?? 'An unexpected error occured.'
+      error: 'An unexpected error occured.'
     }
   )
+
 }
 </script>
 
@@ -76,7 +76,7 @@ const handleLogin = async (event: SubmitEvent) => {
       </FieldSet>
       <Field orientation="horizontal" class="justify-end">
         <Button class="w-20 bg-orange-400 hover:bg-orange-400/75" type="submit"
-          v-if="!userStore.userLoading">Submit</Button>
+          v-if="!userStore.loading">Submit</Button>
         <Button class="w-20 bg-orange-400" v-else>
           <Icon icon="line-md:loading-twotone-loop" />
         </Button>
