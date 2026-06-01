@@ -48,7 +48,7 @@ onMounted(async () => {
 
 onBeforeRouteUpdate((to, _from) => {
   if (typeof to.params.difficulty !== 'string' || !PUZZLE_DIFFICULTY_ROUTES.includes(to.params.difficulty)) {
-    toast.error(`'${to.params.difficulty}' is not an accepted difficulty. Currently only 'beginner', 'easy', and 'medium' are playable.`)
+    toast.error(`'${to.params.difficulty}' is not an accepted difficulty. Currently only 'beginner', 'easy', 'medium', and 'hard' are playable.`)
     return false
   }
 })

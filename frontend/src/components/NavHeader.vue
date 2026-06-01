@@ -79,8 +79,7 @@ const gotoPuzzle = async (difficulty: DifficultyRating) => {
                 <Button class="w-full items-start" variant="link" @click="() => gotoPuzzle('medium')">Medium</Button>
               </NavigationMenuLink>
               <NavigationMenuLink as-child>
-                <Button disabled class="w-full items-start" variant="link" @click="() => gotoPuzzle('hard')">Hard
-                  (Comming Soon!)</Button>
+                <Button class="w-full items-start" variant="link" @click="() => gotoPuzzle('hard')">Hard</Button>
               </NavigationMenuLink>
               <NavigationMenuLink as-child>
                 <Button class="w-full items-start" variant="link" disabled

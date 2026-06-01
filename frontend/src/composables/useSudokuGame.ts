@@ -86,7 +86,7 @@ export function useSudokuGame() {
     })
     gameStore.redoActions = []
     const cell = gameStore.cells[idx];
-    if(prevCell.candidates.includes(value)) {
+    if(!prevCell.candidates.includes(value)) {
       cell.candidates.push(value)
     } else {
       cell.candidates = cell.candidates.filter(c => c !== value)

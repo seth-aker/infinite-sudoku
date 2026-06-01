@@ -10,21 +10,21 @@ export const getPuzzleValidator = (req: SudokuRequest, _res: Response, next: Nex
     }
     next()
 }
-export const getPuzzleByIdValidator = (req: Request<{puzzleId: string}>, res: Response, next: NextFunction) => {
+export const getPuzzleByIdValidator = (req: Request<{puzzleId: string}>, _res: Response, next: NextFunction) => {
     const validationResult = getPuzzleByIdSchema.safeParse(req.params);
     if(!validationResult.success) {
         throw new ValidationError(validationResult.error)
     }
     next();
 }
-export const createPuzzleValidator = (req: Request, res: Response, next: NextFunction) => {
+export const createPuzzleValidator = (req: Request, _res: Response, next: NextFunction) => {
     const validationResult = createPuzzleSchema.safeParse(req.body)
     if(!validationResult.success) {
         throw new ValidationError(validationResult.error)
     }
     next();
 }
-export const updatePuzzleValidator = (req: Request, res: Response, next: NextFunction) => {
+export const updatePuzzleValidator = (req: Request, _res: Response, next: NextFunction) => {
     const validationResult = updateUserPuzzleSchema.safeParse(req.body)
     if(!validationResult.success) {
         throw new ValidationError(validationResult.error)
@@ -32,7 +32,7 @@ export const updatePuzzleValidator = (req: Request, res: Response, next: NextFun
     next();
 }
 
-export const deletePuzzleValidator = (req: Request, res: Response, next: NextFunction) => {
+export const deletePuzzleValidator = (req: Request, _res: Response, next: NextFunction) => {
     const validationResult = deletePuzzleSchema.safeParse(req.params)
     if(!validationResult.success) {
         throw new ValidationError(validationResult.error)

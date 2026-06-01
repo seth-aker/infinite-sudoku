@@ -27,8 +27,8 @@ export class SudokuServiceImplementation extends BaseService implements SudokuSe
   async getNewPuzzle(requestedBy: string | undefined, options: PuzzleOptions): Promise<SudokuPuzzle>{
     return await this.callDataSource(async () => {
       try {
-        if(options.difficulty == "hard" || options.difficulty === 'impossible') {
-          throw new Error("Cannot get difficulties of hard or impossible") 
+        if(options.difficulty === 'impossible') {
+          throw new Error("Cannot get difficulty of impossible") 
         }
         const response = await this.sudokuDataSource.getNewPuzzle(requestedBy, options);
         if(response.metadata.totalCount < 1000) {

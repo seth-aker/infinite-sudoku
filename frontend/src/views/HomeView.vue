@@ -6,9 +6,8 @@ import CardDescription from '@/components/ui/card/CardDescription.vue';
 import CardHeader from '@/components/ui/card/CardHeader.vue';
 import CardTitle from '@/components/ui/card/CardTitle.vue';
 import { useGameSession } from '@/composables/useGameSession';
-import { useGameStore } from '@/stores/gameStore';
+import { useGameStore, type DifficultyRating } from '@/stores/gameStore';
 import { useUserStore } from '@/stores/userStore';
-import type { Difficulty } from '@/stores/models/difficulty';
 import { Icon } from '@iconify/vue';
 import { useRouter } from 'vue-router';
 import { toast } from 'vue-sonner';
@@ -16,7 +15,7 @@ const router = useRouter()
 const gameStore = useGameStore()
 const userStore = useUserStore()
 const { resumeSavedPuzzle } = useGameSession()
-const navigateToPuzzle = (difficulty: Difficulty['rating']) => {
+const navigateToPuzzle = (difficulty: DifficultyRating) => {
   router.push({ name: 'sudoku', params: { difficulty: difficulty } })
 }
 const resumePuzzle = async () => {
@@ -45,7 +44,7 @@ const resumePuzzle = async () => {
         <Button @click="navigateToPuzzle('beginner')" class="w-52 m-1">Beginner</Button>
         <Button @click="navigateToPuzzle('easy')" class="w-52 m-1">Easy</Button>
         <Button @click="navigateToPuzzle('medium')" class="w-52 m-1">Medium</Button>
-        <Button disabled @click="router.push('/sudoku/hard')" class="w-52 m-1">Hard (Comming Soon!)</Button>
+        <Button @click="navigateToPuzzle('hard')" class="w-52 m-1">Hard</Button>
         <Button disabled @click="router.push('/sudoku/impossible')" class="w-52 m-1">Impossible (Comming Soon!)</Button>
       </CardContent>
     </Card>

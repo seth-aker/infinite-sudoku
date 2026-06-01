@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
-export const PUZZLE_DIFFICULTY_ROUTES = ['beginner', 'easy', 'medium']
+export const PUZZLE_DIFFICULTY_ROUTES = ['beginner', 'easy', 'medium', 'hard']
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
@@ -25,11 +25,6 @@ const router = createRouter({
       },
       component: () => import('../views/sudoku/Standard.vue')
     },
-    // {
-    //   path: '/sudoku/hard',
-    //   name: 'hard',
-    //   component: () => import('../views/sudoku/Standard.vue')
-    // },
     // {
     //   path: '/sudoku/impossible',
     //   name: 'impossible',
