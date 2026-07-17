@@ -12,6 +12,8 @@ RUN cmake -B build -S . -DCMAKE_BUILD_TYPE=Release && \
 
 FROM node:24-bookworm AS build
 
+RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
+
 ARG DEPLOY_MODE
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
@@ -30,8 +32,11 @@ RUN if [ "$DEPLOY_MODE" = "test" ]; then \
 # BACKEND
 FROM node:24-alpine AS backend
 
-RUN apk update && apk add curl && \
+RUN apk update && apk upgrade --no-cache && \
+    apk add curl && \
     rm -rf /var/lib/apk/lists/*
+
+RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /sudoku
 
@@ -39,9 +44,20 @@ RUN mkdir -p /sudoku/logs && chown -R node:node /sudoku/logs
 
 COPY --from=build /apps/sudoku/backend/dist ./
 COPY --from=build /apps/sudoku/backend/package.json .
+COPY --from=build /apps/sudoku/backend/pnpm*.yaml .
 COPY --chown=node:node --from=c_builder /cdoku/build/src/app/puzzle_generator_app .
 
-RUN npm i --omit=dev
+WORKDIR /sudoku
+
+RUN pnpm ci --prod
+
+# Remove npm and yarn to minimize vulnerabilities
+RUN rm -rf /usr/local/lib/node_modules/npm \
+    && rm -rf /opt/yarn-* \
+    && rm /usr/local/bin/npm \
+    && rm /usr/local/bin/npx \
+    && rm /usr/local/bin/yarn \
+    && rm /usr/local/bin/yarnpkg
 
 EXPOSE 3666
 
