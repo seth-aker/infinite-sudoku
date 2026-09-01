@@ -2,8 +2,8 @@ import 'package:json_annotation/json_annotation.dart';
 
 @JsonEnum()
 enum GrantType {
-  @JsonValue('password')
+  @JsonKey()
   password, 
-  @JsonValue('refresh_token')
+  @JsonKey()
   refreshToken;
 }

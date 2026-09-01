@@ -7,11 +7,14 @@ part 'login_request_dto.g.dart';
 @JsonSerializable(
   createJsonSchema: true, 
   createFactory: false,
-
+  ignoreUnannotated: true,
 )
 class LoginRequestDto extends Equatable {
+  @JsonKey()
   final String email;
+  @JsonKey()
   final String password;
+  @JsonKey()
   final GrantType grantType;
 
   const LoginRequestDto({

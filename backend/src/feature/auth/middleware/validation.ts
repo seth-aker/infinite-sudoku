@@ -5,14 +5,14 @@ const passwordRegex = /^(?=.*?[A-Z])(?=.*?[a-z])(?=.*?[0-9])(?=.*?[#?!@$ %^&*-])
 
 const passwordSchema = z.string().refine((pw) => passwordRegex.test(pw), "Password must contain a minimum of 8 characters, one uppercase, one lowercase, one number, and one special character")
 
-const tokenBodySchema = z.discriminatedUnion('grant_type', [
+const tokenBodySchema = z.discriminatedUnion('grantType', [
   z.object({
-    grant_type: z.literal('password'),
-    username: z.string().min(4),
+    grantType: z.literal('password'),
+    email: z.string().min(4),
     password: z.string().min(4)
   }),
   z.object({
-    grant_type: z.literal('refresh_token'),
+    grantType: z.literal('refreshToken'),
     refreshToken: z.string().min(1)
   })
 ])

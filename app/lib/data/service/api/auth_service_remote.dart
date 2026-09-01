@@ -45,7 +45,7 @@ class AuthServiceRemote implements AuthService {
   ) => _client.send(
     'POST',
     '/api/auth/token',
-    body: {'refreshToken': refreshToken, 'grant_type': 'refresh_token'},
+    body: {'refreshToken': refreshToken, 'grantType': 'refreshToken'},
     parse: (json) => RefreshTokenResponseDto.fromJson(json),
   );
 }

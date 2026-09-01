@@ -14,7 +14,7 @@ type TokenPasswordBody = {
 }
 
 type TokenRefreshBody = {
-  grantType: 'refresh_token',
+  grantType: 'refreshToken',
   refreshToken: string
 }
 
@@ -83,7 +83,7 @@ export function AuthRouter(authService: AuthenticationService) {
         res.json({accessToken, refreshToken, user})
         return;
       }
-      case 'refresh_token':{
+      case 'refreshToken':{
         const refreshToken = req.body.refreshToken;
         if(!refreshToken) {
           throw new AuthenticationError('Missing or invalid refresh token.', {
@@ -94,7 +94,7 @@ export function AuthRouter(authService: AuthenticationService) {
         return res.json({accessToken, refreshToken: newRefreshToken})
       }
       default: {
-        throw new AuthenticationError('Invalid grant_type', {
+        throw new AuthenticationError('Invalid grantType', {
           type: ErrorType.MALFORMED_BODY 
         })
       }

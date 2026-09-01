@@ -34,7 +34,7 @@ export function authLimiter() {
   const password = passwordGrantLimiter();
   const refresh = refreshGrantLimiter();
   return (req: Request, res: Response, next: NextFunction) =>
-    req.body?.grant_type === 'refresh_token'
+    req.body?.grantType === 'refreshToken'
       ? refresh(req, res, next)
       : password(req, res, next);
 }
