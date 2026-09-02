@@ -14,12 +14,14 @@ sealed class Button extends StatelessWidget {
     Color? foregroundColor,
     EdgeInsetsGeometry? padding,
     BorderRadius? borderRadius,
+    bool? isDisabled
   }) => PrimaryButton(
     onPressed: onPressed,
     backgroundColor: backgroundColor,
     foregroundColor: foregroundColor,
     padding: padding,
     borderRadius: borderRadius,
+    isDisabled: isDisabled = false,
     child: child,
   );
   factory Button.ghost({
@@ -29,12 +31,14 @@ sealed class Button extends StatelessWidget {
     Color? foregroundColor,
     EdgeInsetsGeometry? padding,
     BorderRadius? borderRadius,
+    bool? isDisabled
   }) => GhostButton(
     onPressed: onPressed,
     backgroundColor: backgroundColor,
     foregroundColor: foregroundColor,
     padding: padding,
     borderRadius: borderRadius,
+    isDisabled: isDisabled = false,
     child: child,
   );
   factory Button.secondary({
@@ -44,12 +48,14 @@ sealed class Button extends StatelessWidget {
     Color? foregroundColor,
     EdgeInsetsGeometry? padding,
     BorderRadius? borderRadius,
+    bool? isDisabled
   }) => SecondaryButton(
     onPressed: onPressed,
     backgroundColor: backgroundColor,
     foregroundColor: foregroundColor,
     padding: padding,
     borderRadius: borderRadius,
+    isDisabled: isDisabled = false,
     child: child,
   );
   factory Button.icon({
@@ -59,12 +65,14 @@ sealed class Button extends StatelessWidget {
     Color? foregroundColor,
     EdgeInsetsGeometry? padding,
     BorderRadius? borderRadius,
+    bool? isDisabled
   }) => IconButton(
     onPressed: onPressed,
     backgroundColor: backgroundColor,
     foregroundColor: foregroundColor,
     padding: padding,
     borderRadius: borderRadius,
+    isDisabled: isDisabled = false,
     child: child,
   );
 }
@@ -76,6 +84,7 @@ final class PrimaryButton extends Button {
   final Color? foregroundColor;
   final EdgeInsetsGeometry? padding;
   final BorderRadius? borderRadius;
+  final bool isDisabled;
   const PrimaryButton({
     super.key,
     required this.child,
@@ -84,13 +93,14 @@ final class PrimaryButton extends Button {
     this.foregroundColor,
     this.padding,
     this.borderRadius,
+    this.isDisabled = false,
   });
 
   @override
   Widget build(BuildContext context) {
     if (isApple) {
       return CupertinoButton(
-        onPressed: onPressed,
+        onPressed: isDisabled ? null : onPressed,
         padding: padding,
         color: backgroundColor ?? AppTheme.buttonPrimary(context),
         foregroundColor: foregroundColor ?? AppTheme.background(context),
@@ -110,6 +120,7 @@ final class GhostButton extends Button {
   final Color? foregroundColor;
   final EdgeInsetsGeometry? padding;
   final BorderRadius? borderRadius;
+  final bool isDisabled;
   const GhostButton({
     super.key,
     required this.child,
@@ -118,6 +129,7 @@ final class GhostButton extends Button {
     this.foregroundColor,
     this.padding,
     this.borderRadius,
+    this.isDisabled = false,
   });
 
   @override
@@ -133,7 +145,7 @@ final class GhostButton extends Button {
           color: backgroundColor ?? Theme.of(context).scaffoldBackgroundColor,
         ),
         child: CupertinoButton(
-          onPressed: onPressed,
+          onPressed: isDisabled ? null : onPressed,
           padding: padding,
           color: CupertinoColors.transparent,
           foregroundColor: foregroundColor ?? AppTheme.foreground(context),
@@ -154,6 +166,7 @@ final class SecondaryButton extends Button {
   final Color? foregroundColor;
   final EdgeInsetsGeometry? padding;
   final BorderRadius? borderRadius;
+  final bool isDisabled;
 
   const SecondaryButton({
     super.key,
@@ -163,12 +176,13 @@ final class SecondaryButton extends Button {
     this.foregroundColor,
     this.padding,
     this.borderRadius,
+    this.isDisabled = false,
   });
   @override
   Widget build(BuildContext context) {
     if (isApple) {
       return CupertinoButton(
-        onPressed: onPressed,
+        onPressed: isDisabled ? null : onPressed,
         color: backgroundColor ?? AppTheme.secondaryColor(context),
         foregroundColor: foregroundColor ?? AppTheme.textPrimary(context),
         padding: padding,
@@ -188,6 +202,7 @@ final class IconButton extends Button {
   final Color? foregroundColor;
   final EdgeInsetsGeometry? padding;
   final BorderRadius? borderRadius;
+  final bool isDisabled;
   const IconButton({
     super.key,
     required this.child,
@@ -196,12 +211,13 @@ final class IconButton extends Button {
     this.foregroundColor,
     this.padding,
     this.borderRadius,
+    this.isDisabled = false,
   });
   @override
   Widget build(BuildContext context) {
     if (isApple) {
       return CupertinoButton(
-        onPressed: onPressed,
+        onPressed: isDisabled ? null : onPressed,
         color: backgroundColor ?? AppTheme.buttonPrimary(context),
         foregroundColor: foregroundColor ?? AppTheme.background(context),
         padding: padding ?? EdgeInsets.zero,
