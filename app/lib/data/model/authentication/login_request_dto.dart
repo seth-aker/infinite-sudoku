@@ -1,4 +1,4 @@
-import 'package:sudoku_app/data/model/authentication/grant_type.dart';
+import 'package:infinite_sudoku/data/model/authentication/grant_type.dart';
 import 'package:equatable/equatable.dart';
 import 'package:json_annotation/json_annotation.dart';
 

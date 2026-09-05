@@ -1,7 +1,7 @@
-import 'package:sudoku_app/data/service/api/puzzle_service.dart';
-import 'package:sudoku_app/domain/models/difficulty.dart';
-import 'package:sudoku_app/domain/models/puzzle.dart';
-import 'package:sudoku_app/utils/result.dart';
+import 'package:infinite_sudoku/data/service/api/puzzle_service.dart';
+import 'package:infinite_sudoku/domain/models/difficulty.dart';
+import 'package:infinite_sudoku/domain/models/puzzle.dart';
+import 'package:infinite_sudoku/utils/result.dart';
 
 class PuzzleRepository {
   const PuzzleRepository({required this._puzzleService});

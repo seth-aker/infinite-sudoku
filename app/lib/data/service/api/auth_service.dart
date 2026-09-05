@@ -1,9 +1,9 @@
-import 'package:sudoku_app/data/model/authentication/login_request_dto.dart';
-import 'package:sudoku_app/data/model/authentication/login_response_dto.dart';
-import 'package:sudoku_app/data/model/authentication/refresh_token_response_dto.dart';
-import 'package:sudoku_app/data/model/authentication/register_request_dto.dart';
-import 'package:sudoku_app/data/model/user/user_dto.dart';
-import 'package:sudoku_app/utils/result.dart';
+import 'package:infinite_sudoku/data/model/authentication/login_request_dto.dart';
+import 'package:infinite_sudoku/data/model/authentication/login_response_dto.dart';
+import 'package:infinite_sudoku/data/model/authentication/refresh_token_response_dto.dart';
+import 'package:infinite_sudoku/data/model/authentication/register_request_dto.dart';
+import 'package:infinite_sudoku/data/model/user/user_dto.dart';
+import 'package:infinite_sudoku/utils/result.dart';
 
 abstract class AuthService {
   Future<Result<LoginResponseDto>> login(LoginRequestDto loginRequest);

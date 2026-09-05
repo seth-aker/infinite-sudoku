@@ -1,8 +1,8 @@
-import 'package:sudoku_app/ui/core/spacing/app_spacing.dart';
-import 'package:sudoku_app/ui/core/widgets/button.dart';
-import 'package:sudoku_app/ui/core/widgets/form_text_input.dart';
-import 'package:sudoku_app/ui/user/state/user_bloc.dart';
-import 'package:sudoku_app/ui/user/validation/form_validators.dart';
+import 'package:infinite_sudoku/ui/core/spacing/app_spacing.dart';
+import 'package:infinite_sudoku/ui/core/widgets/button.dart';
+import 'package:infinite_sudoku/ui/core/widgets/form_text_input.dart';
+import 'package:infinite_sudoku/ui/user/state/user_bloc.dart';
+import 'package:infinite_sudoku/ui/user/validation/form_validators.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 

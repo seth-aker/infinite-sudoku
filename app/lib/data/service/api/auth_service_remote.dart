@@ -1,11 +1,11 @@
-import 'package:sudoku_app/data/model/authentication/login_request_dto.dart';
-import 'package:sudoku_app/data/model/authentication/login_response_dto.dart';
-import 'package:sudoku_app/data/model/authentication/refresh_token_response_dto.dart';
-import 'package:sudoku_app/data/model/authentication/register_request_dto.dart';
-import 'package:sudoku_app/data/model/user/user_dto.dart';
-import 'package:sudoku_app/data/service/api/api_client.dart';
-import 'package:sudoku_app/data/service/api/auth_service.dart';
-import 'package:sudoku_app/utils/result.dart';
+import 'package:infinite_sudoku/data/model/authentication/login_request_dto.dart';
+import 'package:infinite_sudoku/data/model/authentication/login_response_dto.dart';
+import 'package:infinite_sudoku/data/model/authentication/refresh_token_response_dto.dart';
+import 'package:infinite_sudoku/data/model/authentication/register_request_dto.dart';
+import 'package:infinite_sudoku/data/model/user/user_dto.dart';
+import 'package:infinite_sudoku/data/service/api/api_client.dart';
+import 'package:infinite_sudoku/data/service/api/auth_service.dart';
+import 'package:infinite_sudoku/utils/result.dart';
 
 class AuthServiceRemote implements AuthService {
   AuthServiceRemote({required this._client});

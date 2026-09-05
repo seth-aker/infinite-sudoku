@@ -1,10 +1,10 @@
-import 'package:sudoku_app/routing/routes.dart';
-import 'package:sudoku_app/ui/core/app_theme.dart';
-import 'package:sudoku_app/ui/core/colors/app_colors.dart';
-import 'package:sudoku_app/ui/core/constants.dart';
-import 'package:sudoku_app/ui/core/icons/app_icons.dart';
-import 'package:sudoku_app/ui/core/widgets/app_icon.dart';
-import 'package:sudoku_app/ui/sudoku/state/timer/timer_bloc.dart';
+import 'package:infinite_sudoku/routing/routes.dart';
+import 'package:infinite_sudoku/ui/core/app_theme.dart';
+import 'package:infinite_sudoku/ui/core/colors/app_colors.dart';
+import 'package:infinite_sudoku/ui/core/constants.dart';
+import 'package:infinite_sudoku/ui/core/icons/app_icons.dart';
+import 'package:infinite_sudoku/ui/core/widgets/app_icon.dart';
+import 'package:infinite_sudoku/ui/sudoku/state/timer/timer_bloc.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';

@@ -1,4 +1,4 @@
-import 'package:sudoku_app/domain/models/cell.dart';
+import 'package:infinite_sudoku/domain/models/cell.dart';
 import 'package:equatable/equatable.dart';
 
 class Action extends Equatable {

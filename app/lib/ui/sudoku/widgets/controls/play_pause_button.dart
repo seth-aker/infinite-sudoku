@@ -1,6 +1,6 @@
-import 'package:sudoku_app/ui/core/constants.dart';
-import 'package:sudoku_app/ui/core/widgets/button.dart';
-import 'package:sudoku_app/ui/sudoku/state/timer/timer_bloc.dart';
+import 'package:infinite_sudoku/ui/core/constants.dart';
+import 'package:infinite_sudoku/ui/core/widgets/button.dart';
+import 'package:infinite_sudoku/ui/sudoku/state/timer/timer_bloc.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';

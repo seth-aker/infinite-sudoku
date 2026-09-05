@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
 
-import 'package:sudoku_app/utils/logger/log.dart';
+import 'package:infinite_sudoku/utils/logger/log.dart';
 import 'package:logger/logger.dart';
 
 final logger = Logger(
@@ -9,7 +9,7 @@ final logger = Logger(
   printer: Printer(
     methodCount: 5,
     errorMethodCount: 5,
-    excludePaths: ['package:logger', 'package:sudoku_app/utils/logger/'],
+    excludePaths: ['package:logger', 'package:infinite_sudoku/utils/logger/'],
   ),
 );
 

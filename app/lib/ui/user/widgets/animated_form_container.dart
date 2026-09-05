@@ -1,5 +1,5 @@
-import 'package:sudoku_app/ui/core/app_theme.dart';
-import 'package:sudoku_app/ui/core/spacing/app_spacing.dart';
+import 'package:infinite_sudoku/ui/core/app_theme.dart';
+import 'package:infinite_sudoku/ui/core/spacing/app_spacing.dart';
 import 'package:flutter/cupertino.dart';
 
 class AnimatedFormContainer extends StatelessWidget {

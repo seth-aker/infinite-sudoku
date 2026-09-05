@@ -1,4 +1,4 @@
-import 'package:sudoku_app/utils/logger/logger.dart';
+import 'package:infinite_sudoku/utils/logger/logger.dart';
 import 'package:hydrated_bloc/hydrated_bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:json_annotation/json_annotation.dart';

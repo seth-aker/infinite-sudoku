@@ -1,8 +1,8 @@
 import 'dart:convert' show jsonDecode, jsonEncode, utf8;
 import 'dart:io';
 
-import 'package:sudoku_app/utils/logger/logger.dart';
-import 'package:sudoku_app/utils/result.dart';
+import 'package:infinite_sudoku/utils/logger/logger.dart';
+import 'package:infinite_sudoku/utils/result.dart';
 
 typedef AuthHeaderProvider = String? Function();
 

@@ -1,10 +1,10 @@
-import 'package:sudoku_app/data/model/authentication/grant_type.dart';
-import 'package:sudoku_app/data/model/authentication/login_request_dto.dart';
-import 'package:sudoku_app/data/model/authentication/register_request_dto.dart';
-import 'package:sudoku_app/data/service/api/auth_service.dart';
-import 'package:sudoku_app/data/service/local_storage/token_storage_service.dart';
-import 'package:sudoku_app/domain/models/user.dart';
-import 'package:sudoku_app/utils/result.dart';
+import 'package:infinite_sudoku/data/model/authentication/grant_type.dart';
+import 'package:infinite_sudoku/data/model/authentication/login_request_dto.dart';
+import 'package:infinite_sudoku/data/model/authentication/register_request_dto.dart';
+import 'package:infinite_sudoku/data/service/api/auth_service.dart';
+import 'package:infinite_sudoku/data/service/local_storage/token_storage_service.dart';
+import 'package:infinite_sudoku/domain/models/user.dart';
+import 'package:infinite_sudoku/utils/result.dart';
 
 class AuthRepository {
   final AuthService _authService;

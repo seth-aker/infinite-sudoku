@@ -1,13 +1,13 @@
 import 'dart:io';
 
-import 'package:sudoku_app/ui/sudoku_app.dart';
-import 'package:sudoku_app/data/repositories/auth_repository.dart';
-import 'package:sudoku_app/data/repositories/puzzle_repository.dart';
-import 'package:sudoku_app/data/service/api/api_client.dart';
-import 'package:sudoku_app/data/service/api/auth_service_remote.dart';
-import 'package:sudoku_app/data/service/api/puzzle_service_remote.dart';
-import 'package:sudoku_app/data/service/local_storage/token_storage_service.dart';
-import 'package:sudoku_app/utils/logger/logger.dart';
+import 'package:infinite_sudoku/ui/sudoku_app.dart';
+import 'package:infinite_sudoku/data/repositories/auth_repository.dart';
+import 'package:infinite_sudoku/data/repositories/puzzle_repository.dart';
+import 'package:infinite_sudoku/data/service/api/api_client.dart';
+import 'package:infinite_sudoku/data/service/api/auth_service_remote.dart';
+import 'package:infinite_sudoku/data/service/api/puzzle_service_remote.dart';
+import 'package:infinite_sudoku/data/service/local_storage/token_storage_service.dart';
+import 'package:infinite_sudoku/utils/logger/logger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:hydrated_bloc/hydrated_bloc.dart';

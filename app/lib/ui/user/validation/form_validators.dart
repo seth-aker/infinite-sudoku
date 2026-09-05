@@ -1,4 +1,4 @@
-import 'package:sudoku_app/domain/validation/user_validators.dart';
+import 'package:infinite_sudoku/domain/validation/user_validators.dart';
 String? validateUsername(String? value) {
   final error = UserValidator.username(value);
   if(error != null) {
