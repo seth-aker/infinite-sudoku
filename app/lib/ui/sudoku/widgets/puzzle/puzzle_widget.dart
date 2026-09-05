@@ -1,7 +1,7 @@
-import 'package:app/domain/models/constants/puzzle_constants.dart';
-import 'package:app/ui/core/spacing/app_spacing.dart';
-import 'package:app/ui/sudoku/state/puzzle/puzzle_bloc.dart';
-import 'package:app/ui/sudoku/widgets/puzzle/cell_widget.dart';
+import 'package:sudoku_app/domain/models/constants/puzzle_constants.dart';
+import 'package:sudoku_app/ui/core/spacing/app_spacing.dart';
+import 'package:sudoku_app/ui/sudoku/state/puzzle/puzzle_bloc.dart';
+import 'package:sudoku_app/ui/sudoku/widgets/puzzle/cell_widget.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 

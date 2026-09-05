@@ -1,4 +1,4 @@
-import 'package:app/data/model/user/user_dto.dart';
+import 'package:sudoku_app/data/model/user/user_dto.dart';
 import 'package:json_annotation/json_annotation.dart';
 part 'user.g.dart';
 enum UserRole {

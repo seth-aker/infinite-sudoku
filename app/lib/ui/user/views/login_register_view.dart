@@ -1,8 +1,8 @@
-import 'package:app/ui/core/spacing/app_spacing.dart';
-import 'package:app/ui/core/widgets/shared_page_layout.dart';
-import 'package:app/ui/user/widgets/animated_form_container.dart';
-import 'package:app/ui/user/widgets/login_form.dart';
-import 'package:app/ui/user/widgets/register_form.dart';
+import 'package:sudoku_app/ui/core/spacing/app_spacing.dart';
+import 'package:sudoku_app/ui/core/widgets/shared_page_layout.dart';
+import 'package:sudoku_app/ui/user/widgets/animated_form_container.dart';
+import 'package:sudoku_app/ui/user/widgets/login_form.dart';
+import 'package:sudoku_app/ui/user/widgets/register_form.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:go_router/go_router.dart';
 

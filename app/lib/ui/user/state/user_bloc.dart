@@ -1,9 +1,9 @@
-import 'package:app/data/repositories/auth_repository.dart';
-import 'package:app/domain/models/user.dart';
-import 'package:app/utils/logger/logger.dart';
+import 'package:sudoku_app/data/repositories/auth_repository.dart';
+import 'package:sudoku_app/domain/models/user.dart';
+import 'package:sudoku_app/utils/logger/logger.dart';
 import 'package:hydrated_bloc/hydrated_bloc.dart';
 import 'package:equatable/equatable.dart';
-import 'package:app/utils/result.dart';
+import 'package:sudoku_app/utils/result.dart';
 part 'user_event.dart';
 part 'user_state.dart';
 

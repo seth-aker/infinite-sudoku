@@ -1,5 +1,5 @@
-import 'package:app/ui/core/colors/app_colors.dart';
-import 'package:app/ui/core/constants.dart';
+import 'package:sudoku_app/ui/core/colors/app_colors.dart';
+import 'package:sudoku_app/ui/core/constants.dart';
 import 'package:flutter/cupertino.dart';
 
 class AppTheme {

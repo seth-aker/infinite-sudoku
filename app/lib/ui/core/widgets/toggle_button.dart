@@ -1,6 +1,6 @@
-import 'package:app/ui/core/app_theme.dart';
-import 'package:app/ui/core/spacing/app_spacing.dart';
-import 'package:app/ui/core/widgets/button.dart';
+import 'package:sudoku_app/ui/core/app_theme.dart';
+import 'package:sudoku_app/ui/core/spacing/app_spacing.dart';
+import 'package:sudoku_app/ui/core/widgets/button.dart';
 import 'package:flutter/cupertino.dart';
 
 class ToggleButton extends StatelessWidget {

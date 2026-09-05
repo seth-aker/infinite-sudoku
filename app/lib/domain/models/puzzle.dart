@@ -1,8 +1,8 @@
-import 'package:app/domain/models/action.dart';
-import 'package:app/domain/models/cell.dart';
-import 'package:app/domain/models/difficulty.dart';
-import 'package:app/data/model/puzzle/puzzle_dto.dart';
-import 'package:app/utils/serilization.dart';
+import 'package:sudoku_app/domain/models/action.dart';
+import 'package:sudoku_app/domain/models/cell.dart';
+import 'package:sudoku_app/domain/models/difficulty.dart';
+import 'package:sudoku_app/data/model/puzzle/puzzle_dto.dart';
+import 'package:sudoku_app/utils/serilization.dart';
 
 class Puzzle {
   final String puzzleId;

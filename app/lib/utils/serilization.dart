@@ -1,6 +1,6 @@
-import 'package:app/domain/models/action.dart';
-import 'package:app/domain/models/cell.dart';
-import 'package:app/utils/ctz.dart';
+import 'package:sudoku_app/domain/models/action.dart';
+import 'package:sudoku_app/domain/models/cell.dart';
+import 'package:sudoku_app/utils/ctz.dart';
 
 class PuzzleSerializer {
   static List<Cell> deserializeCells(String cells, String? candidates) {

@@ -1,10 +1,10 @@
-import 'package:app/domain/models/user.dart';
-import 'package:app/routing/routes.dart';
-import 'package:app/ui/core/app_theme.dart';
-import 'package:app/ui/core/widgets/app_icon.dart';
-import 'package:app/ui/core/widgets/shared_page_layout.dart';
-import 'package:app/ui/user/state/preferences_cubit.dart';
-import 'package:app/ui/user/state/user_bloc.dart';
+import 'package:sudoku_app/domain/models/user.dart';
+import 'package:sudoku_app/routing/routes.dart';
+import 'package:sudoku_app/ui/core/app_theme.dart';
+import 'package:sudoku_app/ui/core/widgets/app_icon.dart';
+import 'package:sudoku_app/ui/core/widgets/shared_page_layout.dart';
+import 'package:sudoku_app/ui/user/state/preferences_cubit.dart';
+import 'package:sudoku_app/ui/user/state/user_bloc.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';

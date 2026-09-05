@@ -1,11 +1,11 @@
-import 'package:app/data/repositories/puzzle_repository.dart';
-import 'package:app/domain/models/constants/puzzle_constants.dart';
-import 'package:app/domain/models/puzzle.dart';
-import 'package:app/ui/user/state/preferences_cubit.dart';
-import 'package:app/utils/result.dart';
-import 'package:app/domain/models/action.dart';
-import 'package:app/domain/models/cell.dart';
-import 'package:app/domain/models/difficulty.dart';
+import 'package:sudoku_app/data/repositories/puzzle_repository.dart';
+import 'package:sudoku_app/domain/models/constants/puzzle_constants.dart';
+import 'package:sudoku_app/domain/models/puzzle.dart';
+import 'package:sudoku_app/ui/user/state/preferences_cubit.dart';
+import 'package:sudoku_app/utils/result.dart';
+import 'package:sudoku_app/domain/models/action.dart';
+import 'package:sudoku_app/domain/models/cell.dart';
+import 'package:sudoku_app/domain/models/difficulty.dart';
 import 'package:equatable/equatable.dart';
 import 'package:hydrated_bloc/hydrated_bloc.dart';
 

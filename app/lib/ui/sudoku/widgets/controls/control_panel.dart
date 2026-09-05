@@ -1,9 +1,9 @@
-import 'package:app/ui/core/icons/app_icons.dart';
-import 'package:app/ui/core/spacing/app_spacing.dart';
-import 'package:app/ui/core/widgets/app_icon.dart';
-import 'package:app/ui/core/widgets/button.dart';
-import 'package:app/ui/core/widgets/toggle_button.dart';
-import 'package:app/ui/sudoku/state/puzzle/puzzle_bloc.dart';
+import 'package:sudoku_app/ui/core/icons/app_icons.dart';
+import 'package:sudoku_app/ui/core/spacing/app_spacing.dart';
+import 'package:sudoku_app/ui/core/widgets/app_icon.dart';
+import 'package:sudoku_app/ui/core/widgets/button.dart';
+import 'package:sudoku_app/ui/core/widgets/toggle_button.dart';
+import 'package:sudoku_app/ui/sudoku/state/puzzle/puzzle_bloc.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 

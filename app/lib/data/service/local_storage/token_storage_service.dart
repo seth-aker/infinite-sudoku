@@ -1,4 +1,4 @@
-import 'package:app/utils/result.dart';
+import 'package:sudoku_app/utils/result.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class TokenStorageService {

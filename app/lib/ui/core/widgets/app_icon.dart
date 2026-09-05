@@ -1,5 +1,5 @@
-import 'package:app/ui/core/constants.dart';
-import 'package:app/ui/core/icons/app_icons.dart';
+import 'package:sudoku_app/ui/core/constants.dart';
+import 'package:sudoku_app/ui/core/icons/app_icons.dart';
 import 'package:flutter/cupertino.dart';
 
 class AppIcon extends StatelessWidget {

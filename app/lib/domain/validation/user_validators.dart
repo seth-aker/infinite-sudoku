@@ -1,4 +1,4 @@
-import 'package:app/domain/validation/validation_errors.dart';
+import 'package:sudoku_app/domain/validation/validation_errors.dart';
 
 class UserValidator {
   static final RegExp _usernameRegex = RegExp(r'^[a-zA-Z0-9_-]{4,30}$');

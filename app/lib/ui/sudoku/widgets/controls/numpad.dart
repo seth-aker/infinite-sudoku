@@ -1,5 +1,5 @@
-import 'package:app/ui/core/spacing/app_spacing.dart';
-import 'package:app/ui/core/widgets/button.dart';
+import 'package:sudoku_app/ui/core/spacing/app_spacing.dart';
+import 'package:sudoku_app/ui/core/widgets/button.dart';
 import 'package:flutter/cupertino.dart';
 
 class Numpad extends StatelessWidget {

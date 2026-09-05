@@ -1,4 +1,4 @@
-import 'package:app/domain/models/difficulty.dart';
+import 'package:sudoku_app/domain/models/difficulty.dart';
 import 'package:json_annotation/json_annotation.dart';
 part 'puzzle_dto.g.dart';
 
