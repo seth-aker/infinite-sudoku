@@ -48,4 +48,13 @@ class AuthServiceRemote implements AuthService {
     body: {'refreshToken': refreshToken, 'grantType': 'refreshToken'},
     parse: (json) => RefreshTokenResponseDto.fromJson(json),
   );
+
+  @override
+  Future<Result<void>> requestResetLink(String email) => _client.send(
+    'POST',
+    '/api/auth/requestResetPassword',
+    parse: (_) {},
+    body: {"email: $email"},
+    expectedStatus: 201,
+  );
 }

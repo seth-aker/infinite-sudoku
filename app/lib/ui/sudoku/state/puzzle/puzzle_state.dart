@@ -35,8 +35,6 @@ class PuzzlePlayingState extends PuzzleState {
 
   final bool usingPencil;
 
-  final bool autoCandidateModeOn;
-
   final int moveCount;
 
   const PuzzlePlayingState({
@@ -50,7 +48,6 @@ class PuzzlePlayingState extends PuzzleState {
     this.redoActions = const [],
     this.isCompleted = false,
     this.usingPencil = false,
-    this.autoCandidateModeOn = false,
     this.selectedIdx,
     this.moveCount = 0,
   });
@@ -62,7 +59,6 @@ class PuzzlePlayingState extends PuzzleState {
     int? elapsedSeconds,
     int? selectedIdx,
     bool? usingPencil,
-    bool? autoCandidateModeOn,
     int? moveCount,
   }) {
     return PuzzlePlayingState(
@@ -76,7 +72,6 @@ class PuzzlePlayingState extends PuzzleState {
       elapsedSeconds: elapsedSeconds ?? this.elapsedSeconds,
       usingPencil: usingPencil ?? this.usingPencil,
       selectedIdx: selectedIdx ?? this.selectedIdx,
-      autoCandidateModeOn: autoCandidateModeOn ?? this.autoCandidateModeOn,
       moveCount: moveCount ?? this.moveCount,
     );
   }
@@ -93,7 +88,6 @@ class PuzzlePlayingState extends PuzzleState {
     isCompleted,
     selectedIdx,
     usingPencil,
-    autoCandidateModeOn,
     moveCount,
   ];
 }

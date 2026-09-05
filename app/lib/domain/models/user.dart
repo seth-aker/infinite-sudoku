@@ -1,19 +1,22 @@
 import 'package:app/data/model/user/user_dto.dart';
-
-enum UserRole { user, admin;
+import 'package:json_annotation/json_annotation.dart';
+part 'user.g.dart';
+enum UserRole {
+  user,
+  admin;
 
   factory UserRole.fromString(String str) {
     switch (str) {
       case 'user':
-	return user;
+        return user;
       case 'admin':
-	return admin;
+        return admin;
       default:
-	return user;
+        return user;
     }
   }
 }
-
+@JsonSerializable()
 class User {
   final String userId;
 
@@ -36,6 +39,20 @@ class User {
     this.currentPuzzleId,
   });
 
+  User copyWith({
+    String? email,
+    String? username,
+    UserRole? role,
+    String? imageUrl,
+    String? currentPuzzleId,
+  }) => User(
+    userId: userId,
+    email: email ?? this.email,
+    username: username ?? this.username,
+    role: role ?? this.role,
+    imageUrl: imageUrl ?? this.imageUrl,
+    currentPuzzleId: currentPuzzleId ?? this.currentPuzzleId,
+  );
   factory User.fromDto(UserDto dto) {
     return User(
       userId: dto.id,
@@ -57,4 +74,9 @@ class User {
       currentPuzzleId: currentPuzzleId,
     );
   }
+  
+  factory User.fromJson(Map<String, dynamic> json) => _$UserFromJson(json);
+
+  Map<String, dynamic> toJson() => _$UserToJson(this);
+ 
 }

@@ -1,69 +1,56 @@
 part of 'user_bloc.dart';
 
-sealed class UserState extends Equatable {
-  const UserState();
-  @override
-  List<Object?> get props;
-}
+enum UserStatus { loading, authenticated, unauthenticated, error }
 
-class UnauthenticatedUserState extends UserState {
-  const UnauthenticatedUserState();
+final class UserState extends Equatable {
+  final UserStatus status;
+  final User? user;
+  final String? statusMessage;
 
-  @override
-    List<Object?> get props => [];
-}
-
-class AuthenticatedUserState extends UserState {
-  final String userId;
-  final String email;
-  final String username;
-  final String? currentPuzzleId;
-  final UserRole role;
-  final String? imageUrl;
-
-  const AuthenticatedUserState({
-    required this.userId,
-    required this.email,
-    required this.username,
-    required this.role,
-    this.currentPuzzleId,
-    this.imageUrl,
+  const UserState._({
+    this.status = .unauthenticated,
+    this.user,
+    this.statusMessage,
   });
-  AuthenticatedUserState copyWith({
+  const factory UserState.initial() = UserState._;
+
+  factory UserState.unauthenticated({String? statusMessage}) => UserState._(
+    status: .unauthenticated,
+    user: null,
+    statusMessage: statusMessage,
+  );
+
+  factory UserState.authenticated({
+    required User user,
+    String? statusMessage,
+  }) => UserState._(
+    status: .authenticated,
+    user: user,
+    statusMessage: statusMessage,
+  );
+  
+  UserState loading() => copyWith(status: .loading);
+
+  UserState error(String? errorMessage) =>
+    copyWith(status: .error, statusMessage: errorMessage ?? statusMessage);
+
+  UserState copyWith({
     String? email,
     String? username,
     String? currentPuzzleId,
     String? imageUrl,
-  }) {
-    return AuthenticatedUserState(
-      userId: userId,
-      email: email ?? this.email,
-      username: username ?? this.username,
-      role: role,
-      currentPuzzleId: currentPuzzleId ?? this.currentPuzzleId,
-      imageUrl: imageUrl ?? this.imageUrl,
-    );
-  }
-
+    UserStatus? status,
+    String? statusMessage,
+  }) => UserState._(
+    status: status ?? this.status,
+    statusMessage: statusMessage ?? this.statusMessage,
+    user: user?.copyWith(
+      email: email,
+      username: username,
+      currentPuzzleId: currentPuzzleId,
+      imageUrl: imageUrl,
+    ),
+  );
   @override
-  List<Object?> get props => [
-    userId,
-    username,
-    currentPuzzleId,
-    role,
-    imageUrl,
-  ];
-}
-
-class LoadingUserState extends UserState {
-  const LoadingUserState();
-  @override
-    List<Object?> get props => [];
-}
-
-class UserErrorState extends UserState {
-  const UserErrorState();
-
-  @override
-    List<Object?> get props => [];
+  List<Object?> get props => [status, user, statusMessage];
 }

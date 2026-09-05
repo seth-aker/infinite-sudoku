@@ -4,4 +4,5 @@ abstract final class Routes {
   static const sudoku = '/sudoku';
   static const about = '/about';
   static const settings = '/settings';
+  static const pauseMenu = '/pause-menu';
 }

@@ -86,4 +86,13 @@ class AuthRepository {
         }
     }
   }
+  Future<Result<void>> requestResetLink(String email) async {
+    final result = await _authService.requestResetLink(email);
+    switch (result) {
+      case Error():
+	return result;
+      case Ok():
+	return result;
+    }
+  }
 }

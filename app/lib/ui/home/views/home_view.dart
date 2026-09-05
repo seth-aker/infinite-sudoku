@@ -7,6 +7,7 @@ import 'package:app/ui/core/widgets/app_icon.dart';
 import 'package:app/ui/core/widgets/button.dart';
 import 'package:app/ui/core/widgets/shared_page_layout.dart';
 import 'package:app/ui/sudoku/state/puzzle/puzzle_bloc.dart';
+import 'package:app/ui/user/state/user_bloc.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -20,7 +21,11 @@ class HomeView extends StatelessWidget {
       leading: CupertinoButton(
         child: const AppIcon(AppIcons.auth),
         onPressed: () {
-          context.push(Routes.login);
+          if (context.read<UserBloc>().state.status == .authenticated) {
+            context.push(Routes.settings);
+          } else {
+            context.push(Routes.login);
+          }
         },
       ),
       child: Padding(

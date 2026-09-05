@@ -1,5 +1,6 @@
 import 'package:app/data/repositories/auth_repository.dart';
 import 'package:app/domain/models/user.dart';
+import 'package:app/utils/logger/logger.dart';
 import 'package:hydrated_bloc/hydrated_bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:app/utils/result.dart';
@@ -9,34 +10,31 @@ part 'user_state.dart';
 class UserBloc extends HydratedBloc<UserEvent, UserState> {
   final AuthRepository _authRepository;
   UserBloc({required this._authRepository})
-    : super(const UnauthenticatedUserState()) {
+    : super(const UserState.initial()) {
     on<LoginRequested>(_onLoginRequested);
     on<RegisterRequested>(_onRegisterRequested);
     on<LogoutRequested>(_onLogoutRequested);
+    on<PasswordResetEmailRequested>(_onPasswordResetRequested);
   }
 
   Future<void> _onLoginRequested(
     LoginRequested event,
     Emitter<UserState> emit,
   ) async {
-    emit(const LoadingUserState());
+    emit(state.loading());
     final username = event.email;
     final password = event.password;
 
     final result = await _authRepository.login(username, password);
     switch (result) {
       case Error<User>():
-        emit(const UserErrorState());
+        final message = result.error.toString();
+        emit(state.error(message));
       case Ok<User>():
         final user = result.value;
         emit(
-          AuthenticatedUserState(
-            userId: user.userId,
-	    email: user.email,
-            username: user.username,
-            role: user.role,
-            currentPuzzleId: user.currentPuzzleId,
-            imageUrl: user.imageUrl,
+          UserState.authenticated(
+	    user: user,
           ),
         );
     }
@@ -46,34 +44,25 @@ class UserBloc extends HydratedBloc<UserEvent, UserState> {
     RegisterRequested event,
     Emitter<UserState> emit,
   ) async {
-    emit(const LoadingUserState());
+    emit(state.loading());
     final email = event.email;
     final password = event.password;
     final username = event.username;
-    final result = await _authRepository.register(
-      email,
-      username,
-      password,
-    );
+    final result = await _authRepository.register(email, username, password);
 
     switch (result) {
       case Error<User?>():
-        emit(const UserErrorState());
+        emit(state.error(result.error.toString()));
         return;
       case Ok<User?>():
         final user = result.value;
         if (user == null) {
-          emit(const UserErrorState());
+          emit(state.error("Registrasion failed, please try again."));
           return;
         }
         emit(
-          AuthenticatedUserState(
-            userId: user.userId,
-	    email: user.email,
-            username: user.username,
-            currentPuzzleId: user.currentPuzzleId,
-            imageUrl: user.imageUrl,
-            role: user.role,
+          UserState.authenticated(
+	    user: user,
           ),
         );
     }
@@ -83,65 +72,69 @@ class UserBloc extends HydratedBloc<UserEvent, UserState> {
     LogoutRequested event,
     Emitter<UserState> emit,
   ) async {
-    emit(const LoadingUserState());
+    emit(state.loading());
 
     final result = await _authRepository.logout();
 
     switch (result) {
       case Error<void>():
-        emit(const UserErrorState());
+        emit(state.error(result.error.toString()));
         return;
       case Ok<void>():
-        emit(const UnauthenticatedUserState());
+        emit(UserState.unauthenticated());
         return;
+    }
+  }
+
+  Future<void> _onPasswordResetRequested(
+    PasswordResetEmailRequested event,
+    Emitter<UserState> emit,
+  ) async {
+    if(state.status != .authenticated) return;
+    emit(state.loading());
+    final result = await _authRepository.requestResetLink(event.email);
+
+    switch (result) {
+      case Error():
+	emit(state.error(result.error.toString()));
+        return;
+      case Ok():
+        emit(state.copyWith());
     }
   }
 
   @override
   UserState? fromJson(Map<String, dynamic> json) {
     try {
-      final type = json['type'];
-      switch (type) {
-        case 'AuthenticatedUserState':
-          return AuthenticatedUserState(
-            userId: json['userId'],
-	    email: json['email'],
-            username: json['username'],
-            role: UserRole.fromString(json['role']),
-            currentPuzzleId: json['currentPuzzleId'],
-            imageUrl: json['imageUrl'],
-          );
-        case 'UserLoadingState':
-          return const LoadingUserState();
+      final status = json['status'];
+      switch (status) {
+        case 'authenticated':
+          return UserState.authenticated(
+	    user: User.fromJson(json['user'])          );
+        case 'loading':
+          return UserState._(status: .loading);
+	case 'error':
+	  return UserState._(status: .error, statusMessage: json['statusMessage']);
         default:
-          return const UnauthenticatedUserState();
+          return UserState.unauthenticated();
       }
     } catch (e) {
-      // TODO: Implement Error Handling
-      return null;
+      logger.e(e);
+      return UserState._(status: .error, statusMessage: "An error occured retrieving saved user state.");
     }
   }
 
   @override
   Map<String, dynamic>? toJson(UserState state) {
     try {
-      switch (state) {
-        case AuthenticatedUserState():
-          return {
-            'type': 'AuthenticatedUserState',
-            'userId': state.userId,
-	    'email': state.email,
-            'username': state.username,
-            'role': state.role.toString(),
-            'currentPuzzleId': state.currentPuzzleId,
-            'imageUrl': state.imageUrl,
-          };
-        case LoadingUserState():
-          return {'type': 'LoadingUserState'};
-        default:
-          return {'type': 'UnauthenticatedUserState'};
+	return {
+	  'status': state.status.name,
+	  'user': state.user?.toJson(),
+	  'statusMessage': state.statusMessage,
+	};
       }
-    } catch (e) {
+     catch (e) {
+      logger.e(e);
       return null;
     }
   }

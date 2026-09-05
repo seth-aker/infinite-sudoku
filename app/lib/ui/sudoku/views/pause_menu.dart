@@ -6,6 +6,7 @@ import 'package:app/ui/core/widgets/app_icon.dart';
 import 'package:app/ui/core/widgets/shared_page_layout.dart';
 import 'package:app/ui/sudoku/state/puzzle/puzzle_bloc.dart';
 import 'package:app/ui/sudoku/state/timer/timer_bloc.dart';
+import 'package:app/ui/user/state/preferences_cubit.dart';
 import 'package:app/utils/format_duration.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -16,9 +17,8 @@ class PauseMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final autoCandidateModeOn = context.select<PuzzleBloc, bool>((bloc) {
-      final state = bloc.state;
-      return state is PuzzlePlayingState ? state.autoCandidateModeOn : false;
+    final autoCandidateModeOn = context.select<PreferencesCubit, bool>((cubit) {
+      return cubit.state.autoCandidateModeOn;
     });
     final totalMoves = context.select<PuzzleBloc, int>((bloc) {
       final state = bloc.state;

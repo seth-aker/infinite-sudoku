@@ -12,7 +12,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:hydrated_bloc/hydrated_bloc.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:toastification/toastification.dart';
 
 void main() async {
   logger.t("Starting Sudoku App");
@@ -36,11 +35,9 @@ void main() async {
   );
   logger.t("Blocs hydrated successfully");
   runApp(
-    ToastificationWrapper(
-      child: SudokuApp(
-        authRepository: authRepository,
-        puzzleRepository: puzzleRepository,
-      ),
+    SudokuApp(
+      authRepository: authRepository,
+      puzzleRepository: puzzleRepository,
     ),
   );
 }

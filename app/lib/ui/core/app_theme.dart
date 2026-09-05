@@ -6,7 +6,7 @@ class AppTheme {
   static bool get isIos => isApple;
 
   static bool isDarkMode(BuildContext context) {
-    return MediaQuery.of(context).platformBrightness == Brightness.dark;
+    return CupertinoTheme.brightnessOf(context) == .dark; 
   }
 
   static Color primary() {

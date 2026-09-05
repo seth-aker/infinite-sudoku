@@ -1,6 +1,7 @@
 import 'package:app/data/repositories/puzzle_repository.dart';
 import 'package:app/domain/models/constants/puzzle_constants.dart';
 import 'package:app/domain/models/puzzle.dart';
+import 'package:app/ui/user/state/preferences_cubit.dart';
 import 'package:app/utils/result.dart';
 import 'package:app/domain/models/action.dart';
 import 'package:app/domain/models/cell.dart';
@@ -12,7 +13,9 @@ part 'puzzle_state.dart';
 part 'puzzle_event.dart';
 
 class PuzzleBloc extends HydratedBloc<PuzzleEvent, PuzzleState> {
-  PuzzleBloc({required this._puzzleRepository})
+  final PuzzleRepository _puzzleRepository;
+  final PreferencesCubit _preferencesCubit;
+  PuzzleBloc({required this._puzzleRepository, required this._preferencesCubit})
     : super(const PuzzleInitialState()) {
     on<NewPuzzleFetched>(_onNewPuzzleFetched);
     on<PuzzleFetched>(_onPuzzleFetched);
@@ -24,8 +27,6 @@ class PuzzleBloc extends HydratedBloc<PuzzleEvent, PuzzleState> {
     on<AutoCandidateModeToggled>(_onAutoCandidateModeToggled);
     on<ResetBoardRequested>(_onResetBoardRequested);
   }
-
-  final PuzzleRepository _puzzleRepository;
 
   Future<void> _onNewPuzzleFetched(
     NewPuzzleFetched event,
@@ -152,7 +153,7 @@ class PuzzleBloc extends HydratedBloc<PuzzleEvent, PuzzleState> {
       cells[idx] = prevCell.copyWith(value: value, candidates: const {});
 
       // Loop through cell peers and remove candidates that equal new value;
-      if (state.autoCandidateModeOn) {
+      if (_preferencesCubit.state.autoCandidateModeOn) {
         final cellPeers = peers[idx];
         for (final peer in cellPeers) {
           final cell = cells[peer];
@@ -169,7 +170,7 @@ class PuzzleBloc extends HydratedBloc<PuzzleEvent, PuzzleState> {
     } else if (prevCell.value == value) {
       cells[idx] = prevCell.copyWith(value: 0);
 
-      if (state.autoCandidateModeOn) {
+      if (_preferencesCubit.state.autoCandidateModeOn) {
         final affectedCells = {idx, ...peers[idx]};
         for (final affectedIdx in affectedCells) {
           if (cells[affectedIdx].value != 0) continue;
@@ -325,10 +326,10 @@ class PuzzleBloc extends HydratedBloc<PuzzleEvent, PuzzleState> {
           cells[i] = cells[i].copyWith(candidates: candidates);
         }
       }
+      _preferencesCubit.setAutoCandidateMode(autoCandidateMode: event.autoCandidateModeOn);
       emit(
         state.copyWith(
           cells: cells,
-          autoCandidateModeOn: event.autoCandidateModeOn,
         ),
       );
     }
@@ -384,7 +385,6 @@ class PuzzleBloc extends HydratedBloc<PuzzleEvent, PuzzleState> {
                 .toList(),
             isCompleted: json['isCompleted'] as bool,
             usingPencil: json['usingPencil'] as bool,
-            autoCandidateModeOn: json['autoCandidateModeOn'] as bool,
             selectedIdx: json['selectedIdx'] as int,
             moveCount: json['moveCount'] as int,
           );
@@ -420,7 +420,6 @@ class PuzzleBloc extends HydratedBloc<PuzzleEvent, PuzzleState> {
             'elapsedSeconds': state.elapsedSeconds,
             'isCompleted': state.isCompleted,
             'usingPencil': state.usingPencil,
-            'autoCandidateModeOn': state.autoCandidateModeOn,
             'selectedIdx': state.selectedIdx,
             'moveCount': state.moveCount,
           };

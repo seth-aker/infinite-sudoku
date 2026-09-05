@@ -34,21 +34,23 @@ class _LoginFormState extends State<LoginForm> {
   Widget build(BuildContext context) {
     return BlocConsumer<UserBloc, UserState>(
       listener: ((context, state) {
-        if (state is AuthenticatedUserState) {
+        if (state.status == .authenticated) {
 	  toastification.show(
 	    title: Text("Login success!"),
-	    description: Text('Welcome back, ${state.username}'),
+	    description: Text('Welcome back, ${state.user!.username}'),
 	    autoCloseDuration: const Duration(seconds: 3),
 	  );
           context.go(Routes.home);
-        } else if (state is UserErrorState) {
+        } else if (state.status == .error) {
 	  toastification.show(
-	    title: Text("")
+	    type: .error,
+	    title: Text(state.statusMessage ?? "An error occurred"),
+	    autoCloseDuration: const Duration(seconds: 3),
 	  );
 	}
       }),
       builder: (context, state) {
-        final loading = state is LoadingUserState;
+        final loading = state.status == .loading;
         final submitDisabled =
             loading; // TODO: extend this to depend on fixing validation after a failed submit
         return Form(

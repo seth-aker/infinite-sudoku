@@ -13,4 +13,6 @@ abstract class AuthService {
   Future<Result<UserDto?>> register(RegisterRequestDto registerRequest);
 
   Future<Result<RefreshTokenResponseDto>> refreshAccessToken(String refreshToken);
+
+  Future<Result<void>> requestResetLink(String email);
 }

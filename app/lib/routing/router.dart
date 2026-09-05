@@ -3,6 +3,7 @@ import 'package:app/ui/home/views/home_view.dart';
 import 'package:app/ui/sudoku/views/sudoku_view.dart';
 import 'package:app/ui/sudoku/views/pause_menu.dart';
 import 'package:app/ui/user/views/login_register_view.dart';
+import 'package:app/ui/user/views/user_settings_view.dart';
 import 'package:go_router/go_router.dart';
 
 GoRouter router() => GoRouter(
@@ -11,7 +12,7 @@ GoRouter router() => GoRouter(
     GoRoute(path: Routes.home, builder: (context, state) => const HomeView()),
     GoRoute(
       path: Routes.settings,
-      builder: (context, state) => const PauseMenu(),
+      builder: (context, state) => const UserSettingsView(),
     ),
     GoRoute(
       path: Routes.sudoku,
@@ -20,6 +21,10 @@ GoRouter router() => GoRouter(
     GoRoute(
       path: Routes.login,
       builder: (context, state) => LoginRegisterView(),
+    ),
+    GoRoute(
+      path: Routes.pauseMenu,
+      builder: (context, state) => const PauseMenu(),
     ),
   ],
   //   name: 'About',
