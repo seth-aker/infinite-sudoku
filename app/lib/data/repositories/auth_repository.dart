@@ -39,9 +39,11 @@ class AuthRepository {
   }
 
   Future<Result<void>> logout() async {
-    _accessToken = null;
+    final result = await _authService.logout();
+    if(result is Error) return result;
     await _storageService.clear();
-    return await _authService.logout();
+    _accessToken = null;
+    return result;
   }
 
   Future<Result<User?>> register(

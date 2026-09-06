@@ -50,3 +50,11 @@ export const tokenBodyValidator = (req: Request, _res: Response, next: NextFunct
   req.body = result.data;
   next();
 }
+
+export const passwordResetSchema = (req: Request, _res: Response, next: NextFunction) => {
+  const pwResult = passwordSchema.safeParse(req.body?.password);
+  if (!pwResult.success) return next(pwResult.error);
+  const tokenResult = z.uuid().safeParse(req.query?.resetToken);
+  if (!tokenResult.success) return next(tokenResult.error);
+  next();
+}

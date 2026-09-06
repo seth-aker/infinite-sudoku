@@ -1,11 +1,12 @@
 import { Request, Response, Router } from "express";
-import { loginBodyValidator, registerBodyValidator, tokenBodyValidator, } from "../middleware/validation";
+import { loginBodyValidator, passwordResetSchema, registerBodyValidator, tokenBodyValidator, } from "../middleware/validation";
 import { AuthenticationError } from "../errors/authenticationError";
 import { AuthenticationService } from "../service/authenticationService";
 import { authLimiter } from "../middleware/rateLimiter";
 import { clearAuthCookies, setAuthCookies } from "../utils/cookies";
 import { ErrorType } from "@/core/errors/errorTypes";
 import { DatabaseError } from "@/core/errors/databaseError";
+import { requireLoggedin } from "../middleware/authentication";
 
 type TokenPasswordBody = {
   grantType: 'password',
@@ -34,11 +35,11 @@ export function AuthRouter(authService: AuthenticationService) {
     res.json({ user })
   })
 
-  router.post('/logout', authLimiter(), async (req, res) => {
+  router.post('/logout', authLimiter(), requireLoggedin, async (req, res) => {
     const refreshToken = req.body.refreshToken || req.cookies?.refreshToken;
 
     if(refreshToken) {
-      await authService.clearToken(refreshToken);
+      await authService.clearRefreshToken(refreshToken);
     }
 
     clearAuthCookies(res);
@@ -99,6 +100,22 @@ export function AuthRouter(authService: AuthenticationService) {
         })
       }
     }
+  })
+
+  router.post('/resetPasswordToken', authLimiter(), async (req, res) => {
+    const user = req.user;
+    if(!user) {
+      throw new AuthenticationError("Invalid access token", {type: "validation_failed"})
+    }
+    await authService.requestPasswordResetToken(user.userId);
+    return res.sendStatus(204);
+  })
+
+  router.put('/passwordReset', authLimiter(), passwordResetSchema, async (req: Request<{},{},{password: string}, {resetToken: string}>, res) => {
+    const resetToken = req.query.resetToken;
+    const newPassword = req.body.password;
+    const tokens = await authService.resetPassword(resetToken, newPassword);
+    return res.json(tokens);
   })
   return router
 }

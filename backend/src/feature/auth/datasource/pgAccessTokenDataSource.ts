@@ -1,11 +1,11 @@
 import { Sql } from "postgres";
-import { TokenDataSource, TokenRecord } from "./tokenDataSource";
+import { AccessTokenDataSource, TokenRecord } from "./accessTokenDataSource";
 import { createHash, randomBytes } from 'node:crypto'
 import { AuthenticationError } from "../errors/authenticationError";
 import { ErrorType } from "@/core/errors/errorTypes";
 import { logger } from "@/core/logging/logger";
 
-export class PgTokenDataSource implements TokenDataSource {
+export class PgTokenDataSource implements AccessTokenDataSource {
     static instance: PgTokenDataSource | null = null;
     private client: Sql;
     private ONE_DAY_MS = 1000 * 60 * 60 * 24; 
@@ -93,7 +93,12 @@ export class PgTokenDataSource implements TokenDataSource {
         `
         return token;
     }
-
+    public async invalidateAllForUser(userId: string) {
+      await this.client`
+	DELETE FROM refresh_tokens
+	WHERE user_id = ${userId};
+      `
+    }
     public async delete(token: string) {
         const hashedToken = this.hashToken(token);
         await this.client`

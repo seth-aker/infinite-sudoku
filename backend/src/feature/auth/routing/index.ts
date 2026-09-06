@@ -2,9 +2,11 @@ import { AuthRouter } from "./authRouter";
 import { AuthenticationServiceImpl } from "../service/authenticationServiceImpl";
 import { PgUserDataSource } from "@/feature/users/datasource/pgUserDataSource";
 import sql from "@/core/dataSource/postgres";
-import { PgTokenDataSource } from "../datasource/pgTokenDataSource";
+import { PgTokenDataSource } from "../datasource/pgAccessTokenDataSource";
+import { PgResetTokenDataSource } from "../datasource/pgResetTokenDataSource";
 
 const userDataSource = PgUserDataSource.create(sql)
-const tokenDataSource = PgTokenDataSource.create(sql)
-const authService = AuthenticationServiceImpl.create(userDataSource, tokenDataSource)
+const accessTokenDataSource = PgTokenDataSource.create(sql)
+const resetTokenSource = PgResetTokenDataSource.create(sql);
+const authService = AuthenticationServiceImpl.create(userDataSource, accessTokenDataSource, resetTokenSource)
 export const authRouter = AuthRouter(authService)

@@ -1,5 +1,5 @@
 import { IUserDTO } from "@/feature/users/datasource/models/user";
-import { scryptSync, timingSafeEqual, randomBytes } from "node:crypto";
+import { timingSafeEqual, randomBytes, scryptSync } from "node:crypto";
 import { AuthenticationService } from "./authenticationService";
 import { AuthenticationError } from "../errors/authenticationError";
 import { UserDataSource } from "@/feature/users/datasource/userDataSource";
@@ -8,29 +8,33 @@ import z from "zod/v4";
 import { DatabaseError } from "@/core/errors/databaseError";
 import { config } from "@/core/config";
 import { SignJWT } from "jose";
-import { TokenDataSource } from "../datasource/tokenDataSource";
+import { AccessTokenDataSource } from "../datasource/accessTokenDataSource";
 import { ErrorType } from "@/core/errors/errorTypes";
 import { AuthorizationError } from "../errors/authorizationError";
+import { ResetTokenDataSource } from "../datasource/resetTokenDataSource";
+import { NotFoundError } from "@/core/errors/notFoundError";
 const SCRYPT_KEYLEN = 64
 const SALT_LEN = 16
 
 const DUMMY_SALT = randomBytes(SALT_LEN)
 const DUMMY_HASHED = scryptSync('not-a-real-password', DUMMY_SALT, SCRYPT_KEYLEN)
-
+const RESET_TOKEN_MAX_AGE = 1000 * 60 * 15; // 15 minutes
 export class AuthenticationServiceImpl implements AuthenticationService {
   static instance: AuthenticationServiceImpl | null = null;
   private userDataSource: UserDataSource;
-  private tokenDataSource: TokenDataSource; 
+  private accessTokenDataSource: AccessTokenDataSource; 
+  private resetTokenDataSource: ResetTokenDataSource;
   private textEncoder: TextEncoder;
-  private constructor(userDataSource: UserDataSource, tokenDataSource: TokenDataSource) {
+  private constructor(userDataSource: UserDataSource, accessTokenDataSource: AccessTokenDataSource, resetTokenDataSource: ResetTokenDataSource) {
     this.userDataSource = userDataSource;
-    this.tokenDataSource = tokenDataSource;
+    this.accessTokenDataSource = accessTokenDataSource;
+    this.resetTokenDataSource = resetTokenDataSource;
     this.textEncoder = new TextEncoder();
   }
   
-  static create(userDataSource: UserDataSource, tokenDataSource: TokenDataSource): AuthenticationServiceImpl {
+  static create(userDataSource: UserDataSource, accessTokenDataSource: AccessTokenDataSource, resetTokenDataSource: ResetTokenDataSource): AuthenticationServiceImpl {
     if(AuthenticationServiceImpl.instance === null) {
-      AuthenticationServiceImpl.instance = new AuthenticationServiceImpl(userDataSource, tokenDataSource);
+      AuthenticationServiceImpl.instance = new AuthenticationServiceImpl(userDataSource, accessTokenDataSource, resetTokenDataSource);
     }
     return AuthenticationServiceImpl.instance
   }
@@ -56,16 +60,15 @@ export class AuthenticationServiceImpl implements AuthenticationService {
       }
   }
   async registerUser(user: z.infer<typeof registerBodySchema>) {
-      const salt = randomBytes(16);
-      const hashedPassword = scryptSync(user.password.normalize(), salt, 64);
+      const {passwordHash, salt} = await this.hashPassword(user.password);
       if(!user.tosAcknowledged) {
 	throw new AuthenticationError("Terms of Service must be acknowledged", {type: ErrorType.VALIDATION_FAILED})
       }
       const userId = await this.userDataSource.createUser({
 	email: user.email.toLowerCase(),
         username: user.username.toLowerCase(),
-        passwordHash: hashedPassword.toString('hex'),
-        salt: salt.toString('hex'),
+        passwordHash,
+        salt,
 	tosAcknowledged: user.tosAcknowledged,
 	role: 'user',
       })
@@ -77,20 +80,39 @@ export class AuthenticationServiceImpl implements AuthenticationService {
   }
 
   async refreshAccessToken(refreshToken: string) {
-    const {token: newRefresh, userId } = await this.tokenDataSource.rotateRefreshToken(refreshToken);
+    const {token: newRefresh, userId } = await this.accessTokenDataSource.rotateRefreshToken(refreshToken);
     const newAccessToken = await this.generateAccessToken(userId);
     return {refreshToken: newRefresh, accessToken: newAccessToken}
   }
 
   async getNewTokenSet(userId: string) {
-    const refreshToken = await this.tokenDataSource.create(userId);
+    const refreshToken = await this.accessTokenDataSource.create(userId);
     const accessToken = await this.generateAccessToken(userId);
     return {accessToken, refreshToken};
   }
-  async clearToken(token: string) {
-    await this.tokenDataSource.delete(token);
+  async clearRefreshToken(token: string) {
+    await this.accessTokenDataSource.delete(token);
   }
-  async generateAccessToken(userId: string) {
+
+  async requestPasswordResetToken(userId: string) {
+    const token = await this.resetTokenDataSource.createResetToken(userId);
+    // TODO: Send token in email;
+  }
+
+  async resetPassword(token: string, newPassword: string) {
+    const unusedToken = await this.resetTokenDataSource.findByTokenAndStatus(token, 'UNUSED')
+    if (!unusedToken) throw new NotFoundError("Invalid token", {type: 'token_invalid'});
+    if (unusedToken.createdAt.getTime() + RESET_TOKEN_MAX_AGE < Date.now()) {
+      throw new AuthorizationError('Token expired', {type: 'token_expired'});
+    }
+
+    const {passwordHash, salt} = await this.hashPassword(newPassword);
+    await this.userDataSource.changePassword(unusedToken.userId, passwordHash, salt);
+    await this.accessTokenDataSource.invalidateAllForUser(unusedToken.userId);
+    return await this.getNewTokenSet(unusedToken.userId);
+  }
+
+  private async generateAccessToken(userId: string) {
     const secret =  this.textEncoder.encode(config.jwtSecret);
     const user = await this.userDataSource.getUser(userId);
     const audience = config.audience;
@@ -105,5 +127,11 @@ export class AuthenticationServiceImpl implements AuthenticationService {
     .setIssuer(issuerUrl)
     .setAudience(audience)
     .sign(secret);
+  }
+
+  private async hashPassword(password: string) {
+    const salt = randomBytes(SALT_LEN);
+    const hashedPassword = scryptSync(password.normalize(), salt, SCRYPT_KEYLEN);
+    return {passwordHash: hashedPassword.toString('hex'), salt: salt.toString('hex')};
   }
 }

@@ -96,15 +96,8 @@ CREATE TABLE IF NOT EXISTS public.user_puzzles (
 );
 
 --
--- Name: sessions; Type: TABLE
+-- Name: refresh_tokens; Type: TABLE
 --
-
-CREATE TABLE IF NOT EXISTS public.sessions (
-    sid text NOT NULL,
-    sess json NOT NULL,
-    expire timestamp(6) without time zone NOT NULL,
-    CONSTRAINT pk_session PRIMARY KEY (sid)
-);
 
 CREATE TABLE IF NOT EXISTS public.refresh_tokens (
     id BIGSERIAL PRIMARY KEY,
@@ -113,9 +106,23 @@ CREATE TABLE IF NOT EXISTS public.refresh_tokens (
     expires_at TIMESTAMPTZ NOT NULL,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
+
+--
+-- NAME: reset_tokens; Type: TABLE
+--
+
+CREATE TABLE IF NOT EXISTS public.reset_tokens (
+  id BIGSERIAL PRIMARY KEY,
+  user_id uuid NOT NULL REFERENCES public.users(user_id) ON DELETE CASCADE,
+  status text NOT NULL DEFAULT 'UNUSED',
+  reset_token uuid DEFAULT gen_random_uuid() NOT NULL,
+  created_at timestamp  with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT check_valid_status CHECK (status IN ('UNUSED', 'USED'))
+);
+
+
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_expires ON public.refresh_tokens (expires_at);
 
-CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON public.sessions USING btree (expire);
 
 --
 -- Name: users set_timestamp; Type: TRIGGER

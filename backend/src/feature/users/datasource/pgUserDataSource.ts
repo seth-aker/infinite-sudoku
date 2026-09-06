@@ -108,6 +108,17 @@ export class PgUserDataSource implements UserDataSource {
     }))
     return userStats
   }
+
+  async changePassword(userId: string, newPassword: string, newSalt: string) {
+    await this.client`
+      UPDATE users
+      SET 
+	password_hash = ${newPassword},
+	salt = ${newSalt}
+      WHERE user_id = ${userId};
+    `
+  }
+
   async deleteUser(userId: string): Promise<number> {
     const res = await this.client`
       UPDATE users
