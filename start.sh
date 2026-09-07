@@ -2,11 +2,11 @@
 if [ "$1" == "DEV" ]; then
 
 export NODE_ENV=development
-(cd ./frontend 
+(cd ./frontend || exit
 pnpm run dev) &
 
 
-(cd ./backend 
+(cd ./backend || exit
 pnpm run dev)
 
 elif [ "$1" == "PROD" ]; then

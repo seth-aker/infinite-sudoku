@@ -1,5 +1,5 @@
 {
-  "name": "vue-sudoku",
+  "name": "infinite-sudoku",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
@@ -12,5 +12,5 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "packageManager": "pnpm@11.24.0"
+  "packageManager": "pnpm@12.3.4"
 }

@@ -1,12 +1,12 @@
 #!/bin/bash
 echo "Running pnpm install on frontend"
 
-cd ./frontend
+cd ./frontend || exit
 pnpm install
 
 echo "Frontend packages installed"
 
-cd ../backend
+cd ../backend || exit
 
 pnpm install
 
