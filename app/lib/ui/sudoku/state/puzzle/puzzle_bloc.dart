@@ -389,9 +389,7 @@ class PuzzleBloc extends HydratedBloc<PuzzleEvent, PuzzleState> {
             moveCount: json['moveCount'] as int,
           );
         case 'PuzzleLoadingState':
-          return const PuzzleLoadingState();
         case 'PuzzleErrorState':
-          return const PuzzleErrorState();
         default:
           return const PuzzleInitialState();
       }

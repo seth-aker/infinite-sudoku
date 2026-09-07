@@ -1,12 +1,12 @@
 import { Sql } from "postgres";
-import { AccessTokenDataSource, TokenRecord } from "./accessTokenDataSource";
+import { RefreshTokenDataSource, TokenRecord } from "./refreshTokenDataSource";
 import { createHash, randomBytes } from 'node:crypto'
 import { AuthenticationError } from "../errors/authenticationError";
 import { ErrorType } from "@/core/errors/errorTypes";
 import { logger } from "@/core/logging/logger";
 
-export class PgTokenDataSource implements AccessTokenDataSource {
-    static instance: PgTokenDataSource | null = null;
+export class PgRefreshTokenDataSource implements RefreshTokenDataSource {
+    static instance: PgRefreshTokenDataSource | null = null;
     private client: Sql;
     private ONE_DAY_MS = 1000 * 60 * 60 * 24; 
     private THIRTY_DAY_MS = this.ONE_DAY_MS * 30;
@@ -32,10 +32,10 @@ export class PgTokenDataSource implements AccessTokenDataSource {
     }
 
     static create(client: Sql) {
-        if(!PgTokenDataSource.instance) {
-            PgTokenDataSource.instance = new PgTokenDataSource(client);
+        if(!PgRefreshTokenDataSource.instance) {
+            PgRefreshTokenDataSource.instance = new PgRefreshTokenDataSource(client);
         }
-        return PgTokenDataSource.instance
+        return PgRefreshTokenDataSource.instance
     }
     public async rotateRefreshToken(token: string) {
         const expiresAt = Math.ceil((Date.now() + this.THIRTY_DAY_MS) / 1000); // postgres to_timestamp takes seconds as its argument

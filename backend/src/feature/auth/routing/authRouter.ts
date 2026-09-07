@@ -1,8 +1,8 @@
 import { Request, Response, Router } from "express";
-import { loginBodyValidator, passwordResetSchema, registerBodyValidator, tokenBodyValidator, } from "../middleware/validation";
+import { loginBodyValidator, passwordResetValidator, registerBodyValidator, resetRequestValidator as resetRequestValidator, tokenBodyValidator, } from "../middleware/validation";
 import { AuthenticationError } from "../errors/authenticationError";
 import { AuthenticationService } from "../service/authenticationService";
-import { authLimiter } from "../middleware/rateLimiter";
+import { authLimiter, resetPasswordRateLimiter } from "../middleware/rateLimiter";
 import { clearAuthCookies, setAuthCookies } from "../utils/cookies";
 import { ErrorType } from "@/core/errors/errorTypes";
 import { DatabaseError } from "@/core/errors/databaseError";
@@ -102,16 +102,12 @@ export function AuthRouter(authService: AuthenticationService) {
     }
   })
 
-  router.post('/resetPasswordToken', authLimiter(), async (req, res) => {
-    const user = req.user;
-    if(!user) {
-      throw new AuthenticationError("Invalid access token", {type: "validation_failed"})
-    }
-    await authService.requestPasswordResetToken(user.userId);
+  router.post('/resetPasswordToken', resetPasswordRateLimiter(), resetRequestValidator,  async (req: Request<{}, {}, {email: string}>, res) => {
+    await authService.requestPasswordResetToken(req.body.email);
     return res.sendStatus(204);
   })
 
-  router.put('/passwordReset', authLimiter(), passwordResetSchema, async (req: Request<{},{},{password: string}, {resetToken: string}>, res) => {
+  router.put('/passwordReset', authLimiter(), passwordResetValidator, async (req: Request<{},{},{password: string}, {resetToken: string}>, res) => {
     const resetToken = req.query.resetToken;
     const newPassword = req.body.password;
     const tokens = await authService.resetPassword(resetToken, newPassword);

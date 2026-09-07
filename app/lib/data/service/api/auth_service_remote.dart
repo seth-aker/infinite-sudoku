@@ -55,6 +55,6 @@ class AuthServiceRemote implements AuthService {
     '/api/auth/requestResetPassword',
     parse: (_) {},
     body: {"email": email},
-    expectedStatus: 201,
+    expectedStatus: 204,
   );
 }

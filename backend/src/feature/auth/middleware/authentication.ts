@@ -60,7 +60,7 @@ export const requireAdmin = async (req: Request, _res: Response, next: NextFunct
 }
 
 function getToken(req: Request) {
-    if(req.headers.authorization || req.headers.authorization.startsWith('Bearer ')) {
+    if(req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
       return req.headers.authorization.split(' ')[1];
     } else {
       return req.cookies?.accessToken;

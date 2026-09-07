@@ -2,22 +2,22 @@ import { NextFunction, Request, Response } from "express";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { createHash } from "node:crypto";
 
-
+const FIFTEEN_MINUTES = 15 * 60 * 1000;
 function passwordGrantLimiter() {
   return rateLimit({
-    windowMs: 15 * 60 * 1000,
+    windowMs: FIFTEEN_MINUTES,
     limit: 5,
     skipSuccessfulRequests: true,
     keyGenerator: (req: Request) => {
-      const username = req.body?.email as string;
-      return username ? `login:${username.toLowerCase()}` : `ip:${ipKeyGenerator(req.ip!)}`
+      const email = req.body?.email as string;
+      return email ? `login:${email.toLowerCase()}` : `ip:${ipKeyGenerator(req.ip!)}`
     }
   })
 }
 
 function refreshGrantLimiter() {
   return rateLimit({
-    windowMs: 15 * 60 * 1000,
+    windowMs: FIFTEEN_MINUTES,
     limit: 5,
     skipSuccessfulRequests: true,
     keyGenerator: (req) => {
@@ -27,6 +27,17 @@ function refreshGrantLimiter() {
 	return `rt:${tokenHash}`;
       }
       return `ip:${ipKeyGenerator(req.ip!)}`
+    }
+  })
+}
+export function resetPasswordRateLimiter() {
+  return rateLimit({
+    windowMs: FIFTEEN_MINUTES,
+    limit: 3,
+    skipSuccessfulRequests: true,
+    keyGenerator: (req: Request) => {
+      const email = req.body?.email as string;
+      return email ? `passwordReset:${email.toLowerCase()}` : `ip:${ipKeyGenerator(req.ip!)}`;
     }
   })
 }

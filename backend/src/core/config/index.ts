@@ -20,5 +20,9 @@ export const config = {
   puzzleGeneratorWorkerPath: process.env.WORKER_PATH || '/home/saker/workspace/vue-sudoku/backend/src/feature/sudoku/puzzleSolver/puzzleGeneratorInC.ts',
   jwtSecret: process.env.JWT_SECRET,
   isProduction: process.env.NODE_ENV === 'production',
-  logLevel: process.env.LOG_LEVEL
+  logLevel: process.env.LOG_LEVEL,
+  smtpHost: process.env.SMTP_HOST,
+  smtpPort: process.env.SMTP_PORT,
+  smtpUser: process.env.SMTP_USER,
+  smtpPassword: process.env.SMTP_PASSWORD,
 }

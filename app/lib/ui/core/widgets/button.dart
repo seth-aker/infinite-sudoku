@@ -21,7 +21,7 @@ sealed class Button extends StatelessWidget {
     foregroundColor: foregroundColor,
     padding: padding,
     borderRadius: borderRadius,
-    isDisabled: isDisabled = false,
+    isDisabled: isDisabled ?? false,
     child: child,
   );
   factory Button.ghost({
@@ -38,7 +38,7 @@ sealed class Button extends StatelessWidget {
     foregroundColor: foregroundColor,
     padding: padding,
     borderRadius: borderRadius,
-    isDisabled: isDisabled = false,
+    isDisabled: isDisabled ?? false,
     child: child,
   );
   factory Button.secondary({
@@ -55,7 +55,7 @@ sealed class Button extends StatelessWidget {
     foregroundColor: foregroundColor,
     padding: padding,
     borderRadius: borderRadius,
-    isDisabled: isDisabled = false,
+    isDisabled: isDisabled ?? false,
     child: child,
   );
   factory Button.icon({
@@ -72,7 +72,7 @@ sealed class Button extends StatelessWidget {
     foregroundColor: foregroundColor,
     padding: padding,
     borderRadius: borderRadius,
-    isDisabled: isDisabled = false,
+    isDisabled: isDisabled ?? false,
     child: child,
   );
 }

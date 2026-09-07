@@ -8,5 +8,5 @@ interface ResetToken {
 
 export interface ResetTokenDataSource {
   createResetToken: (userId: string) => Promise<string>
-  findByTokenAndStatus: (token: string, status: ResetTokenStatus) => Promise<ResetToken | undefined>
+  consumeToken: (token: string) => Promise<ResetToken | undefined>
 }

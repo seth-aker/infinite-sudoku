@@ -8,6 +8,6 @@ export interface AuthenticationService {
   getNewTokenSet: (userId: string) => Promise<{accessToken: string, refreshToken: string}>
   refreshAccessToken: (refreshToken: string) => Promise<{accessToken: string, refreshToken: string}>
   clearRefreshToken: (token: string) => Promise<void>
-  requestPasswordResetToken: (userId: string) => Promise<void>
+  requestPasswordResetToken: (email: string) => Promise<void>
   resetPassword: (resetToken: string, newPassword: string) => Promise<{accessToken: string, refreshToken: string}>
 }

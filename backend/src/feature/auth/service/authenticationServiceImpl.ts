@@ -8,11 +8,12 @@ import z from "zod/v4";
 import { DatabaseError } from "@/core/errors/databaseError";
 import { config } from "@/core/config";
 import { SignJWT } from "jose";
-import { AccessTokenDataSource } from "../datasource/accessTokenDataSource";
+import { RefreshTokenDataSource } from "../datasource/refreshTokenDataSource";
 import { ErrorType } from "@/core/errors/errorTypes";
 import { AuthorizationError } from "../errors/authorizationError";
 import { ResetTokenDataSource } from "../datasource/resetTokenDataSource";
 import { NotFoundError } from "@/core/errors/notFoundError";
+import { logger } from "@/core/logging/logger";
 const SCRYPT_KEYLEN = 64
 const SALT_LEN = 16
 
@@ -22,17 +23,17 @@ const RESET_TOKEN_MAX_AGE = 1000 * 60 * 15; // 15 minutes
 export class AuthenticationServiceImpl implements AuthenticationService {
   static instance: AuthenticationServiceImpl | null = null;
   private userDataSource: UserDataSource;
-  private accessTokenDataSource: AccessTokenDataSource; 
+  private accessTokenDataSource: RefreshTokenDataSource; 
   private resetTokenDataSource: ResetTokenDataSource;
   private textEncoder: TextEncoder;
-  private constructor(userDataSource: UserDataSource, accessTokenDataSource: AccessTokenDataSource, resetTokenDataSource: ResetTokenDataSource) {
+  private constructor(userDataSource: UserDataSource, accessTokenDataSource: RefreshTokenDataSource, resetTokenDataSource: ResetTokenDataSource) {
     this.userDataSource = userDataSource;
     this.accessTokenDataSource = accessTokenDataSource;
     this.resetTokenDataSource = resetTokenDataSource;
     this.textEncoder = new TextEncoder();
   }
   
-  static create(userDataSource: UserDataSource, accessTokenDataSource: AccessTokenDataSource, resetTokenDataSource: ResetTokenDataSource): AuthenticationServiceImpl {
+  static create(userDataSource: UserDataSource, accessTokenDataSource: RefreshTokenDataSource, resetTokenDataSource: ResetTokenDataSource): AuthenticationServiceImpl {
     if(AuthenticationServiceImpl.instance === null) {
       AuthenticationServiceImpl.instance = new AuthenticationServiceImpl(userDataSource, accessTokenDataSource, resetTokenDataSource);
     }
@@ -94,13 +95,20 @@ export class AuthenticationServiceImpl implements AuthenticationService {
     await this.accessTokenDataSource.delete(token);
   }
 
-  async requestPasswordResetToken(userId: string) {
-    const token = await this.resetTokenDataSource.createResetToken(userId);
-    // TODO: Send token in email;
+  async requestPasswordResetToken(email: string) {
+    try {
+      const user = await this.userDataSource.getUserByEmail(email);
+      if(user) {
+	const token = await this.resetTokenDataSource.createResetToken(user.user_id);
+	// TODO: Send token in email;
+      }
+    } catch (err) {
+      logger.error(err, 'Error occured during password reset request')
+    }
   }
 
   async resetPassword(token: string, newPassword: string) {
-    const unusedToken = await this.resetTokenDataSource.findByTokenAndStatus(token, 'UNUSED')
+    const unusedToken = await this.resetTokenDataSource.consumeToken(token);
     if (!unusedToken) throw new NotFoundError("Invalid token", {type: 'token_invalid'});
     if (unusedToken.createdAt.getTime() + RESET_TOKEN_MAX_AGE < Date.now()) {
       throw new AuthorizationError('Token expired', {type: 'token_expired'});

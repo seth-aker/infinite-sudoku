@@ -123,7 +123,9 @@ CREATE TABLE IF NOT EXISTS public.reset_tokens (
 
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_expires ON public.refresh_tokens (expires_at);
 
+CREATE INDEX IF NOT EXISTS idx_reset_token_created_at ON public.reset_tokens (created_at);
 
+CREATE INDEX IF NOT EXISTS idx_reset_token ON public.reset_tokens (reset_token);
 --
 -- Name: users set_timestamp; Type: TRIGGER
 --
