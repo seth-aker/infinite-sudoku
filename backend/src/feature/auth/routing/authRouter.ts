@@ -1,106 +1,26 @@
-import { Request, Response, Router } from "express";
-import { loginBodyValidator, passwordResetValidator, registerBodyValidator, resetRequestValidator as resetRequestValidator, tokenBodyValidator, } from "../middleware/validation";
-import { AuthenticationError } from "../errors/authenticationError";
-import { AuthenticationService } from "../service/authenticationService";
-import { authLimiter, resetPasswordRateLimiter } from "../middleware/rateLimiter";
-import { clearAuthCookies, setAuthCookies } from "../utils/cookies";
-import { ErrorType } from "@/core/errors/errorTypes";
-import { DatabaseError } from "@/core/errors/databaseError";
-import { requireLoggedin } from "../middleware/authentication";
+import { Router, Request} from "express";
+import { MobileAuthRouter } from "./mobile/mobileAuthrouter.ts";
+import { PgUserDataSource } from "@/feature/users/datasource/pgUserDataSource.ts";
+import sql from "@/core/dataSource/postgres.ts";
+import { PgRefreshTokenDataSource } from "../datasource/pgRefreshTokenDataSource.ts";
+import { PgResetTokenDataSource } from "../datasource/pgResetTokenDataSource.ts";
+import { resetPasswordRateLimiter, authLimiter } from "../middleware/rateLimiter.ts";
+import { resetRequestValidator, passwordResetValidator } from "../middleware/validation.ts";
+import { AuthenticationServiceImpl } from "../service/authenticationServiceImpl.ts";
+import { WebAuthRouter } from "./web/webAuthRouter.ts";
 
-type TokenPasswordBody = {
-  grantType: 'password',
-  email: string,
-  password: string,
-}
+function AuthRouter() {
+  const router = Router();
+  const userDataSource = PgUserDataSource.create(sql)
+  const refreshTokenDataSource = PgRefreshTokenDataSource.create(sql)
+  const resetTokenSource = PgResetTokenDataSource.create(sql);
+  const authService = AuthenticationServiceImpl.create(userDataSource, refreshTokenDataSource, resetTokenSource)
+  const mobileAuthRouter = MobileAuthRouter(authService);
+  const webAuthRouter = WebAuthRouter(authService);
 
-type TokenRefreshBody = {
-  grantType: 'refreshToken',
-  refreshToken: string
-}
+  router.use('/mobile', mobileAuthRouter);
 
-type TokenRequestBody = TokenPasswordBody | TokenRefreshBody;
-
-export function AuthRouter(authService: AuthenticationService) {
-  const router = Router()
-
-  // web only endpoint
-  router.post('/login', authLimiter(),  loginBodyValidator, async (req, res, _next) => {
-    const user = await authService.verify(req.body.email, req.body.password)
-
-    const {accessToken, refreshToken} = await authService.getNewTokenSet(user.id);
-
-    setAuthCookies(res, accessToken, refreshToken);
-
-    res.json({ user })
-  })
-
-  router.post('/logout', authLimiter(), requireLoggedin, async (req, res) => {
-    const refreshToken = req.body.refreshToken || req.cookies?.refreshToken;
-
-    if(refreshToken) {
-      await authService.clearRefreshToken(refreshToken);
-    }
-
-    clearAuthCookies(res);
-
-    res.sendStatus(204);
-  })
-
-  router.post('/register', authLimiter(), registerBodyValidator, async (req, res, _next) => {
-    const userId = await authService.registerUser(req.body)
-    if(!userId) {
-      throw new DatabaseError("An error occured registering the user")
-    }
-    // TODO: Send email verification
-    return res.status(201).json({
-      id: userId,
-      email: req.body.email,
-      username: req.body.username,
-      role: 'user'
-    })
-  })
-
-  // web only endpoint
-  router.post('/refresh', authLimiter(), async (req, res) => {
-    const refreshToken = req.cookies?.refreshToken;
-    if(!refreshToken) {
-      return res.status(401).send({error: 'Refresh token required'})
-    }
-    const {accessToken, refreshToken: newRefreshToken} = await authService.refreshAccessToken(refreshToken);
-
-    setAuthCookies(res, accessToken, newRefreshToken);
-    res.sendStatus(201)
-  })
-
-  // mobile only endpoint
-  router.post('/token', authLimiter(), tokenBodyValidator, async (req: Request<{}, {}, TokenRequestBody>, res: Response, _next) => {
-    switch(req.body.grantType) {
-      case 'password': {
-        const user = await authService.verify(req.body.email, req.body.password)
-     
-       const { accessToken, refreshToken } = await authService.getNewTokenSet(user.id);
-
-        res.json({accessToken, refreshToken, user})
-        return;
-      }
-      case 'refreshToken':{
-        const refreshToken = req.body.refreshToken;
-        if(!refreshToken) {
-          throw new AuthenticationError('Missing or invalid refresh token.', {
-            type: ErrorType.TOKEN_MISSING
-          })
-        }
-        const {accessToken, refreshToken: newRefreshToken} = await authService.refreshAccessToken(refreshToken);
-        return res.json({accessToken, refreshToken: newRefreshToken})
-      }
-      default: {
-        throw new AuthenticationError('Invalid grantType', {
-          type: ErrorType.MALFORMED_BODY 
-        })
-      }
-    }
-  })
+  router.use('/web', webAuthRouter)
 
   router.post('/resetPasswordToken', resetPasswordRateLimiter(), resetRequestValidator,  async (req: Request<{}, {}, {email: string}>, res) => {
     await authService.requestPasswordResetToken(req.body.email);
@@ -113,5 +33,7 @@ export function AuthRouter(authService: AuthenticationService) {
     const tokens = await authService.resetPassword(resetToken, newPassword);
     return res.json(tokens);
   })
-  return router
+  return router;
 }
+
+export const authRouter = AuthRouter();

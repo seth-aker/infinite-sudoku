@@ -77,7 +77,13 @@ export class AuthenticationServiceImpl implements AuthenticationService {
       if(!userId) {
         throw new DatabaseError(`Insert Operation failed`)
       }
-      return userId
+      const { accessToken, refreshToken } = await this.getNewTokenSet(userId);
+      // TODO: Send verification email.
+      return {
+	userId,
+	accessToken,
+	refreshToken,
+      }
   }
 
   async refreshAccessToken(refreshToken: string) {
@@ -126,12 +132,13 @@ export class AuthenticationServiceImpl implements AuthenticationService {
     const audience = config.audience;
     const issuerUrl = config.issuer;
     return await new SignJWT({
-      userId: userId,
-      role: user.role
+      role: user.role,
+      email_verified: user.email_verified
     })
     .setProtectedHeader({alg: 'HS256'})
     .setExpirationTime('15m')
     .setIssuedAt()
+    .setSubject(user.user_id)
     .setIssuer(issuerUrl)
     .setAudience(audience)
     .sign(secret);

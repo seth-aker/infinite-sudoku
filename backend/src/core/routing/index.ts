@@ -1,8 +1,8 @@
 import { Router, Application } from "express";
 import { sudokuRouter } from "../../feature/sudoku/routing/index";
-import { authRouter } from "@/feature/auth/routing";
 import { userRouter } from "@/feature/users/routing";
 import sql from "@/core/dataSource/postgres"
+import { authRouter } from "@/feature/auth/routing/authRouter";
 export const configureRouting = (app: Application) => {
   const router = Router()
   app.use('/api', router)

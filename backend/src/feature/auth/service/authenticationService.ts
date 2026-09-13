@@ -4,7 +4,7 @@ import { IUserDTO } from "@/feature/users/datasource/models/user"
 
 export interface AuthenticationService {
   verify: (username: string, password: string) => Promise<IUserDTO>
-  registerUser: (user: z.infer<typeof registerBodySchema>) => Promise<string | undefined>
+  registerUser: (user: z.infer<typeof registerBodySchema>) => Promise<{userId: string, accessToken: string, refreshToken: string}>
   getNewTokenSet: (userId: string) => Promise<{accessToken: string, refreshToken: string}>
   refreshAccessToken: (refreshToken: string) => Promise<{accessToken: string, refreshToken: string}>
   clearRefreshToken: (token: string) => Promise<void>
