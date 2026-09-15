@@ -16,8 +16,8 @@ class SharedPageLayout extends StatelessWidget {
   final Widget? trailing;
   final String title;
   const SharedPageLayout({
-    required this.child,
     required this.title,
+    required this.child,
     this.leading,
     this.trailing,
     super.key,

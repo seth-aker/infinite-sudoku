@@ -1,6 +1,5 @@
 import 'package:infinite_sudoku/ui/core/app_theme.dart';
 import 'package:infinite_sudoku/ui/core/constants.dart';
-import 'package:infinite_sudoku/ui/core/spacing/app_spacing.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
@@ -8,8 +7,8 @@ sealed class Button extends StatelessWidget {
   const Button({super.key});
 
   factory Button.primary({
-    required Widget child,
     required VoidCallback? onPressed,
+    required Widget child,
     Color? backgroundColor,
     Color? foregroundColor,
     EdgeInsetsGeometry? padding,
@@ -25,8 +24,8 @@ sealed class Button extends StatelessWidget {
     child: child,
   );
   factory Button.ghost({
-    required Widget child,
     required VoidCallback? onPressed,
+    required Widget child,
     Color? backgroundColor,
     Color? foregroundColor,
     EdgeInsetsGeometry? padding,
@@ -42,8 +41,8 @@ sealed class Button extends StatelessWidget {
     child: child,
   );
   factory Button.secondary({
-    required Widget child,
     required VoidCallback? onPressed,
+    required Widget child,
     Color? backgroundColor,
     Color? foregroundColor,
     EdgeInsetsGeometry? padding,
@@ -59,8 +58,8 @@ sealed class Button extends StatelessWidget {
     child: child,
   );
   factory Button.icon({
-    required Widget child,
     required VoidCallback? onPressed,
+    required Widget child,
     Color? backgroundColor,
     Color? foregroundColor,
     EdgeInsetsGeometry? padding,
@@ -135,23 +134,13 @@ final class GhostButton extends Button {
   @override
   Widget build(BuildContext context) {
     if (isApple) {
-      return Container(
-        decoration: BoxDecoration(
-          border: Border.all(
-            color: foregroundColor ?? AppTheme.foreground(context),
-            width: AppSpacing.eighth,
-          ),
-          borderRadius: borderRadius,
-          color: backgroundColor ?? Theme.of(context).scaffoldBackgroundColor,
-        ),
-        child: CupertinoButton(
+      return CupertinoButton(
           onPressed: isDisabled ? null : onPressed,
           padding: padding,
           color: CupertinoColors.transparent,
-          foregroundColor: foregroundColor ?? AppTheme.foreground(context),
+          foregroundColor: foregroundColor ?? AppTheme.primary(),
           borderRadius: borderRadius,
           child: child,
-        ),
       );
     } else {
       return ElevatedButton(onPressed: onPressed, child: child);

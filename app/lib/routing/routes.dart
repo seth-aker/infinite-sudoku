@@ -5,4 +5,5 @@ abstract final class Routes {
   static const about = '/about';
   static const settings = '/settings';
   static const pauseMenu = '/pause-menu';
+  static const newUserWelcome = '/welcome';
 }

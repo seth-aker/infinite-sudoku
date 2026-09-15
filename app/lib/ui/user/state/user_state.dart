@@ -1,6 +1,12 @@
 part of 'user_bloc.dart';
 
-enum UserStatus { loading, authenticated, unauthenticated, error }
+enum UserStatus {
+  loading,
+  authenticated,
+  unauthenticated,
+  error,
+  awaitingVerification,
+}
 
 final class UserState extends Equatable {
   final UserStatus status;
@@ -28,11 +34,11 @@ final class UserState extends Equatable {
     user: user,
     statusMessage: statusMessage,
   );
-  
+
   UserState loading() => copyWith(status: .loading);
 
   UserState error(String? errorMessage) =>
-    copyWith(status: .error, statusMessage: errorMessage ?? statusMessage);
+      copyWith(status: .error, statusMessage: errorMessage ?? statusMessage);
 
   UserState copyWith({
     String? email,

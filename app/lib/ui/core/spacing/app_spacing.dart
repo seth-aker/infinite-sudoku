@@ -33,6 +33,9 @@ abstract class AppSpacing {
   /// one spacing value (16pt)
   static const double one = 16;
 
+  /// one and quarter spacing (20pt)
+  static const double oneAndQuarter = 20;
+
   /// one and a half spacing value (24pt)
   static const double oneAndHalf = 24;
 

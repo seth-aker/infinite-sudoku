@@ -1,64 +1,35 @@
 import 'package:infinite_sudoku/ui/core/app_theme.dart';
-import 'package:infinite_sudoku/ui/core/constants.dart';
 import 'package:infinite_sudoku/ui/core/spacing/app_spacing.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:infinite_sudoku/ui/core/widgets/text_input.dart';
 
 class FormTextInput extends StatelessWidget {
   final String label;
-  final TextEditingController controller;
+  final TextEditingController? controller;
+  final String initialValue;
   final FormFieldValidator<String>? validator;
   final ValueChanged<String>? onChanged;
   final bool obscureText;
+  final String? placeholder;
+  final void Function<T>(String? value)? onSaved;
   const FormTextInput({
     required this.label,
-    required this.controller,
+    this.controller,
+    this.onSaved,
+    this.initialValue = '',
     this.validator,
     this.onChanged,
     this.obscureText = false,
+    this.placeholder,
     super.key,
   });
 
-  @override
-  Widget build(BuildContext context) {
-    return (isApple)
-        ? IosFormInputTextInput(
-            label: label,
-            controller: controller,
-            validator: validator,
-            onChanged: onChanged,
-            key: key,
-            obscureText: obscureText,
-          )
-        : MaterialFormTextInput(
-            label: label,
-            controller: controller,
-            validator: validator,
-            onChanged: onChanged,
-            key: key,
-            obscureText: obscureText,
-          );
-  }
-}
-
-class IosFormInputTextInput extends StatelessWidget {
-  final String label;
-  final TextEditingController controller;
-  final FormFieldValidator<String>? validator;
-  final ValueChanged<String>? onChanged;
-  final bool obscureText;
-  const IosFormInputTextInput({
-    required this.label,
-    required this.controller,
-    this.onChanged,
-    this.validator,
-    this.obscureText = false,
-    super.key,
-  });
   @override
   Widget build(BuildContext context) {
     return FormField<String>(
-      initialValue: controller.text,
+      onSaved: onSaved,
+      initialValue: initialValue,
       validator: validator,
       builder: (field) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -73,21 +44,15 @@ class IosFormInputTextInput extends StatelessWidget {
               ),
             ),
           ),
-          CupertinoTextField(
-            decoration: BoxDecoration(
-              border: Border.all(
-                color: field.hasError
-                    ? AppTheme.destructive()
-                    : CupertinoColors.inactiveGray,
-              ),
-              borderRadius: BorderRadiusGeometry.circular(5),
-            ),
+          TextInput(
             controller: controller,
-            onChanged: (value) => {
-              field.didChange(value),
-              onChanged?.call(value),
+            errorText: field.errorText,
+            onChanged: (value) {
+              field.didChange(value);
+              onChanged?.call(value);
             },
-            obscureText: obscureText,
+	    obscureText: obscureText,
+	    placeholder: placeholder,
           ),
           if (field.hasError)
             Padding(
@@ -102,36 +67,6 @@ class IosFormInputTextInput extends StatelessWidget {
             ),
         ],
       ),
-    );
-  }
-}
-
-class MaterialFormTextInput extends StatelessWidget {
-  final String label;
-  final TextEditingController controller;
-  final FormFieldValidator<String>? validator;
-  final ValueChanged<String>? onChanged;
-  final bool obscureText;
-  const MaterialFormTextInput({
-    required this.label,
-    required this.controller,
-    this.onChanged,
-    this.validator,
-    this.obscureText = false,
-    super.key,
-  });
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(label),
-        TextFormField(
-          validator: validator,
-          controller: controller,
-          onChanged: onChanged,
-          obscureText: obscureText,
-        ),
-      ],
     );
   }
 }

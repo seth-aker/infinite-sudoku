@@ -37,9 +37,37 @@ class AppIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (isApple) {
-      return Icon(cupertinoIconMap[icon]);
+      return Icon(
+        cupertinoIconMap[icon],
+        size: size,
+        fill: fill,
+        weight: weight,
+        grade: grade,
+        opticalSize: opticalSize,
+        color: color,
+        shadows: shadows,
+        semanticLabel: semanticLabel,
+        textDirection: textDirection,
+        applyTextScaling: applyTextScaling,
+        blendMode: blendMode,
+        fontWeight: fontWeight,
+      );
     } else {
-      return Icon(materialIconMap[icon]);
+      return Icon(
+        materialIconMap[icon],
+        size: size,
+        fill: fill,
+        weight: weight,
+        grade: grade,
+        opticalSize: opticalSize,
+        color: color,
+        shadows: shadows,
+        semanticLabel: semanticLabel,
+        textDirection: textDirection,
+        applyTextScaling: applyTextScaling,
+        blendMode: blendMode,
+        fontWeight: fontWeight,
+      );
     }
   }
 }

@@ -2,7 +2,7 @@ import 'package:infinite_sudoku/data/model/authentication/login_request_dto.dart
 import 'package:infinite_sudoku/data/model/authentication/login_response_dto.dart';
 import 'package:infinite_sudoku/data/model/authentication/refresh_token_response_dto.dart';
 import 'package:infinite_sudoku/data/model/authentication/register_request_dto.dart';
-import 'package:infinite_sudoku/data/model/user/user_dto.dart';
+import 'package:infinite_sudoku/data/model/authentication/register_response_dto.dart';
 import 'package:infinite_sudoku/utils/result.dart';
 
 abstract class AuthService {
@@ -10,7 +10,7 @@ abstract class AuthService {
 
   Future<Result<void>> logout();
 
-  Future<Result<UserDto?>> register(RegisterRequestDto registerRequest);
+  Future<Result<RegisterResponseDto>> register(RegisterRequestDto registerRequest);
 
   Future<Result<RefreshTokenResponseDto>> refreshAccessToken(String refreshToken);
 

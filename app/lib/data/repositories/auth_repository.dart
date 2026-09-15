@@ -40,7 +40,7 @@ class AuthRepository {
 
   Future<Result<void>> logout() async {
     final result = await _authService.logout();
-    if(result is Error) return result;
+    if (result is Error) return result;
     await _storageService.clear();
     _accessToken = null;
     return result;
@@ -56,14 +56,17 @@ class AuthRepository {
         email: email,
         username: username,
         password: password,
-        // Validation guards prevent the AuthRepository from being called if Terms of Service isn't acknowledged.
+        // Validation guards prevent the AuthRepository from being called
+        // if Terms of Service isn't acknowledged.
         tosAcknowledged: true,
       ),
     );
     switch (result) {
       case Ok():
-        final userDto = result.value;
-        return Result.ok(userDto != null ? User.fromDto(userDto) : null);
+        final userDto = result.value.user;
+	_accessToken = result.value.accessToken;
+	await _storageService.saveToken(result.value.refreshToken);
+        return Result.ok(User.fromDto(userDto));
       case Error():
         return Result.error(result.error);
     }
@@ -88,13 +91,14 @@ class AuthRepository {
         }
     }
   }
+
   Future<Result<void>> requestResetLink(String email) async {
     final result = await _authService.requestResetLink(email);
     switch (result) {
       case Error():
-	return result;
+        return result;
       case Ok():
-	return result;
+        return result;
     }
   }
 }

@@ -57,7 +57,7 @@ class UserBloc extends HydratedBloc<UserEvent, UserState> {
       case Ok<User?>():
         final user = result.value;
         if (user == null) {
-          emit(state.error("Registrasion failed, please try again."));
+          emit(state.error("Registration failed, please try again."));
           return;
         }
         emit(
@@ -90,7 +90,6 @@ class UserBloc extends HydratedBloc<UserEvent, UserState> {
     PasswordResetEmailRequested event,
     Emitter<UserState> emit,
   ) async {
-    if(state.status != .authenticated) return;
     emit(state.loading());
     final result = await _authRepository.requestResetLink(event.email);
 

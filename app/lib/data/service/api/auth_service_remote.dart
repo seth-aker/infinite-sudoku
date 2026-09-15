@@ -2,7 +2,7 @@ import 'package:infinite_sudoku/data/model/authentication/login_request_dto.dart
 import 'package:infinite_sudoku/data/model/authentication/login_response_dto.dart';
 import 'package:infinite_sudoku/data/model/authentication/refresh_token_response_dto.dart';
 import 'package:infinite_sudoku/data/model/authentication/register_request_dto.dart';
-import 'package:infinite_sudoku/data/model/user/user_dto.dart';
+import 'package:infinite_sudoku/data/model/authentication/register_response_dto.dart';
 import 'package:infinite_sudoku/data/service/api/api_client.dart';
 import 'package:infinite_sudoku/data/service/api/auth_service.dart';
 import 'package:infinite_sudoku/utils/result.dart';
@@ -16,7 +16,7 @@ class AuthServiceRemote implements AuthService {
   Future<Result<LoginResponseDto>> login(LoginRequestDto loginRequest) =>
       _client.send(
         'POST',
-        '/api/auth/token',
+        '/api/auth/mobile/login',
         body: loginRequest.toJson(),
         parse: (json) => LoginResponseDto.fromJson(json),
       );
@@ -24,19 +24,19 @@ class AuthServiceRemote implements AuthService {
   @override
   Future<Result<void>> logout() => _client.send(
     'POST',
-    '/api/auth/logout',
+    '/api/auth/mobile/logout',
     expectedStatus: 204,
     parse: (_) {},
   );
 
   @override
-  Future<Result<UserDto?>> register(RegisterRequestDto registerRequest) =>
+  Future<Result<RegisterResponseDto>> register(RegisterRequestDto registerRequest) =>
       _client.send(
         'POST',
-        '/api/auth/register',
+        '/api/auth/mobile/register',
         body: registerRequest.toJson(),
         expectedStatus: 201,
-        parse: (json) => UserDto.fromJson(json),
+        parse: (json) => RegisterResponseDto.fromJson(json),
       );
 
   @override
@@ -44,7 +44,7 @@ class AuthServiceRemote implements AuthService {
     String refreshToken,
   ) => _client.send(
     'POST',
-    '/api/auth/token',
+    '/api/auth/mobile/refresh',
     body: {'refreshToken': refreshToken, 'grantType': 'refreshToken'},
     parse: (json) => RefreshTokenResponseDto.fromJson(json),
   );
