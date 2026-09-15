@@ -13,14 +13,14 @@ export class PgUserDataSource implements UserDataSource {
     this.client = client;
   }
   static create(client: Sql) {
-    if(!PgUserDataSource.instance) {
+    if (!PgUserDataSource.instance) {
       PgUserDataSource.instance = new PgUserDataSource(client);
     }
     return PgUserDataSource.instance;
   }
 
   async createUser(user: ICreateUser): Promise<string | undefined> {
-    const [res] = await this.client<{user_id: string}[]>`
+    const [res] = await this.client<{ user_id: string }[]>`
       INSERT INTO users (
         email,
         username,
@@ -38,7 +38,7 @@ export class PgUserDataSource implements UserDataSource {
 	${user.tosAcknowledged}
       ) 
       RETURNING user_id;
-    `
+    `;
     return res.user_id;
   }
   async getUser(userId: string): Promise<ISqlUser> {
@@ -57,11 +57,11 @@ export class PgUserDataSource implements UserDataSource {
       WHERE 
         u.user_id = ${userId} 
         AND u.deleted_at IS NULL
-    `
-    if(!user) {
+    `;
+    if (!user) {
       throw new NotFoundError(`User with id: ${userId} not found`, {
-        type: ErrorType.RESOURCE_NOT_FOUND
-      })
+        type: ErrorType.RESOURCE_NOT_FOUND,
+      });
     }
     return user;
   }
@@ -78,9 +78,11 @@ export class PgUserDataSource implements UserDataSource {
 	  image_url,
 	  current_puzzle_id,
 	  deleted_at
-	FROM users WHERE email = ${email.toLowerCase()}`
-    if(!user) {
-      throw new NotFoundError(`User email not found`, { type: ErrorType.RESOURCE_NOT_FOUND })
+	FROM users WHERE email = ${email.toLowerCase()}`;
+    if (!user) {
+      throw new NotFoundError(`User email not found`, {
+        type: ErrorType.RESOURCE_NOT_FOUND,
+      });
     }
     return user;
   }
@@ -97,16 +99,16 @@ export class PgUserDataSource implements UserDataSource {
       LEFT JOIN puzzles AS p ON p.puzzle_id = up.puzzle_id
       WHERE up.user_id = ${userId}
       GROUP BY p.difficulty_rating
-    `
-    const userStats: IDifficultyStats[] = res.map(eachRow => ({
+    `;
+    const userStats: IDifficultyStats[] = res.map((eachRow) => ({
       rating: eachRow.rating,
       avgScore: eachRow.avg_score,
       totalStarted: eachRow.total_started,
       completed: eachRow.completed,
       avgTimeSec: eachRow.avg_time_sec,
-      totalTimeSec: eachRow.total_time_sec
-    }))
-    return userStats
+      totalTimeSec: eachRow.total_time_sec,
+    }));
+    return userStats;
   }
 
   async changePassword(userId: string, newPassword: string, newSalt: string) {
@@ -116,7 +118,7 @@ export class PgUserDataSource implements UserDataSource {
 	password_hash = ${newPassword},
 	salt = ${newSalt}
       WHERE user_id = ${userId};
-    `
+    `;
   }
 
   async deleteUser(userId: string): Promise<number> {
@@ -124,11 +126,11 @@ export class PgUserDataSource implements UserDataSource {
       UPDATE users
       SET deleted_at = CURRENT_TIMESTAMP
       WHERE user_id = ${userId}
-    `
-    if(res.length) {
-      return res.length
+    `;
+    if (res.length) {
+      return res.length;
     } else {
-      throw new DatabaseError('Failed to delete user')
+      throw new DatabaseError("Failed to delete user");
     }
   }
 }

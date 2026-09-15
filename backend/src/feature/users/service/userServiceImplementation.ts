@@ -10,25 +10,27 @@ export class UserServiceImplementation implements UserService {
   }
   static instance: UserService | null = null;
   static create(userDataSource: UserDataSource) {
-    if(UserServiceImplementation.instance === null) {
-      UserServiceImplementation.instance = new UserServiceImplementation(userDataSource);
+    if (UserServiceImplementation.instance === null) {
+      UserServiceImplementation.instance = new UserServiceImplementation(
+        userDataSource,
+      );
     }
     return UserServiceImplementation.instance;
   }
   async getUser(userId: string) {
-      // userDataSource throws if user isn't defined so user will always be defined here
-      const user = await this.userDataSource.getUser(userId);
-      return this.serializeUser(user)
+    // userDataSource throws if user isn't defined so user will always be defined here
+    const user = await this.userDataSource.getUser(userId);
+    return this.serializeUser(user);
   }
   async getUserStats(userId: string) {
-      const userStats = await this.userDataSource.getUserStats(userId);
-      if(userStats.length < 1) {
-        throw new NotFoundError('No user stats found')
-      }
-      return userStats
+    const userStats = await this.userDataSource.getUserStats(userId);
+    if (userStats.length < 1) {
+      throw new NotFoundError("No user stats found");
+    }
+    return userStats;
   }
   async deleteUser(userId: string) {
-      return await this.userDataSource.deleteUser(userId);
+    return await this.userDataSource.deleteUser(userId);
   }
 
   private serializeUser(sqlUser: ISqlUser) {
@@ -38,8 +40,8 @@ export class UserServiceImplementation implements UserService {
       username: sqlUser.username,
       role: sqlUser.role,
       imageUrl: sqlUser.image_url,
-      currentPuzzleId: sqlUser.current_puzzle_id
-    }
+      currentPuzzleId: sqlUser.current_puzzle_id,
+    };
     return userDTO;
   }
 }

@@ -1,15 +1,19 @@
-import pino from 'pino';
-import { config } from '@/core/config/index.ts';
+import pino from "pino";
+import { config } from "@/core/config/index.ts";
 
 export const logger = pino({
-  level: config.logLevel ?? (config.isProduction ? 'info' : 'debug'),
+  level: config.logLevel ?? (config.isProduction ? "info" : "debug"),
   redact: {
     paths: [
-      'req.body.password', 'req.body.refreshToken',
-      'req.headers.authorization', 'req.headers.cookie',
-      '*.password', '*.passwordHash', '*.salt',
+      "req.body.password",
+      "req.body.refreshToken",
+      "req.headers.authorization",
+      "req.headers.cookie",
+      "*.password",
+      "*.passwordHash",
+      "*.salt",
     ],
-    censor: '[redacted]',
+    censor: "[redacted]",
   },
-  ...(config.isProduction ? {} : { transport: { target: 'pino-pretty' } }),
+  ...(config.isProduction ? {} : { transport: { target: "pino-pretty" } }),
 });

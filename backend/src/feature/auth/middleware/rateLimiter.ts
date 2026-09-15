@@ -10,9 +10,11 @@ function passwordGrantLimiter() {
     skipSuccessfulRequests: true,
     keyGenerator: (req: Request) => {
       const email = req.body?.email as string;
-      return email ? `login:${email.toLowerCase()}` : `ip:${ipKeyGenerator(req.ip!)}`
-    }
-  })
+      return email
+        ? `login:${email.toLowerCase()}`
+        : `ip:${ipKeyGenerator(req.ip!)}`;
+    },
+  });
 }
 
 function refreshGrantLimiter() {
@@ -22,13 +24,13 @@ function refreshGrantLimiter() {
     skipSuccessfulRequests: true,
     keyGenerator: (req) => {
       const token = req.body?.refreshToken as string;
-      if(token) {
-	const tokenHash = createHash('sha256').update(token).digest('hex');
-	return `rt:${tokenHash}`;
+      if (token) {
+        const tokenHash = createHash("sha256").update(token).digest("hex");
+        return `rt:${tokenHash}`;
       }
-      return `ip:${ipKeyGenerator(req.ip!)}`
-    }
-  })
+      return `ip:${ipKeyGenerator(req.ip!)}`;
+    },
+  });
 }
 export function resetPasswordRateLimiter() {
   return rateLimit({
@@ -37,15 +39,17 @@ export function resetPasswordRateLimiter() {
     skipSuccessfulRequests: true,
     keyGenerator: (req: Request) => {
       const email = req.body?.email as string;
-      return email ? `passwordReset:${email.toLowerCase()}` : `ip:${ipKeyGenerator(req.ip!)}`;
-    }
-  })
+      return email
+        ? `passwordReset:${email.toLowerCase()}`
+        : `ip:${ipKeyGenerator(req.ip!)}`;
+    },
+  });
 }
 export function authLimiter() {
   const password = passwordGrantLimiter();
   const refresh = refreshGrantLimiter();
   return (req: Request, res: Response, next: NextFunction) =>
-    req.body?.grantType === 'refreshToken'
+    req.body?.grantType === "refreshToken"
       ? refresh(req, res, next)
       : password(req, res, next);
 }

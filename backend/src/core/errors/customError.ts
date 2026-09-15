@@ -1,8 +1,8 @@
 import { ErrorType } from "./errorTypes";
 
-export interface ErrorInit extends ErrorOptions  {
+export interface ErrorInit extends ErrorOptions {
   type?: ErrorType;
-  clientMessage?: string,
+  clientMessage?: string;
 }
 
 export abstract class CustomError extends Error {

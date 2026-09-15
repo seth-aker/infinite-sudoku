@@ -1,2 +1,2 @@
-export type DifficultyRating = 'beginner' | 'easy' | 'medium' | 'hard' | 'impossible';
-
+export type DifficultyRating =
+  "beginner" | "easy" | "medium" | "hard" | "impossible";

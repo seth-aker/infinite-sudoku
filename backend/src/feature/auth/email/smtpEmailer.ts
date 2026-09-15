@@ -8,5 +8,5 @@ export const transporter = createTransport({
   auth: {
     user: config.smtpUser,
     pass: config.smtpPassword,
-  }
-})
+  },
+});

@@ -1,38 +1,58 @@
-import express, { NextFunction, Request, Response } from 'express';
+import express, { NextFunction, Request, Response } from "express";
 import { SudokuService } from "../service/sudokuService.ts";
-import { SudokuRequest } from './sudokuRequest.ts';
-import { type PuzzleOptions} from '../datasource/models/puzzleOptions.ts';
-import { DatabaseError } from '@/core/errors/databaseError.ts';
-import { getPuzzleByIdValidator, getPuzzleValidator, updatePuzzleValidator } from '../middleware/validation/validation.ts';
-import { UpdatePuzzle } from '../datasource/models/sudokuPuzzle.ts';
-import { requireLoggedin } from '@/feature/auth/middleware/authentication.ts';
+import { SudokuRequest } from "./sudokuRequest.ts";
+import { type PuzzleOptions } from "../datasource/models/puzzleOptions.ts";
+import { DatabaseError } from "@/core/errors/databaseError.ts";
+import {
+  getPuzzleByIdValidator,
+  getPuzzleValidator,
+  updatePuzzleValidator,
+} from "../middleware/validation/validation.ts";
+import { UpdatePuzzle } from "../datasource/models/sudokuPuzzle.ts";
+import { requireLoggedin } from "@/feature/auth/middleware/authentication.ts";
 
 export default function SudokuRouter(sudokuService: SudokuService) {
   const router = express.Router();
   // /api/sudoku
-  router.get('/new', getPuzzleValidator, async (req: SudokuRequest, res: Response, next: NextFunction) => {
-    const requestedBy = req.user?.userId;
-    const puzzleOptions: PuzzleOptions = {
-      difficulty: req.query.difficulty ?? 'easy'
-    }
-    try {
-       const puzzle = await sudokuService.getNewPuzzle(requestedBy, puzzleOptions);
-       res.send(JSON.stringify(puzzle))
-    } catch (err) {
-      next(err)
-    }
-  })
-  
-  router.get('/:puzzleId', requireLoggedin, getPuzzleByIdValidator, async (req: Request<{puzzleId: string}>, res: Response, next: NextFunction) => {
-    try {
-      const puzzleId = req.params.puzzleId;
-      const userId = req.user?.userId!;
-      const puzzle = await sudokuService.getUserPuzzle(userId, puzzleId);
-      res.send(puzzle);
-    } catch (err) {
-      next(err)
-    }
-  })
+  router.get(
+    "/new",
+    getPuzzleValidator,
+    async (req: SudokuRequest, res: Response, next: NextFunction) => {
+      const requestedBy = req.user?.userId;
+      const puzzleOptions: PuzzleOptions = {
+        difficulty: req.query.difficulty ?? "easy",
+      };
+      try {
+        const puzzle = await sudokuService.getNewPuzzle(
+          requestedBy,
+          puzzleOptions,
+        );
+        res.send(JSON.stringify(puzzle));
+      } catch (err) {
+        next(err);
+      }
+    },
+  );
+
+  router.get(
+    "/:puzzleId",
+    requireLoggedin,
+    getPuzzleByIdValidator,
+    async (
+      req: Request<{ puzzleId: string }>,
+      res: Response,
+      next: NextFunction,
+    ) => {
+      try {
+        const puzzleId = req.params.puzzleId;
+        const userId = req.user?.userId!;
+        const puzzle = await sudokuService.getUserPuzzle(userId, puzzleId);
+        res.send(puzzle);
+      } catch (err) {
+        next(err);
+      }
+    },
+  );
   // router.post('/', createPuzzleValidator, async (req: Request, res: Response, next: NextFunction) => {
   //   try {
   //     const puzzle = req.body;
@@ -42,19 +62,29 @@ export default function SudokuRouter(sudokuService: SudokuService) {
   //     next(err)
   //   }
   // })
-  router.put('/:puzzleId', requireLoggedin, updatePuzzleValidator, async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const userId = req.user?.userId!
-      const updateUserPuzzleDto = req.body as UpdatePuzzle
-      const result = await sudokuService.updateUserPuzzle(userId, updateUserPuzzleDto);
-      if(result !== 1) {
-        throw new DatabaseError(`Expected to update 1, instead updated: ${result}`)
+  router.put(
+    "/:puzzleId",
+    requireLoggedin,
+    updatePuzzleValidator,
+    async (req: Request, res: Response, next: NextFunction) => {
+      try {
+        const userId = req.user?.userId!;
+        const updateUserPuzzleDto = req.body as UpdatePuzzle;
+        const result = await sudokuService.updateUserPuzzle(
+          userId,
+          updateUserPuzzleDto,
+        );
+        if (result !== 1) {
+          throw new DatabaseError(
+            `Expected to update 1, instead updated: ${result}`,
+          );
+        }
+        res.status(204).send();
+      } catch (err) {
+        next(err);
       }
-      res.status(204).send();
-    } catch (err) {
-      next(err)
-    }
-  })
+    },
+  );
   // router.delete('/:puzzleId', deletePuzzleValidator, async (req: Request, res: Response, next: NextFunction) => {
   //   try {
   //     const puzzleId = req.params.puzzleId;
@@ -68,8 +98,5 @@ export default function SudokuRouter(sudokuService: SudokuService) {
   //   }
   // })
 
-
-  return router
+  return router;
 }
-
-
