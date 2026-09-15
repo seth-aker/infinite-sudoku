@@ -1,17 +1,18 @@
 import { ref } from "vue";
 
 export interface DialogButton {
-  text: string
-  variant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link'
-  onClick?: () => void | Promise<void>
-  closeOnClick?: boolean
+  text: string;
+  variant?:
+    "default" | "destructive" | "outline" | "secondary" | "ghost" | "link";
+  onClick?: () => void | Promise<void>;
+  closeOnClick?: boolean;
 }
 export interface DialogOptions {
-  title: string,
-  message?: string,
-  buttons: DialogButton[]
-} 
-const isOpen = ref(false)
+  title: string;
+  message?: string;
+  buttons: DialogButton[];
+}
+const isOpen = ref(false);
 const dialogState = ref<DialogOptions | null>(null);
 export function useDialog() {
   function showDialog(options: DialogOptions) {
@@ -27,6 +28,6 @@ export function useDialog() {
     showDialog,
     closeDialog,
     isOpen,
-    dialogState
-  }
+    dialogState,
+  };
 }

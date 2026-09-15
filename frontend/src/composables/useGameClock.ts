@@ -5,37 +5,41 @@ import { useGameSession } from "./useGameSession";
 
 let interval: Pausable | undefined;
 export function useGameClock() {
-  const gameStore = useGameStore()
-  if(!interval) {
+  const gameStore = useGameStore();
+  if (!interval) {
     effectScope(true).run(() => {
-      interval = useIntervalFn(() => {
-        gameStore.elapsedSeconds++
-        useGameSession().saveLocal()
-      }, 1000, {immediate: false})
-    })
+      interval = useIntervalFn(
+        () => {
+          gameStore.elapsedSeconds++;
+          useGameSession().saveLocal();
+        },
+        1000,
+        { immediate: false },
+      );
+    });
   }
   function start() {
-    gameStore.state = 'playing'
-    interval?.resume()
+    gameStore.state = "playing";
+    interval?.resume();
   }
   function pause() {
-    gameStore.state = 'paused'
-    interval?.pause()
+    gameStore.state = "paused";
+    interval?.pause();
   }
   function halt() {
-    interval?.pause()
+    interval?.pause();
   }
   function reset() {
     gameStore.elapsedSeconds = 0;
-    interval?.pause()
-    gameStore.state = 'idle'
+    interval?.pause();
+    gameStore.state = "idle";
   }
-  const isRunning = computed(() => interval?.isActive ?? false)
+  const isRunning = computed(() => interval?.isActive ?? false);
   return {
     start,
     pause,
     halt,
     reset,
-    isRunning
-  }
+    isRunning,
+  };
 }

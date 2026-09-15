@@ -1,29 +1,29 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
-import Button from '../ui/button/Button.vue';
-import Drawer from '../ui/drawer/Drawer.vue';
-import DrawerTrigger from '../ui/drawer/DrawerTrigger.vue';
-import DrawerContent from '../ui/drawer/DrawerContent.vue';
-import Tabs from '../ui/tabs/Tabs.vue';
-import TabsList from '../ui/tabs/TabsList.vue';
-import TabsTrigger from '../ui/tabs/TabsTrigger.vue';
-import TabsContent from '../ui/tabs/TabsContent.vue';
-import LoginForm from './LoginForm.vue';
-import RegisterForm from './RegisterForm.vue';
-import DrawerDescription from '../ui/drawer/DrawerDescription.vue';
-import { useGameStore } from '@/stores/gameStore';
+import { ref, watch } from "vue";
+import Button from "../ui/button/Button.vue";
+import Drawer from "../ui/drawer/Drawer.vue";
+import DrawerTrigger from "../ui/drawer/DrawerTrigger.vue";
+import DrawerContent from "../ui/drawer/DrawerContent.vue";
+import Tabs from "../ui/tabs/Tabs.vue";
+import TabsList from "../ui/tabs/TabsList.vue";
+import TabsTrigger from "../ui/tabs/TabsTrigger.vue";
+import TabsContent from "../ui/tabs/TabsContent.vue";
+import LoginForm from "./LoginForm.vue";
+import RegisterForm from "./RegisterForm.vue";
+import DrawerDescription from "../ui/drawer/DrawerDescription.vue";
+import { useGameStore } from "@/stores/gameStore";
 
 const drawerOpen = ref<boolean>(false);
-const store = useGameStore()
+const store = useGameStore();
 watch(drawerOpen, () => {
   if (drawerOpen) {
-    store.selectedIdx = undefined
+    store.selectedIdx = undefined;
   }
-})
+});
 </script>
 
 <template>
-  <Drawer v-model:open="drawerOpen" @update:open="(val) => drawerOpen = val">
+  <Drawer v-model:open="drawerOpen" @update:open="(val) => (drawerOpen = val)">
     <DrawerTrigger as-child>
       <Button variant="ghost">Login</Button>
     </DrawerTrigger>
