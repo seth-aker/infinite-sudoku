@@ -30,14 +30,15 @@ class AuthServiceRemote implements AuthService {
   );
 
   @override
-  Future<Result<RegisterResponseDto>> register(RegisterRequestDto registerRequest) =>
-      _client.send(
-        'POST',
-        '/api/auth/mobile/register',
-        body: registerRequest.toJson(),
-        expectedStatus: 201,
-        parse: (json) => RegisterResponseDto.fromJson(json),
-      );
+  Future<Result<RegisterResponseDto>> register(
+    RegisterRequestDto registerRequest,
+  ) => _client.send(
+    'POST',
+    '/api/auth/mobile/register',
+    body: registerRequest.toJson(),
+    expectedStatus: 201,
+    parse: (json) => RegisterResponseDto.fromJson(json),
+  );
 
   @override
   Future<Result<RefreshTokenResponseDto>> refreshAccessToken(
@@ -57,4 +58,14 @@ class AuthServiceRemote implements AuthService {
     body: {"email": email},
     expectedStatus: 204,
   );
+
+  @override
+  Future<Result<void>> resetPassword(String password, String token) =>
+      _client.send(
+        'POST',
+        '/api/auth/resetPassword',
+        parse: (_) {},
+        body: {'password': password, 'token': token},
+        expectedStatus: 200,
+      );
 }

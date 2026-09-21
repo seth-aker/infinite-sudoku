@@ -73,7 +73,7 @@ class _ResetPasswordDialogState extends State<_ResetPasswordDialog> {
         child: Text("Please enter your email"),
       ),
       content: Column(
-	crossAxisAlignment: .start,
+        crossAxisAlignment: .start,
         children: [
           TextInput(
             onChanged: (value) => _email = value,
@@ -83,10 +83,14 @@ class _ResetPasswordDialogState extends State<_ResetPasswordDialog> {
             autofillHints: const [AutofillHints.email],
             errorText: _error,
           ),
-	  if(_error != null) Padding(
-	    padding: const EdgeInsets.all(AppSpacing.quarter),
-	    child: Text(_error!, style: TextStyle(color: AppTheme.destructive()),),
-	  ),
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.quarter),
+              child: Text(
+                _error!,
+                style: TextStyle(color: AppTheme.destructive()),
+              ),
+            ),
         ],
       ),
 

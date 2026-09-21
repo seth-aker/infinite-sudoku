@@ -3,6 +3,7 @@ import 'package:infinite_sudoku/ui/home/views/home_view.dart';
 import 'package:infinite_sudoku/ui/sudoku/views/sudoku_view.dart';
 import 'package:infinite_sudoku/ui/sudoku/views/pause_menu.dart';
 import 'package:infinite_sudoku/ui/user/views/login_register_view.dart';
+import 'package:infinite_sudoku/ui/user/views/reset_password_view.dart';
 import 'package:infinite_sudoku/ui/user/views/user_settings_view.dart';
 import 'package:go_router/go_router.dart';
 
@@ -25,6 +26,11 @@ GoRouter router() => GoRouter(
     GoRoute(
       path: Routes.pauseMenu,
       builder: (context, state) => const PauseMenu(),
+    ),
+    GoRoute(
+      path: Routes.resetPassword,
+      builder: (context, state) =>
+          ResetPasswordView(token: state.uri.queryParameters['token'] ?? ''),
     ),
   ],
   //   name: 'About',

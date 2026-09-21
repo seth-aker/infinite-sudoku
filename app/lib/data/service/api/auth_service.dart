@@ -15,4 +15,6 @@ abstract class AuthService {
   Future<Result<RefreshTokenResponseDto>> refreshAccessToken(String refreshToken);
 
   Future<Result<void>> requestResetLink(String email);
+
+  Future<Result<void>> resetPassword(String password, String token);
 }

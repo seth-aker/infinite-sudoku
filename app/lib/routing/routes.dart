@@ -6,4 +6,5 @@ abstract final class Routes {
   static const settings = '/settings';
   static const pauseMenu = '/pause-menu';
   static const newUserWelcome = '/welcome';
+  static const resetPassword = 'resetPassword';
 }

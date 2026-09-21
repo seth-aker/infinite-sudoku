@@ -9,12 +9,12 @@ part 'user_state.dart';
 
 class UserBloc extends HydratedBloc<UserEvent, UserState> {
   final AuthRepository _authRepository;
-  UserBloc({required this._authRepository})
-    : super(const UserState.initial()) {
+  UserBloc({required this._authRepository}) : super(const UserState.initial()) {
     on<LoginRequested>(_onLoginRequested);
     on<RegisterRequested>(_onRegisterRequested);
     on<LogoutRequested>(_onLogoutRequested);
-    on<PasswordResetEmailRequested>(_onPasswordResetRequested);
+    on<PasswordResetEmailRequested>(_onPasswordResetEmailRequested);
+    on<PasswordResetRequested>(_onPaswordResetRequested);
   }
 
   Future<void> _onLoginRequested(
@@ -32,11 +32,7 @@ class UserBloc extends HydratedBloc<UserEvent, UserState> {
         emit(state.error(message));
       case Ok<User>():
         final user = result.value;
-        emit(
-          UserState.authenticated(
-	    user: user,
-          ),
-        );
+        emit(UserState.authenticated(user: user));
     }
   }
 
@@ -60,11 +56,7 @@ class UserBloc extends HydratedBloc<UserEvent, UserState> {
           emit(state.error("Registration failed, please try again."));
           return;
         }
-        emit(
-          UserState.authenticated(
-	    user: user,
-          ),
-        );
+        emit(UserState.authenticated(user: user));
     }
   }
 
@@ -86,7 +78,7 @@ class UserBloc extends HydratedBloc<UserEvent, UserState> {
     }
   }
 
-  Future<void> _onPasswordResetRequested(
+  Future<void> _onPasswordResetEmailRequested(
     PasswordResetEmailRequested event,
     Emitter<UserState> emit,
   ) async {
@@ -95,7 +87,26 @@ class UserBloc extends HydratedBloc<UserEvent, UserState> {
 
     switch (result) {
       case Error():
-	emit(state.error(result.error.toString()));
+        emit(state.error(result.error.toString()));
+        return;
+      case Ok():
+        emit(state.copyWith());
+    }
+  }
+
+  Future<void> _onPaswordResetRequested(
+    PasswordResetRequested event,
+    Emitter<UserState> emit,
+  ) async {
+    emit(state.loading());
+    final result = await _authRepository.resetPassword(
+      event.password,
+      event.token,
+    );
+
+    switch (result) {
+      case Error():
+        emit(state.error(result.error.toString()));
         return;
       case Ok():
         emit(state.copyWith());
@@ -108,31 +119,35 @@ class UserBloc extends HydratedBloc<UserEvent, UserState> {
       final status = json['status'];
       switch (status) {
         case 'authenticated':
-          return UserState.authenticated(
-	    user: User.fromJson(json['user'])          );
+          return UserState.authenticated(user: User.fromJson(json['user']));
         case 'loading':
           return UserState._(status: .loading);
-	case 'error':
-	  return UserState._(status: .error, statusMessage: json['statusMessage']);
+        case 'error':
+          return UserState._(
+            status: .error,
+            statusMessage: json['statusMessage'],
+          );
         default:
           return UserState.unauthenticated();
       }
     } catch (e) {
       logger.e(e);
-      return UserState._(status: .error, statusMessage: "An error occured retrieving saved user state.");
+      return UserState._(
+        status: .error,
+        statusMessage: "An error occured retrieving saved user state.",
+      );
     }
   }
 
   @override
   Map<String, dynamic>? toJson(UserState state) {
     try {
-	return {
-	  'status': state.status.name,
-	  'user': state.user?.toJson(),
-	  'statusMessage': state.statusMessage,
-	};
-      }
-     catch (e) {
+      return {
+        'status': state.status.name,
+        'user': state.user?.toJson(),
+        'statusMessage': state.statusMessage,
+      };
+    } catch (e) {
       logger.e(e);
       return null;
     }

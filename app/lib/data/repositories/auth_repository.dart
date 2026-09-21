@@ -64,8 +64,8 @@ class AuthRepository {
     switch (result) {
       case Ok():
         final userDto = result.value.user;
-	_accessToken = result.value.accessToken;
-	await _storageService.saveToken(result.value.refreshToken);
+        _accessToken = result.value.accessToken;
+        await _storageService.saveToken(result.value.refreshToken);
         return Result.ok(User.fromDto(userDto));
       case Error():
         return Result.error(result.error);
@@ -100,5 +100,10 @@ class AuthRepository {
       case Ok():
         return result;
     }
+  }
+
+  Future<Result<void>> resetPassword(String password, String token) async {
+    final result = await _authService.resetPassword(password, token);
+    return result;
   }
 }
