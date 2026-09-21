@@ -120,12 +120,21 @@ CREATE TABLE IF NOT EXISTS public.reset_tokens (
   CONSTRAINT check_valid_status CHECK (status IN ('UNUSED', 'USED'))
 );
 
+CREATE TABLE IF NOT EXISTS public.validate_tokens (
+  id BIGSERIAL PRIMARY KEY,
+  user_email uuid NOT NULL REFERENCES public.users(user_id) ON DELETE CASCADE,
+  token uuid DEFAULT gen_random_uuid() NOT NULL,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+);
+
 
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_expires ON public.refresh_tokens (expires_at);
 
 CREATE INDEX IF NOT EXISTS idx_reset_token_created_at ON public.reset_tokens (created_at);
 
 CREATE INDEX IF NOT EXISTS idx_reset_token ON public.reset_tokens (reset_token);
+
+CREATE INDEX IF NOT EXISTS idx_validate_tokens ON public.validate_tokens (token);
 --
 -- Name: users set_timestamp; Type: TRIGGER
 --

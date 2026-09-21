@@ -1,6 +1,6 @@
 import { Router, type Request } from "express";
 import { AuthenticationService } from "../../service/authenticationService";
-import { authLimiter } from "../../middleware/rateLimiter";
+import { authLimiter, resetPasswordRateLimiter } from "../../middleware/rateLimiter";
 import { requireLoggedin } from "../../middleware/authentication";
 import { clearAuthCookies } from "../../utils/cookies";
 import {
@@ -10,17 +10,9 @@ import {
 import { DatabaseError } from "@/core/errors/databaseError";
 import { AuthenticationError } from "../../errors/authenticationError";
 import { ErrorType } from "@/core/errors/errorTypes";
+import { GenericError } from "@/core/errors/genericError";
+import { TokenPasswordBody, TokenRefreshBody, ResetPasswordBody } from "../types";
 
-type TokenPasswordBody = {
-  grantType: "password";
-  email: string;
-  password: string;
-};
-
-type TokenRefreshBody = {
-  grantType: "refreshToken";
-  refreshToken: string;
-};
 
 export function MobileAuthRouter(authService: AuthenticationService) {
   const router = Router();
@@ -95,5 +87,20 @@ export function MobileAuthRouter(authService: AuthenticationService) {
       return res.json({ accessToken, refreshToken: newRefreshToken });
     },
   );
+
+  router.post(
+    "/resetPassword",
+    authLimiter(),
+    resetPasswordRateLimiter,
+    async (req: Request<{},{}, ResetPasswordBody>, res, _next) => {
+      const resetToken = req.body.token;
+      const password = req.body.password;
+      if(!resetToken || !password) {
+        throw new GenericError("Missing required field in request body", {type: ErrorType.MALFORMED_BODY });
+      }
+      const { accessToken, refreshToken } = await authService.resetPassword(resetToken, password);
+      return res.json({accessToken, refreshToken});
+    }
+  )
   return router;
 }

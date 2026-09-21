@@ -87,7 +87,7 @@ export const passwordResetValidator = (
 ) => {
   const pwResult = passwordSchema.safeParse(req.body?.password);
   if (!pwResult.success) return next(pwResult.error);
-  const tokenResult = z.uuid().safeParse(req.query?.resetToken);
+  const tokenResult = z.uuid().safeParse(req.body?.token);
   if (!tokenResult.success) return next(tokenResult.error);
   next();
 };

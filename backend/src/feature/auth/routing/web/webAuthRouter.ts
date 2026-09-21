@@ -1,13 +1,16 @@
-import { Router } from "express";
+import { Router, Request } from "express";
 import {
   loginBodyValidator,
   registerBodyValidator,
 } from "../../middleware/validation";
 import { AuthenticationService } from "../../service/authenticationService";
-import { authLimiter } from "../../middleware/rateLimiter";
+import { authLimiter, resetPasswordRateLimiter } from "../../middleware/rateLimiter";
 import { clearAuthCookies, setAuthCookies } from "../../utils/cookies";
 import { DatabaseError } from "@/core/errors/databaseError";
 import { requireLoggedin } from "../../middleware/authentication";
+import { ErrorType } from "@/core/errors/errorTypes";
+import { GenericError } from "@/core/errors/genericError";
+import { ResetPasswordBody } from "../types";
 
 export function WebAuthRouter(authService: AuthenticationService) {
   const router = Router();
@@ -76,6 +79,22 @@ export function WebAuthRouter(authService: AuthenticationService) {
     setAuthCookies(res, accessToken, newRefreshToken);
     res.sendStatus(201);
   });
+
+  router.post(
+    "/resetPassword",
+    authLimiter(),
+    resetPasswordRateLimiter,
+    async (req: Request<{},{}, ResetPasswordBody>, res, _next) => {
+      const resetToken = req.body.token;
+      const password = req.body.password;
+      if(!resetToken || !password) {
+        throw new GenericError("Missing required field in request body", {type: ErrorType.MALFORMED_BODY });
+      }
+      const { accessToken, refreshToken } = await authService.resetPassword(resetToken, password);
+      setAuthCookies(res, accessToken, refreshToken);
+      res.sendStatus(200);
+    }
+  )
 
   return router;
 }

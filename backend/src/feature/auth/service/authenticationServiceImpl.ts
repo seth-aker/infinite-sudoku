@@ -14,6 +14,10 @@ import { AuthorizationError } from "../errors/authorizationError";
 import { ResetTokenDataSource } from "../datasource/resetTokenDataSource";
 import { NotFoundError } from "@/core/errors/notFoundError";
 import { logger } from "@/core/logging/logger";
+import { transporter } from "../email/smtpEmailer";
+import { generateValidateEmailTemplate } from "../email/validateEmailTemplate";
+import { ValidateTokenDataSource } from "../datasource/validateTokenDataSource";
+import { generatePasswordResetEmailBody } from "../email/passwordResetTemplate";
 const SCRYPT_KEYLEN = 64;
 const SALT_LEN = 16;
 
@@ -29,15 +33,18 @@ export class AuthenticationServiceImpl implements AuthenticationService {
   private userDataSource: UserDataSource;
   private accessTokenDataSource: RefreshTokenDataSource;
   private resetTokenDataSource: ResetTokenDataSource;
+  private validateTokenDataSource: ValidateTokenDataSource;
   private textEncoder: TextEncoder;
   private constructor(
     userDataSource: UserDataSource,
     accessTokenDataSource: RefreshTokenDataSource,
     resetTokenDataSource: ResetTokenDataSource,
+    validateTokenDataSource: ValidateTokenDataSource,
   ) {
     this.userDataSource = userDataSource;
     this.accessTokenDataSource = accessTokenDataSource;
     this.resetTokenDataSource = resetTokenDataSource;
+    this.validateTokenDataSource = validateTokenDataSource;
     this.textEncoder = new TextEncoder();
   }
 
@@ -45,12 +52,14 @@ export class AuthenticationServiceImpl implements AuthenticationService {
     userDataSource: UserDataSource,
     accessTokenDataSource: RefreshTokenDataSource,
     resetTokenDataSource: ResetTokenDataSource,
+    validateTokenDataSource: ValidateTokenDataSource,
   ): AuthenticationServiceImpl {
     if (AuthenticationServiceImpl.instance === null) {
       AuthenticationServiceImpl.instance = new AuthenticationServiceImpl(
         userDataSource,
         accessTokenDataSource,
         resetTokenDataSource,
+        validateTokenDataSource,
       );
     }
     return AuthenticationServiceImpl.instance;
@@ -103,8 +112,14 @@ export class AuthenticationServiceImpl implements AuthenticationService {
     if (!userId) {
       throw new DatabaseError(`Insert Operation failed`);
     }
+    const validationToken = await this.validateTokenDataSource.createValidateToken(userId);
     const { accessToken, refreshToken } = await this.getNewTokenSet(userId);
-    // TODO: Send verification email.
+    transporter.sendMail({
+      to: user.email,
+      from: config.smtpUser,
+      subject: "Infinite Sudoku: Validate Email",
+      html: generateValidateEmailTemplate(validationToken, config.origin),
+    });
     return {
       userId,
       accessToken,
@@ -135,7 +150,13 @@ export class AuthenticationServiceImpl implements AuthenticationService {
         const token = await this.resetTokenDataSource.createResetToken(
           user.user_id,
         );
-        // TODO: Send token in email;
+        // TODO: Handle errors with callback function
+        transporter.sendMail({
+          to: user.email,
+          from: config.smtpUser,
+          subject: "Infinite Sudoku: Reset Password",
+          html: generatePasswordResetEmailBody(token, config.origin),
+        })
       }
     } catch (err) {
       logger.error(err, "Error occured during password reset request");
@@ -158,6 +179,10 @@ export class AuthenticationServiceImpl implements AuthenticationService {
     );
     await this.accessTokenDataSource.invalidateAllForUser(unusedToken.userId);
     return await this.getNewTokenSet(unusedToken.userId);
+  }
+
+  async validateEmail(token: string) {
+    return await this.validateTokenDataSource.validateEmail(token);
   }
 
   private async generateAccessToken(userId: string) {
