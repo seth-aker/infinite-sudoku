@@ -52,6 +52,7 @@ function AuthRouter() {
       }
       return res.sendStatus(204);
     })
+  return router;
 }
 
 export const authRouter = AuthRouter();
