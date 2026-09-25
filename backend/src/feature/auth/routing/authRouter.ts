@@ -42,7 +42,7 @@ function AuthRouter() {
       return res.sendStatus(204);
     },
   );
-  router.use(
+  router.post(
     '/validateEmail',
     async (req: Request<{}, {}, {}, { token: string }>, res) => {
       const token = req.query.token;

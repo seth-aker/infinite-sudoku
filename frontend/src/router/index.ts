@@ -28,11 +28,11 @@ const router = createRouter({
       },
       component: () => import("../views/sudoku/Standard.vue"),
     },
-    // {
-    //   path: '/sudoku/impossible',
-    //   name: 'impossible',
-    //   component: () => import('../views/sudoku/Standard.vue')
-    // }
+    {
+      path: "/auth/validateEmail",
+      name: "validateEmail",
+      component: () => import("../views/ValidateEmailView.vue"),
+    },
   ],
 });
 

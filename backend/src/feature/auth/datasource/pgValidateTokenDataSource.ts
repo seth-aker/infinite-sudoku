@@ -16,28 +16,30 @@ export class PgValidateTokenDataSource implements ValidateTokenDataSource {
     return this.instance;
   }
 
-  async createValidateToken(email: string) {
+  async createValidateToken(userId: string) {
     const [res] = await this.client<{ token: string }[]>`
       INSERT INTO validate_tokens 
-        (user_email) 
+        (user_id) 
       VALUES 
-        (${email})
+        (${userId})
       RETURNING token;
       `
     return res.token;
   }
 
   async validateEmail(token: string) {
-    const [res] = await this.client<{ user_email: string }[]>`
-        SELECT user_email
-        FROM validate_tokens
-        WHERE token = ${token}
-    `
     const updateRes = await this.client.begin(async sql => {
+      const [res] = await sql<{ user_id: string }[]>`
+        SELECT user_id
+        FROM validate_tokens
+        WHERE token = ${token}`
+      if(!res?.user_id) {
+        throw new NotFoundError('Account not found');
+      }
       const updated = await sql`
         UPDATE users
         SET email_verified = true
-        WHERE email = ${res.user_email}
+        WHERE user_id = ${res.user_id}
       `
       if (updated.count != 1) {
         throw new NotFoundError('Account not found');
