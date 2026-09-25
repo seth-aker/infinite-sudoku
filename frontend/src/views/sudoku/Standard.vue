@@ -187,7 +187,7 @@ const handleReset = () => {
     </Dialog>
   </div>
   <!-- <SaveGameDialog /> -->
-  <LoadingOverlay v-if="loading" />
+  <LoadingOverlay v-if="loading" message="Loading Puzzle"/>
   <ErrorDialog v-if="error" :message="error" />
   <PauseMenu />
 </template>

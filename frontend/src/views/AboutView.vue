@@ -24,7 +24,7 @@ onMounted(async () => {
     class="flex flex-row self-center md:max-w-[75%] pb-10 pr-16 pl-16 border-r-orange-300 border-l-orange-300 border-2"
   >
     <div class="markdown" v-html="readme"></div>
-    <LoadingOverlay v-if="isLoading" />
+    <LoadingOverlay v-if="isLoading" message="Loading" />
     <ErrorDialog v-if="error" :message="error" />
   </div>
 </template>
