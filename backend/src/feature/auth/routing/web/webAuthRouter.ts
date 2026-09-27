@@ -63,7 +63,6 @@ export function WebAuthRouter(authService: AuthenticationService) {
       setAuthCookies(res, result.accessToken, result.refreshToken);
       return res.status(201).json({
         user,
-        accessToken: result.accessToken,
       });
     },
   );

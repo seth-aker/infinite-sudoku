@@ -12,25 +12,25 @@ export function useAuth() {
   const { showDialog } = useDialog();
   const { resumeSavedPuzzle, saveToServer } = useGameSession();
 
-  async function login(username: string, password: string) {
+  async function login(email: string, password: string) {
     userStore.loading = true;
     try {
-      const { success, body, error } = await userService.login(
-        username,
+      const result = await userService.login(
+        email,
         password,
       );
-      if (!success || !body) {
-        toast.error(error ?? "Invalid username or password!");
+      if (!result.success) {
+        toast.error(result.error ?? "Invalid email or password!");
         userStore.loading = false;
         return;
       }
-      ((userStore.id = body.id),
-        (userStore.username = body.username),
-        (userStore.displayName = body.displayName),
-        (userStore.currentPuzzleId = body.currentPuzzleId));
-      userStore.imageUrl = body.imageUrl;
-      userStore.role = body.role;
-
+      const user = result.body?.user;
+      if (!user) {
+        toast.error("Invalid email or password")
+        userStore.loading = false;
+        return;
+      }
+      userStore.set(user);
       if (gameStore.puzzleId) {
         // gamestore puzzle id !== current puzzleId
         if (
@@ -101,27 +101,37 @@ export function useAuth() {
   }
 
   async function register(
-    username: string,
+    email: string,
     password: string,
-    displayName?: string,
+    username: string,
+    tosAcknowledged: boolean,
   ) {
     userStore.$reset();
     userStore.loading = true;
     try {
-      const res = await userService.register(username, password, displayName);
-      if (!res.success || !res.body) {
+      const res = await userService.register(email, password, username, tosAcknowledged);
+      if (!res.success) {
         toast.error("Oops! An error occured", {
           description: `Failed to register: ${res.error ?? "Didn't recieve user info from server"}`,
         });
         userStore.loading = false;
         return;
       }
-      userStore.set(res.body);
+      // Duplicate code bloc because of typescript strict typeing requirements
+      const user = res.body?.user;
+      if (!user) {
+        toast.error("Oops! An error occured", {
+          description: `Failed to register: Didn't recieve user info from server`
+        })
+        userStore.loading = false;
+        return;
+      }
+      userStore.set(user);
       if (gameStore.puzzleId) {
         await saveToServer();
       }
       toast.success(
-        `Welcome ${!res.body.displayName ? res.body.username : res.body.displayName}! Time to play!`,
+        `Welcome ${user.username}! Time to play!`,
       );
     } catch (err) {
       toast.error("Oops! An error occured", {
@@ -132,8 +142,11 @@ export function useAuth() {
   }
   async function getSession() {
     const res = await userService.getSession();
-    if (res.success && res.body) {
-      userStore.set(res.body);
+    if (res.success) {
+      const user = res.body?.user;
+      if (user) {
+        userStore.set(user);
+      }
     }
   }
   return {

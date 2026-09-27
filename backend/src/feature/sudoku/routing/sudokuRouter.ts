@@ -18,7 +18,7 @@ export default function SudokuRouter(sudokuService: SudokuService) {
     "/new",
     getPuzzleValidator,
     async (req: SudokuRequest, res: Response, next: NextFunction) => {
-      const requestedBy = req.user?.userId;
+      const requestedBy = req.user?.sub;
       const puzzleOptions: PuzzleOptions = {
         difficulty: req.query.difficulty ?? "easy",
       };
@@ -45,7 +45,7 @@ export default function SudokuRouter(sudokuService: SudokuService) {
     ) => {
       try {
         const puzzleId = req.params.puzzleId;
-        const userId = req.user?.userId!;
+        const userId = req.user?.sub!;
         const puzzle = await sudokuService.getUserPuzzle(userId, puzzleId);
         res.send(puzzle);
       } catch (err) {
@@ -68,7 +68,7 @@ export default function SudokuRouter(sudokuService: SudokuService) {
     updatePuzzleValidator,
     async (req: Request, res: Response, next: NextFunction) => {
       try {
-        const userId = req.user?.userId!;
+        const userId = req.user?.sub!;
         const updateUserPuzzleDto = req.body as UpdatePuzzle;
         const result = await sudokuService.updateUserPuzzle(
           userId,

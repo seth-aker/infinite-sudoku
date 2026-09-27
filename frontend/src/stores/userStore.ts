@@ -3,16 +3,16 @@ import { computed, ref } from "vue";
 
 export interface UserDto {
   id: string;
-  displayName?: string;
-  username: string;
+  username?: string;
+  email: string;
   imageUrl?: string;
   currentPuzzleId?: string;
-  role: string;
+  role: "user" | "admin";
 }
 export const useUserStore = defineStore("userStore", () => {
   const id = ref<string | undefined>(undefined);
-  const displayName = ref<string | undefined>(undefined);
   const username = ref<string | undefined>(undefined);
+  const email = ref<string | undefined>(undefined);
   const imageUrl = ref<string | undefined>(undefined);
   const role = ref<string | undefined>(undefined);
   const currentPuzzleId = ref<string | undefined>(undefined);
@@ -22,16 +22,16 @@ export const useUserStore = defineStore("userStore", () => {
 
   function set(user: UserDto) {
     id.value = user.id;
-    displayName.value = user.displayName;
     username.value = user.username;
+    email.value = user.email;
     imageUrl.value = user.imageUrl;
     role.value = user.role;
     currentPuzzleId.value = user.currentPuzzleId;
   }
   function $reset() {
     id.value = undefined;
-    displayName.value = undefined;
     username.value = undefined;
+    email.value = undefined;
     imageUrl.value = undefined;
     role.value = undefined;
     currentPuzzleId.value = undefined;
@@ -40,8 +40,8 @@ export const useUserStore = defineStore("userStore", () => {
 
   return {
     id,
-    displayName,
     username,
+    email,
     imageUrl,
     role,
     currentPuzzleId,

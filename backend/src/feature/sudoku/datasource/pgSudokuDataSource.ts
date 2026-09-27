@@ -10,7 +10,6 @@ import {
 import { SudokuDataSource } from "./sudokuDataSource";
 import { Sql } from "postgres";
 import { PuzzleArray } from "./models/puzzleArray";
-import { CustomError } from "@/core/errors/customError";
 import { NotFoundError } from "@/core/errors/notFoundError";
 import { ErrorType } from "@/core/errors/errorTypes";
 interface QueryRes extends SqlPuzzle {

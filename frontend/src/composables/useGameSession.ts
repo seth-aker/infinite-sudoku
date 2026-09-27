@@ -50,18 +50,18 @@ export function useGameSession() {
     };
   }
   function applySnapshot(s: GameSnapshot) {
-    ((gameStore.puzzleId = s.puzzleId),
-      (gameStore.cells = s.cells),
-      (gameStore.originalCells = s.originalCells),
-      (gameStore.difficultyRating = s.difficultyRating),
-      (gameStore.difficultyScore = s.difficultyScore),
-      (gameStore.usingPencil = s.usingPencil),
-      (gameStore.selectedIdx = s.selectedIdx),
-      (gameStore.history = s.history),
-      (gameStore.redoActions = s.redoActions),
-      (gameStore.autoCandidateMode = s.autoCandidateMode),
-      (gameStore.elapsedSeconds = s.elapsedSeconds),
-      (gameStore.state = s.state));
+    gameStore.puzzleId = s.puzzleId;
+    gameStore.cells = s.cells
+    gameStore.originalCells = s.originalCells;
+    gameStore.difficultyRating = s.difficultyRating;
+    gameStore.difficultyScore = s.difficultyScore;
+    gameStore.usingPencil = s.usingPencil;
+    gameStore.selectedIdx = s.selectedIdx;
+    gameStore.history = s.history;
+    gameStore.redoActions = s.redoActions;
+    gameStore.autoCandidateMode = s.autoCandidateMode;
+    gameStore.elapsedSeconds = s.elapsedSeconds;
+    gameStore.state = s.state;
   }
   function saveLocal() {
     if (!hasStorage()) {
@@ -96,7 +96,7 @@ export function useGameSession() {
     keepAlive?: boolean,
   ): Promise<ServiceResult<void>> {
     if (!gameStore.puzzleId || !userStore.isAuthenticated) {
-      return { success: false, error: "Nothing to save" };
+      return { success: false, error: "Nothing to save", status: 400  };
     }
     return await sudokuService.saveProgress({
       puzzleId: gameStore.puzzleId,
@@ -112,24 +112,32 @@ export function useGameSession() {
   ): Promise<ServiceResult<sudokuService.NewPuzzleResult>> {
     gameStore.loading = true;
     try {
-      const { error, body } = await sudokuService.getNewPuzzle(difficulty);
-      if (error || !body) {
-        return { success: false, error };
+      const result = await sudokuService.getNewPuzzle(difficulty);
+      if(!result.success) {
+        return result;
+      }
+      const body = result.body;
+      if(!body) {
+        return {
+          success: false,
+          error: "Missing puzzle details",
+          status: 404
+        }
       }
       gameStore.$reset();
-      ((gameStore.puzzleId = body.puzzleId),
-        (gameStore.cells = body.cells.map(cloneCell)),
-        (gameStore.originalCells = body.cells));
+      gameStore.puzzleId = body.puzzleId;
+      gameStore.cells = body.cells.map(cloneCell);
+      gameStore.originalCells = body.cells
       gameStore.difficultyRating = body.difficultyRating;
       gameStore.difficultyScore = body.difficultyScore;
       clock.reset();
       clock.start();
       saveLocal();
       gameStore.loading = false;
-      return { success: true, body };
+      return result;
     } catch (err) {
       gameStore.loading = false;
-      return { success: false, error: `An unexpected error occured: ${err}` };
+      return { success: false, error: `An unexpected error occured: ${err}`, status: 400 };
     }
   }
   async function resumeSavedPuzzle(
@@ -137,9 +145,17 @@ export function useGameSession() {
   ): Promise<ServiceResult<sudokuService.SavedPuzzleResult>> {
     gameStore.loading = true;
     try {
-      const { error, body } = await sudokuService.getSavedProgress(puzzleId);
-      if (error || !body) {
-        return { success: false, error };
+      const result = await sudokuService.getSavedProgress(puzzleId);
+      if(!result.success) {
+        return result;
+      }
+      const body = result.body;
+      if(!body) {
+        return {
+          success: false,
+          error: "Error resuming puzzle",
+          status: 400,
+        }
       }
       gameStore.$reset();
       gameStore.puzzleId = body.puzzleId;
@@ -151,10 +167,10 @@ export function useGameSession() {
       gameStore.difficultyScore = body.difficultyScore;
       saveLocal();
       gameStore.loading = false;
-      return { success: true, body };
+      return result;
     } catch (err) {
       gameStore.loading = false;
-      return { success: false, error: `An unexpected error occured: ${err}` };
+      return { success: false, error: `An unexpected error occured: ${err}`, status: 400 };
     }
   }
 

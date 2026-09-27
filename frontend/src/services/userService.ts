@@ -3,54 +3,56 @@ import { safeFetch, type ServiceResult } from "./baseService";
 const BASE_URL: string = config.API_BASE_URL;
 export interface UserDto {
   id: string;
-  displayName?: string;
   username: string;
+  email: string;
   imageUrl?: string;
   currentPuzzleId?: string;
-  role: string;
+  role: 'user' | 'admin'
 }
 
 export async function login(
-  username: string,
+  email: string,
   password: string,
-): Promise<ServiceResult<UserDto>> {
-  return await safeFetch(`${BASE_URL}/auth/login`, {
+): Promise<ServiceResult<{ user: UserDto }>> {
+  return await safeFetch(`${BASE_URL}/auth/web/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify({ email, password }),
   });
 }
 export async function logout(): Promise<ServiceResult<void>> {
-  return await safeFetch(`${BASE_URL}/auth/logout`, {
+  return await safeFetch(`${BASE_URL}/auth/web/logout`, {
     method: "POST",
     credentials: "include",
   });
 }
 export async function getSession(): Promise<
-  ServiceResult<UserDto | undefined>
+  ServiceResult<{ user: UserDto }>
 > {
-  return await safeFetch(`${BASE_URL}/auth/session`, {
+  return await safeFetch(`${BASE_URL}/users/me`, {
     method: "GET",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
   });
 }
 export async function register(
-  username: string,
+  email: string,
   password: string,
-  displayName?: string,
-): Promise<ServiceResult<UserDto | undefined>> {
-  return await safeFetch(`${BASE_URL}/auth/register`, {
+  username: string,
+  tosAcknowledged: boolean
+): Promise<ServiceResult<{ user: UserDto }>> {
+  return await safeFetch(`${BASE_URL}/auth/web/register`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
     credentials: "include",
     body: JSON.stringify({
-      username,
+      email,
       password,
-      displayName,
+      username,
+      tosAcknowledged,
     }),
   });
 }

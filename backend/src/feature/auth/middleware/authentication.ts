@@ -5,10 +5,11 @@ import { AuthenticationError } from "../errors/authenticationError";
 import { ErrorType } from "@/core/errors/errorTypes";
 import { AuthorizationError } from "../errors/authorizationError";
 import { CustomError } from "@/core/errors/customError";
-
+import { JWTExpired } from "jose/errors";
+import { logger } from "@/core/logging/logger";
+import * as z from "zod/v4"
 export interface SudokuAppJwtPayload extends JWTPayload {
-  userId: string;
-  username: string;
+  emailVerified: boolean,
   role: "user" | "admin";
 }
 export const requireLoggedin = async (
@@ -31,12 +32,12 @@ export const requireLoggedin = async (
       issuer: config.issuer,
       algorithms: ["HS256"],
     });
-
     req.user = payload as SudokuAppJwtPayload;
     next();
   } catch (err) {
+    logger.error(err)
     throw new AuthenticationError("Invalid access token", {
-      type: ErrorType.TOKEN_INVALID,
+      type: err instanceof JWTExpired ? ErrorType.TOKEN_EXPIRED : ErrorType.TOKEN_INVALID,
     });
   }
 };
@@ -70,12 +71,27 @@ export const requireAdmin = async (
     req.user = payload as SudokuAppJwtPayload;
     next();
   } catch (err) {
+    logger.error(err)
     if (err instanceof CustomError) throw err;
     throw new AuthenticationError("Invalid Bearer token", {
-      type: ErrorType.TOKEN_INVALID,
+      type: err instanceof JWTExpired ? ErrorType.TOKEN_EXPIRED : ErrorType.TOKEN_INVALID,
     });
   }
 };
+export async function requireSelfOrAdmin(req: Request<{ id: string }>, res: Response, next: NextFunction) {
+  const userId = req.params.id;
+  if (!z.uuid().safeParse(userId).success) {
+    res.sendStatus(400);
+  }
+  if (!req.user || !req.user.sub) {
+    throw new AuthenticationError("Missing access token",
+      { type: ErrorType.TOKEN_MISSING })
+  }
+  if (req.user.sub !== userId) {
+    return requireAdmin(req, res, next);
+  }
+  return next();
+}
 
 function getToken(req: Request) {
   if (

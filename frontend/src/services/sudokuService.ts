@@ -6,7 +6,7 @@ import {
   serializeCells,
 } from "@/utils/serialization";
 import { config } from "@/config";
-import type { ServiceResult } from "./baseService";
+import { safeFetch, type ServiceResult } from "./baseService";
 const BASE_URL: string = config.API_BASE_URL;
 
 export interface SudokuProgressState {
@@ -16,6 +16,13 @@ export interface SudokuProgressState {
   elapsedSeconds: number;
   isSolved: boolean;
   keepAlive?: boolean;
+}
+
+export interface NewPuzzleDto {
+  puzzleId: string,
+  cells: string,
+  rating: DifficultyRating,
+  score: number
 }
 export interface UpdateProgressDTO {
   puzzleId: string;
@@ -55,7 +62,7 @@ export interface SavedPuzzleResult {
 export async function getNewPuzzle(
   difficulty: DifficultyRating,
 ): Promise<ServiceResult<NewPuzzleResult>> {
-  const result = await fetch(
+  const result = await safeFetch<NewPuzzleDto>(
     `${BASE_URL}/sudoku/new?difficulty=${difficulty}`,
     {
       method: "GET",
@@ -63,13 +70,17 @@ export async function getNewPuzzle(
       credentials: "include",
     },
   );
-  if (!result.ok) {
+  if (!result.success) {
+    return result;
+  }
+  const rawPuzzle = result.body;
+  if(!rawPuzzle) {
     return {
       success: false,
-      error: await result.text(),
-    };
+      error: 'Puzzle not received',
+      status: 500,
+    }
   }
-  const rawPuzzle = await result.json();
   const cells = deserializeCells({ cells: rawPuzzle.cells });
   return {
     success: true,
@@ -79,6 +90,7 @@ export async function getNewPuzzle(
       difficultyRating: rawPuzzle.rating,
       difficultyScore: rawPuzzle.score,
     },
+    status: result.status
   };
 }
 export async function saveProgress(
@@ -96,7 +108,7 @@ export async function saveProgress(
     isCompleted: state.isSolved,
   };
 
-  const response = await fetch(`${BASE_URL}/sudoku/${progress.puzzleId}`, {
+  const response = await safeFetch<void>(`${BASE_URL}/sudoku/${progress.puzzleId}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     keepalive: progress.keepAlive,
@@ -104,32 +116,29 @@ export async function saveProgress(
     credentials: "include",
   });
 
-  if (!response.ok) {
-    return {
-      success: false,
-      error: await response.json(),
-    };
-  }
-  return {
-    success: true,
-  };
+  return response;
 }
 
 export async function getSavedProgress(
   puzzleId: string,
 ): Promise<ServiceResult<SavedPuzzleResult>> {
-  const response = await fetch(`${BASE_URL}/sudoku/${puzzleId}`, {
+  const response = await safeFetch<UserPuzzleDto>(`${BASE_URL}/sudoku/${puzzleId}`, {
     method: "GET",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
   });
-  if (!response.ok) {
+
+  if(!response.success) {
+    return response;
+  }
+  const body = response.body;
+  if(!body) {
     return {
       success: false,
-      error: await response.text(),
-    };
+      error: "Failed to get progress",
+      status: 500,
+    }
   }
-  const body = (await response.json()) as UserPuzzleDto;
   const cells = deserializeCells({
     cells: body.cells,
     candidates: body.candidates,
@@ -148,5 +157,6 @@ export async function getSavedProgress(
       difficultyRating: body.rating,
       difficultyScore: body.score,
     },
+    status: response.status
   };
 }

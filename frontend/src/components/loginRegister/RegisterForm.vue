@@ -13,6 +13,7 @@ import InputGroup from "../ui/input-group/InputGroup.vue";
 import InputGroupInput from "../ui/input-group/InputGroupInput.vue";
 import InputGroupAddon from "../ui/input-group/InputGroupAddon.vue";
 import InputGroupButton from "../ui/input-group/InputGroupButton.vue";
+import Checkbox from "../ui/checkbox/Checkbox.vue";
 import { Icon } from "@iconify/vue";
 import Button from "../ui/button/Button.vue";
 import {
@@ -22,26 +23,41 @@ import {
 import FieldError from "../ui/field/FieldError.vue";
 import { toast } from "vue-sonner";
 import { useAuth } from "@/composables/useAuth";
+import { z } from "zod/mini";
 const popoverOpen = defineModel<boolean>("popover-open", { required: true });
 const userStore = useUserStore();
 const { register } = useAuth();
-const name = ref<string>("");
 const username = ref<string>("");
 const usernameErrorMessage = ref<string | undefined>(undefined);
+const email = ref<string>("");
+const emailErrorMessage = ref<string | undefined>(undefined);
 const password = ref<string>("");
 const passwordErrorMessage = ref<string | undefined>(undefined);
 const confirmPassword = ref<string>("");
 const confirmPasswordErrorMessage = ref<string | undefined>(undefined);
-
+const tosAcknowledged = ref<boolean>(false);
+const tosAcknowledgedErrorMessage = ref<string | undefined>(undefined);
 watchDebounced(
   username,
   (value) => {
     const res = usernameSchema.safeParse(value);
     if (!res.success) {
-      usernameErrorMessage.value =
-        "Username too short! Must be 4 or more characters";
+      usernameErrorMessage.value = "Username invalid. Must be 4 characters or longer."
     } else {
       usernameErrorMessage.value = undefined;
+    }
+  },
+  { debounce: 500 });
+
+watchDebounced(
+  email,
+  (value) => {
+    const res = z.email().safeParse(value);
+    if (!res.success) {
+      emailErrorMessage.value =
+        "Email Invalid";
+    } else {
+      emailErrorMessage.value = undefined;
     }
   },
   { debounce: 500 },
@@ -75,23 +91,28 @@ watchDebounced(
 const handleRegister = async (event: SubmitEvent) => {
   event.preventDefault();
   const userNameRes = usernameSchema.safeParse(username.value);
+  const emailRes = z.email().safeParse(email.value);
   const passwordRes = passwordSchema.safeParse(password.value);
   const confirmMatches = password.value === confirmPassword.value;
-  if (!userNameRes.success || !passwordRes.success || !confirmMatches) {
+  if (!tosAcknowledged.value) {
+    tosAcknowledgedErrorMessage.value = "Please accept Terms of Service";
+    return;
+  }
+  if (!userNameRes.success || !emailRes.success || !passwordRes.success || !confirmMatches) {
     return;
   }
   (toast.promise(
     Promise.all([
-      register(username.value, password.value, name.value),
+      register(email.value, password.value, username.value, tosAcknowledged.value),
       new Promise((resolve) => setTimeout(resolve, 500)),
     ]),
   ),
-    {
-      loading: "Loading...",
-      success: () => {
-        popoverOpen.value = false;
-      },
-    });
+  {
+    loading: "Loading...",
+    success: () => {
+      popoverOpen.value = false;
+    },
+  });
 };
 
 // for hiding/showing password input
@@ -112,46 +133,28 @@ const { pressed: showConfirmPassword } = useMousePressed({
         <Separator />
         <FieldGroup>
           <Field>
-            <FieldLabel for="name">Display Name</FieldLabel>
-            <Input
-              id="name"
-              v-model:model-value="name"
-              autocomplete="name"
-              type="text"
-              placeholder="Susan Doku"
-            />
+            <FieldLabel for="email">Email</FieldLabel>
+            <Input id="email" :aria-invalid="emailErrorMessage !== undefined" v-model:model-value="email"
+              autocomplete="email" type="text" placeholder="example@email.com" required />
+            <FieldError :errors="[emailErrorMessage]" />
           </Field>
           <Field>
-            <FieldLabel for="email">Username</FieldLabel>
-            <Input
-              :aria-invalid="usernameErrorMessage !== undefined"
-              id="email"
-              v-model:model-value="username"
-              type="text"
-              placeholder="email@example.com"
-              autocomplete="username"
-              required
-            />
+            <FieldLabel for="Username">Username</FieldLabel>
+            <Input :aria-invalid="usernameErrorMessage !== undefined" id="username" v-model:model-value="username"
+              type="text" placeholder="sudoku-lover123" autocomplete="username" required />
             <FieldError :errors="[usernameErrorMessage]"></FieldError>
           </Field>
           <Field>
             <FieldLabel for="password">Password</FieldLabel>
             <InputGroup :aria-invalid="passwordErrorMessage !== undefined">
-              <InputGroupInput
-                id="password"
-                v-model:model-value="password"
-                :type="showPassword ? 'text' : 'password'"
-                required
-              />
+              <InputGroupInput id="password" v-model:model-value="password" :type="showPassword ? 'text' : 'password'"
+                required />
               <InputGroupAddon align="inline-end">
                 <InputGroupButton ref="show-password" type="button">
-                  <Icon
-                    :icon="
-                      showPassword
-                        ? 'radix-icons:eye-open'
-                        : 'radix-icons:eye-closed'
-                    "
-                  />
+                  <Icon :icon="showPassword
+                    ? 'radix-icons:eye-open'
+                    : 'radix-icons:eye-closed'
+                    " />
                 </InputGroupButton>
               </InputGroupAddon>
             </InputGroup>
@@ -160,41 +163,33 @@ const { pressed: showConfirmPassword } = useMousePressed({
           <Field>
             <FieldLabel for="confirm-password">Confirm Password</FieldLabel>
             <InputGroup>
-              <InputGroupInput
-                id="confirm-password"
-                v-model:model-value="confirmPassword"
+              <InputGroupInput id="confirm-password" v-model:model-value="confirmPassword"
                 :aria-invalid="confirmPasswordErrorMessage !== undefined"
-                :type="showConfirmPassword ? 'text' : 'password'"
-                required
-              />
+                :type="showConfirmPassword ? 'text' : 'password'" required />
               <InputGroupAddon align="inline-end">
                 <InputGroupButton ref="show-confirm-password" type="button">
-                  <Icon
-                    :icon="
-                      showConfirmPassword
-                        ? 'radix-icons:eye-open'
-                        : 'radix-icons:eye-closed'
-                    "
-                  />
+                  <Icon :icon="showConfirmPassword
+                    ? 'radix-icons:eye-open'
+                    : 'radix-icons:eye-closed'
+                    " />
                 </InputGroupButton>
               </InputGroupAddon>
             </InputGroup>
             <FieldError :errors="[confirmPasswordErrorMessage]" />
           </Field>
+          <Field>
+            <FieldLabel for="accept-tos">Accept Terms of Service</FieldLabel>
+            <Checkbox id="accept-tos" v-model:model-value="tosAcknowledged" type="checkbox"
+              :aria-invalid="tosAcknowledgedErrorMessage !== undefined" />
+            <FieldError :errors="[tosAcknowledgedErrorMessage]" />
+          </Field>
         </FieldGroup>
       </FieldSet>
       <Field orientation="horizontal" class="justify-end">
-        <Button
-          type="submit"
-          v-if="!userStore.loading"
-          :disabled="
-            usernameErrorMessage ||
-            passwordErrorMessage ||
-            confirmPasswordErrorMessage
-          "
-          class="w-30 bg-orange-400 hover:bg-orange-400/60"
-          >Create Account</Button
-        >
+        <Button type="submit" v-if="!userStore.loading" :disabled="emailErrorMessage ||
+          passwordErrorMessage ||
+          confirmPasswordErrorMessage || tosAcknowledgedErrorMessage
+          " class="w-30 bg-orange-400 hover:bg-orange-400/60">Create Account</Button>
         <Button class="w-30 bg-orange-400" v-else>
           <Icon icon="line-md:loading-twotone-loop" />
         </Button>
