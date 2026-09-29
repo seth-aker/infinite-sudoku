@@ -27,7 +27,7 @@ export default function SudokuRouter(sudokuService: SudokuService) {
           requestedBy,
           puzzleOptions,
         );
-        res.send(JSON.stringify(puzzle));
+        res.json(puzzle);
       } catch (err) {
         next(err);
       }
@@ -47,7 +47,7 @@ export default function SudokuRouter(sudokuService: SudokuService) {
         const puzzleId = req.params.puzzleId;
         const userId = req.user?.sub!;
         const puzzle = await sudokuService.getUserPuzzle(userId, puzzleId);
-        res.send(puzzle);
+        res.json(puzzle);
       } catch (err) {
         next(err);
       }
@@ -79,7 +79,7 @@ export default function SudokuRouter(sudokuService: SudokuService) {
             `Expected to update 1, instead updated: ${result}`,
           );
         }
-        res.status(204).send();
+        res.sendStatus(204)
       } catch (err) {
         next(err);
       }
