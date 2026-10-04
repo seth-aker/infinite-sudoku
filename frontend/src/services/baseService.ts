@@ -32,7 +32,7 @@ export async function safeFetch<T>(input: RequestInfo | URL, init?: RequestInit,
       }
       const refreshResult = await refreshPromise;
       if(refreshResult.success) {
-        return safeFetch<T>(input, init, true);
+        return await safeFetch<T>(input, init, true);
       } else {
         return {
           success: false,
