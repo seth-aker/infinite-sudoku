@@ -8,7 +8,7 @@ import 'package:infinite_sudoku/utils/result.dart';
 abstract class AuthService {
   Future<Result<LoginResponseDto>> login(LoginRequestDto loginRequest);
 
-  Future<Result<void>> logout();
+  Future<Result<void>> logout(String? refreshToken);
 
   Future<Result<RegisterResponseDto>> register(RegisterRequestDto registerRequest);
 

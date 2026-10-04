@@ -5,20 +5,27 @@ import 'package:infinite_sudoku/utils/logger/logger.dart';
 import 'package:infinite_sudoku/utils/result.dart';
 
 typedef AuthHeaderProvider = String? Function();
+typedef AuthRefreshFunction = Future<Result<void>> Function();
+
+class ApiException implements Exception {
+  ApiException(this.statusCode, this.message);
+  final int statusCode;
+  final String? message;
+}
 
 class ApiClient {
   final String _host;
   final int _port;
   final HttpClient Function() _clientFactory;
-
+  Future<Result<void>>? _refreshPromise;
   AuthHeaderProvider? authHeaderProvider;
-  
+  AuthRefreshFunction? _authRefreshFunction;
+
   ApiClient({
     this._host = '127.0.0.1',
     this._port = 3666,
     this._clientFactory = HttpClient.new,
   });
-
 
   Future<Result<T>> send<T>(
     String method,
@@ -26,6 +33,7 @@ class ApiClient {
     Object? body,
     int expectedStatus = 200,
     required T Function(dynamic json) parse,
+    bool isRetry = false,
   }) async {
     final client = _clientFactory();
     try {
@@ -42,8 +50,32 @@ class ApiClient {
       }
 
       final response = await request.close();
+
+      if (response.statusCode == 401 && !isRetry) {
+        if (_refreshPromise == null && _authRefreshFunction != null) {
+          _refreshPromise = _authRefreshFunction!().whenComplete(
+            () => _refreshPromise = null,
+          );
+        }
+        final refreshResult = await _refreshPromise;
+        switch (refreshResult) {
+          case Error():
+          case null:
+            throw ApiException(401, "Session expired, please log in again.");
+          case Ok():
+            return await send(
+              method,
+              path,
+              body: body,
+              expectedStatus: expectedStatus,
+              parse: parse,
+              isRetry: true,
+            );
+        }
+      }
+
       if (response.statusCode != expectedStatus) {
-	logger.e("Error with response status code: ${response.statusCode}");
+        logger.e("Error with response status code: ${response.statusCode}");
         return Result.error(
           HttpException('Invalid response code: ${response.statusCode}'),
         );

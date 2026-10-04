@@ -29,10 +29,15 @@ class SudokuApp extends StatelessWidget {
       child: MultiBlocProvider(
         providers: [
           BlocProvider(
-            create: (_) => PuzzleBloc(puzzleRepository: _puzzleRepository, preferencesCubit: preferencesCubit),
+            create: (_) => PuzzleBloc(
+              puzzleRepository: _puzzleRepository,
+              preferencesCubit: preferencesCubit,
+            ),
           ),
           BlocProvider(
-            create: (_) => UserBloc(authRepository: _authRepository),
+            create: (_) =>
+                UserBloc(authRepository: _authRepository)
+                  ..add(const SessionRestoreRequested()),
           ),
           BlocProvider(create: (_) => TimerBloc()),
           BlocProvider(create: (_) => preferencesCubit),

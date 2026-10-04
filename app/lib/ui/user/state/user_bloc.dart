@@ -15,6 +15,7 @@ class UserBloc extends HydratedBloc<UserEvent, UserState> {
     on<LogoutRequested>(_onLogoutRequested);
     on<PasswordResetEmailRequested>(_onPasswordResetEmailRequested);
     on<PasswordResetRequested>(_onPaswordResetRequested);
+    on<SessionRestoreRequested>(_onSessionRestoreRequested);
   }
 
   Future<void> _onLoginRequested(
@@ -113,6 +114,21 @@ class UserBloc extends HydratedBloc<UserEvent, UserState> {
     }
   }
 
+  Future<void> _onSessionRestoreRequested(
+    SessionRestoreRequested event,
+    Emitter<UserState> emit,
+  ) async {
+    if (state.status != .authenticated) return;
+    final result = await _authRepository.refreshAccessToken();
+    switch (result) {
+      case Error():
+        await _authRepository.logout();
+        emit(UserState.unauthenticated());
+      case Ok():
+        return;
+    }
+  }
+
   @override
   UserState? fromJson(Map<String, dynamic> json) {
     try {
@@ -120,13 +136,6 @@ class UserBloc extends HydratedBloc<UserEvent, UserState> {
       switch (status) {
         case 'authenticated':
           return UserState.authenticated(user: User.fromJson(json['user']));
-        case 'loading':
-          return UserState._(status: .loading);
-        case 'error':
-          return UserState._(
-            status: .error,
-            statusMessage: json['statusMessage'],
-          );
         default:
           return UserState.unauthenticated();
       }

@@ -1,37 +1,35 @@
-import 'package:infinite_sudoku/utils/result.dart';
+import 'package:infinite_sudoku/utils/logger/logger.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class TokenStorageService {
   final FlutterSecureStorage _storageClient;
   const TokenStorageService({required this._storageClient});
-  
-  Future<Result<void>> saveToken(String refreshToken) async {
+
+  Future<void> saveToken(String refreshToken) async {
     try {
       await _storageClient.write(key: 'refreshToken', value: refreshToken);
-      return Result.ok(null);
+      return;
     } on Exception catch (err) {
-      return Result.error(err);
+      logger.e('Error saving refreshToken', error: err);
+      return;
     }
   }
 
-  Future<Result<void>> clear() async {
+  Future<void> clear() async {
     try {
-      await _storageClient.delete(key: 'refreshToken');
-      return Result.ok(null);
+      return await _storageClient.delete(key: 'refreshToken');
     } on Exception catch (error) {
-      return Result.error(error);
+      logger.e('Error clearing token', error: error);
+      return;
     }
   }
 
-  Future<Result<String>> getToken() async {
+  Future<String?> getToken() async {
     try {
-      final response = await _storageClient.read(key: 'refreshToken');
-      if(response == null) {
-	return Result.error(Exception('No refresh token found'));
-      }
-      return Result.ok(response);
+      return await _storageClient.read(key: 'refreshToken');
     } on Exception catch (error) {
-      return Result.error(error);
+      logger.e('Error reading token', error: error);
+      return null;
     }
   }
-} 
+}

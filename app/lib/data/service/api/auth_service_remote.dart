@@ -22,11 +22,12 @@ class AuthServiceRemote implements AuthService {
       );
 
   @override
-  Future<Result<void>> logout() => _client.send(
+  Future<Result<void>> logout(String? refreshToken) => _client.send(
     'POST',
     '/api/auth/mobile/logout',
     expectedStatus: 204,
     parse: (_) {},
+    body: {'refreshToken': refreshToken},
   );
 
   @override

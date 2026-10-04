@@ -27,6 +27,7 @@ void main() async {
     ),
   );
   apiClient.authHeaderProvider = () => authRepository.authHeader;
+  apiClient.authRefreshFunction = () => authRepository.refreshAccessToken();
 
   Directory appData = await getApplicationDocumentsDirectory();
   logger.t("Hydrating blocs");

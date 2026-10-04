@@ -53,3 +53,9 @@ class PasswordResetRequested extends UserEvent {
   @override
   List<Object?> get props => [password, token];
 }
+
+class SessionRestoreRequested extends UserEvent {
+  const SessionRestoreRequested();
+  @override
+  List<Object?> get props => [];
+}

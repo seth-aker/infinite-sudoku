@@ -4,6 +4,7 @@ import 'package:infinite_sudoku/data/model/authentication/register_request_dto.d
 import 'package:infinite_sudoku/data/service/api/auth_service.dart';
 import 'package:infinite_sudoku/data/service/local_storage/token_storage_service.dart';
 import 'package:infinite_sudoku/domain/models/user.dart';
+import 'package:infinite_sudoku/utils/logger/logger.dart';
 import 'package:infinite_sudoku/utils/result.dart';
 
 class AuthRepository {
@@ -39,11 +40,16 @@ class AuthRepository {
   }
 
   Future<Result<void>> logout() async {
-    final result = await _authService.logout();
-    if (result is Error) return result;
+    final refreshToken = await _storageService.getToken();
+    final result = await _authService.logout(refreshToken);
+    if (result is Error) {
+      logger.w(
+        'Server logout failed, clearing local session anyway: ${result.error}',
+      );
+    }
     await _storageService.clear();
     _accessToken = null;
-    return result;
+    return Result.ok(null);
   }
 
   Future<Result<User?>> register(
@@ -74,21 +80,17 @@ class AuthRepository {
 
   Future<Result<void>> refreshAccessToken() async {
     final refreshToken = await _storageService.getToken();
-    switch (refreshToken) {
+    if (refreshToken == null) {
+      return Result.error(Exception('Missing refreshToken'));
+    }
+    final result = await _authService.refreshAccessToken(refreshToken);
+    switch (result) {
       case Error():
-        return Result.error(refreshToken.error);
+        return Result.error(result.error);
       case Ok():
-        final result = await _authService.refreshAccessToken(
-          refreshToken.value,
-        );
-        switch (result) {
-          case Error():
-            return Result.error(result.error);
-          case Ok():
-            _accessToken = result.value.accessToken;
-            await _storageService.saveToken(result.value.refreshToken);
-            return Result.ok(null);
-        }
+        _accessToken = result.value.accessToken;
+        await _storageService.saveToken(result.value.refreshToken);
+        return Result.ok(null);
     }
   }
 
