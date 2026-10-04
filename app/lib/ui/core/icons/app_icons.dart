@@ -14,6 +14,7 @@ enum AppIcons {
   check,
   eyeOpen,
   eyeClosed,
+  pause,
 }
 
 const Map<AppIcons, IconData> cupertinoIconMap = {
@@ -29,6 +30,7 @@ const Map<AppIcons, IconData> cupertinoIconMap = {
   AppIcons.check: CupertinoIcons.check_mark,
   AppIcons.eyeOpen: CupertinoIcons.eye,
   AppIcons.eyeClosed: CupertinoIcons.eye_slash,
+  AppIcons.pause: CupertinoIcons.pause,
 };
 
 const Map<AppIcons, IconData> materialIconMap = {
@@ -44,4 +46,5 @@ const Map<AppIcons, IconData> materialIconMap = {
   AppIcons.check: Icons.check,
   AppIcons.eyeOpen: Icons.visibility,
   AppIcons.eyeClosed: Icons.visibility_off,
+  AppIcons.pause: Icons.pause,
 };

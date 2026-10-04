@@ -46,10 +46,16 @@ class _UserSettingsViewState extends State<UserSettingsView> {
                 CupertinoTextFormFieldRow(
                   prefix: const Text("Email"),
                   enabled: false,
+                  initialValue: user.email,
+                  textAlign: .right,
+                  decoration: BoxDecoration(color: AppTheme.background(context)),
                 ),
                 CupertinoTextFormFieldRow(
                   prefix: const Text("Username"),
                   enabled: false,
+                  initialValue: user.username,
+                  textAlign: .right,
+                  decoration: BoxDecoration(color: AppTheme.background(context)),
                 ),
                 GestureDetector(
                   behavior: .opaque,

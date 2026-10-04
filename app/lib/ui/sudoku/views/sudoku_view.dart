@@ -26,48 +26,55 @@ class SudokuView extends StatelessWidget {
         return 'Sudoku';
       }
     });
-    return SharedPageLayout(
-      title: title,
-      trailing: CupertinoButton(
-        padding: EdgeInsets.zero,
-        child: const AppIcon(AppIcons.settings),
-        onPressed: () {
-          context.read<TimerBloc>().add(const TimerPaused());
-          context.push(Routes.pauseMenu);
-        },
-      ),
-      child: BlocListener<PuzzleBloc, PuzzleState>(
-        listener: (context, state) {
-          final timerBloc = context.read<TimerBloc>();
-          if (timerBloc.state is TimerInitialState &&
-              state is PuzzlePlayingState) {
-            timerBloc.add(const TimerStarted());
-          }
-        },
-        child: ColoredBox(
-          color: AppTheme.background(context),
-          child: Column(
-            children: [
-              InfoBar(),
-              Align(
-                alignment: AlignmentGeometry.topCenter,
-                child: AspectRatio(aspectRatio: 1, child: const PuzzleWidget()),
-              ),
-              ControlPanel(),
-              Expanded(
-                child: SizedBox(
-                  width:
-                      AppSpacing.four * 3 +
-                      AppSpacing.half *
-                          2, // AppSpacing.four sized buttons + AppSpacing.half * 2
-                  child: Numpad(
-                    onTap: (value) => context.read<PuzzleBloc>().add(
-                      NumberPressed(value: value),
+    return PopScope(
+      onPopInvokedWithResult: (didPop, result) =>
+          context.read<TimerBloc>().add(const TimerPaused()),
+      child: SharedPageLayout(
+        title: title,
+        trailing: CupertinoButton(
+          padding: EdgeInsets.zero,
+          child: const AppIcon(AppIcons.pause),
+          onPressed: () {
+            context.push(Routes.pauseMenu);
+          },
+        ),
+        child: BlocListener<PuzzleBloc, PuzzleState>(
+          listener: (context, state) {
+            final timerBloc = context.read<TimerBloc>();
+            if ((timerBloc.state is TimerInitialState ||
+                    timerBloc.state is TimerPausedState) &&
+                state is PuzzlePlayingState) {
+              timerBloc.add(const TimerStarted());
+            }
+          },
+          child: ColoredBox(
+            color: AppTheme.background(context),
+            child: Column(
+              children: [
+                InfoBar(),
+                Align(
+                  alignment: AlignmentGeometry.topCenter,
+                  child: AspectRatio(
+                    aspectRatio: 1,
+                    child: const PuzzleWidget(),
+                  ),
+                ),
+                ControlPanel(),
+                Expanded(
+                  child: SizedBox(
+                    width:
+                        AppSpacing.four * 3 +
+                        AppSpacing.half *
+                            2, // AppSpacing.four sized buttons + AppSpacing.half * 2
+                    child: Numpad(
+                      onTap: (value) => context.read<PuzzleBloc>().add(
+                        NumberPressed(value: value),
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

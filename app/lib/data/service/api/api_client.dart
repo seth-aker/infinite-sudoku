@@ -19,7 +19,7 @@ class ApiClient {
   final HttpClient Function() _clientFactory;
   Future<Result<void>>? _refreshPromise;
   AuthHeaderProvider? authHeaderProvider;
-  AuthRefreshFunction? _authRefreshFunction;
+  AuthRefreshFunction? authRefreshFunction;
 
   ApiClient({
     this._host = '127.0.0.1',
@@ -52,8 +52,8 @@ class ApiClient {
       final response = await request.close();
 
       if (response.statusCode == 401 && !isRetry) {
-        if (_refreshPromise == null && _authRefreshFunction != null) {
-          _refreshPromise = _authRefreshFunction!().whenComplete(
+        if (_refreshPromise == null && authRefreshFunction != null) {
+          _refreshPromise = authRefreshFunction!().whenComplete(
             () => _refreshPromise = null,
           );
         }
