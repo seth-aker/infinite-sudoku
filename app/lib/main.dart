@@ -29,6 +29,8 @@ void main() async {
   apiClient.authHeaderProvider = () => authRepository.authHeader;
   apiClient.authRefreshFunction = () => authRepository.refreshAccessToken();
 
+  final routeObserver = RouteObserver<ModalRoute<dynamic>>();
+
   Directory appData = await getApplicationDocumentsDirectory();
   logger.t("Hydrating blocs");
   HydratedBloc.storage = await HydratedStorage.build(
@@ -39,6 +41,7 @@ void main() async {
     SudokuApp(
       authRepository: authRepository,
       puzzleRepository: puzzleRepository,
+      routeObserver: routeObserver,
     ),
   );
 }

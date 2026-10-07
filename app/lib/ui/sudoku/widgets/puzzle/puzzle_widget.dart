@@ -40,7 +40,7 @@ class _PuzzleBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isPlaying = context.select<PuzzleBloc, bool>(
-      (bloc) => bloc.state is PuzzlePlayingState,
+      (bloc) => bloc.state.status == .loaded,
     );
     if (!isPlaying) return const SizedBox.shrink();
 

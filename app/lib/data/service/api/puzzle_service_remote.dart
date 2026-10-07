@@ -29,7 +29,7 @@ class PuzzleServiceRemote implements PuzzleService {
   @override
   Future<Result<void>> saveProgress(Puzzle state) {
     final serializedCells = PuzzleSerializer.serializeCells(state.cells);
-    final actions = state.actions
+    final actions = state.history
         .map(PuzzleSerializer.serializeAction)
         .toList();
     return _client.send(
@@ -42,7 +42,7 @@ class PuzzleServiceRemote implements PuzzleService {
         'candidates': serializedCells.candidates,
         'actions': actions,
         'time': state.elapsedSeconds,
-        'isCompleted': state.isCompleted,
+        'isCompleted': state.isComplete,
       },
       parse: (_) {},
     );

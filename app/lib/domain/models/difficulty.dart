@@ -3,8 +3,8 @@ enum DifficultyRating {
   easy,
   medium,
   hard,
-  impossible;
-
+  // impossible;
+;
   @override
   String toString() {
     return name.substring(0, 1).toUpperCase() + name.substring(1);
@@ -20,8 +20,8 @@ enum DifficultyRating {
         return medium;
       case 'Hard':
         return hard;
-      case 'Impossible':
-        return impossible;
+      // case 'Impossible':
+      //   return impossible;
       default:
         return beginner;
     }

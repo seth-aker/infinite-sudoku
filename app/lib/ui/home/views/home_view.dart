@@ -7,6 +7,7 @@ import 'package:infinite_sudoku/ui/core/widgets/app_icon.dart';
 import 'package:infinite_sudoku/ui/core/widgets/button.dart';
 import 'package:infinite_sudoku/ui/core/widgets/shared_page_layout.dart';
 import 'package:infinite_sudoku/ui/sudoku/state/puzzle/puzzle_bloc.dart';
+import 'package:infinite_sudoku/ui/sudoku/state/timer/timer_bloc.dart';
 import 'package:infinite_sudoku/ui/user/state/user_bloc.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -16,6 +17,14 @@ class HomeView extends StatelessWidget {
   const HomeView({super.key});
   @override
   Widget build(BuildContext context) {
+    final hasCurrentPuzzle = context.select<PuzzleBloc, bool>((bloc) {
+      final state = bloc.state;
+      if (state.status == .loaded) {
+        return state.puzzle?.puzzleId.isNotEmpty ?? false;
+      } else {
+        return false;
+      }
+    });
     return SharedPageLayout(
       title: '',
       leading: CupertinoButton(
@@ -57,20 +66,37 @@ class HomeView extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.center,
                 spacing: AppSpacing.half,
-                children: DifficultyRating.values.map((rating) {
-                  return SizedBox(
-                    width: AppSpacing.twelve,
-                    child: Button.primary(
-                      onPressed: () {
-                        context.read<PuzzleBloc>().add(
-                          NewPuzzleFetched(difficultyRating: rating),
-                        );
-                        context.push(Routes.sudoku, extra: rating);
-                      },
-                      child: Text(rating.toString()),
+                children: [
+                  if (hasCurrentPuzzle)
+                    SizedBox(
+                      width: AppSpacing.twelve,
+                      child: Button.primary(
+                        onPressed: () {
+                          context.push(Routes.sudoku);
+                        },
+                        child: const Text("Resume puzzle"),
+                      ),
                     ),
-                  );
-                }).toList(),
+                  ...DifficultyRating.values.map((rating) {
+                    return SizedBox(
+                      width: AppSpacing.twelve,
+                      child: Button.primary(
+                        onPressed: () {
+                          if (hasCurrentPuzzle) {
+                            _showConfirmOverwritePuzzle(context, rating);
+                            return;
+                          } else {
+                            context.read<PuzzleBloc>().add(
+                              NewPuzzleFetched(difficultyRating: rating),
+                            );
+                            context.push(Routes.sudoku, extra: rating);
+                          }
+                        },
+                        child: Text(rating.toString()),
+                      ),
+                    );
+                  }),
+                ],
               ),
             ),
           ],
@@ -78,4 +104,40 @@ class HomeView extends StatelessWidget {
       ),
     );
   }
+}
+
+Future<void> _showConfirmOverwritePuzzle(
+  BuildContext context,
+  DifficultyRating rating,
+) {
+  return showCupertinoDialog(
+    context: context,
+    builder: ((context) {
+      return CupertinoAlertDialog(
+        title: const Text("Overwrite current puzzle?"),
+        content: Text(
+          "You have a puzzle currently in progress. Do you "
+          "want to delete your progress and start a new puzzle?",
+        ),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => context.pop(),
+            isDefaultAction: true,
+            child: const Text("No"),
+          ),
+          CupertinoDialogAction(
+            onPressed: () {
+              context.read<PuzzleBloc>().add(
+                NewPuzzleFetched(difficultyRating: rating),
+              );
+              context.read<TimerBloc>().add(const TimerReset());
+              context.replace(Routes.sudoku, extra: rating);
+            },
+            isDestructiveAction: true,
+            child: const Text("Yes"),
+          ),
+        ],
+      );
+    }),
+  );
 }

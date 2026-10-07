@@ -43,7 +43,7 @@ export class SudokuServiceImplementation implements SudokuService {
         options,
       );
       if (response.metadata.totalCount < 1000) {
-        await this.workerpoolManager.execute(
+        this.workerpoolManager.execute(
           "generatePuzzles",
           [100, options],
           async (newPuzzle: CreatePuzzle) => {

@@ -16,12 +16,12 @@ class CellWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     final cell = context.select<PuzzleBloc, Cell?>((bloc) {
       final state = bloc.state;
-      return state is PuzzlePlayingState ? state.cells[idx] : null;
+      return state.status == .loaded ? state.puzzle?.cells[idx] : null;
     });
     if (cell == null) return const SizedBox.shrink();
     final isSelected = context.select<PuzzleBloc, bool>((bloc) {
       final state = bloc.state;
-      if (state is PuzzlePlayingState) {
+      if (state.status == .loaded) {
         return state.selectedIdx == cell.idx;
       } else {
         return false;
@@ -29,7 +29,7 @@ class CellWidget extends StatelessWidget {
     });
     final isHighlighted = context.select<PuzzleBloc, bool>((bloc) {
       final state = bloc.state;
-      if (state is PuzzlePlayingState) {
+      if (state.status == .loaded) {
         return state.selectedIdx != null
             ? peers[state.selectedIdx!].contains(cell.idx)
             : false;
@@ -39,9 +39,9 @@ class CellWidget extends StatelessWidget {
     });
     final hasError = context.select<PuzzleBloc, bool>((bloc) {
       final state = bloc.state;
-      if (state is PuzzlePlayingState) {
+      if (state.status == .loaded) {
         return peers[cell.idx].any(
-          (peer) => state.cells[peer].value == cell.value,
+          (peer) => state.puzzle?.cells[peer].value == cell.value,
         );
       } else {
         return false;
@@ -50,8 +50,9 @@ class CellWidget extends StatelessWidget {
 
     final puzzleBlocState = context.read<PuzzleBloc>().state;
     final isImmutable =
-        puzzleBlocState is PuzzlePlayingState &&
-        puzzleBlocState.originalCells[idx].value != 0;
+        puzzleBlocState.status == .loaded &&
+        puzzleBlocState.puzzle?.originalCells[idx].value != 0;
+
     final visableCandidates = List.generate(
       9,
       (idx) => cell.value != 0 ? false : cell.candidates.contains(idx + 1),
@@ -142,7 +143,10 @@ class _CandidateText extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsetsGeometry.all(AppSpacing.sixteenth),
         child: Center(
-          child: FittedBox(fit: BoxFit.scaleDown, child: Text(data)),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(data, style: TextStyle(color: AppColors.black)),
+          ),
         ),
       ),
     );

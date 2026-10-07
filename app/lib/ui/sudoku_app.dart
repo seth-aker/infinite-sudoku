@@ -17,15 +17,20 @@ class SudokuApp extends StatelessWidget {
   const SudokuApp({
     required this._puzzleRepository,
     required this._authRepository,
+    required this._routeObserver,
     super.key,
   });
   final AuthRepository _authRepository;
   final PuzzleRepository _puzzleRepository;
+  final RouteObserver<ModalRoute<dynamic>> _routeObserver;
   @override
   Widget build(BuildContext context) {
     final PreferencesCubit preferencesCubit = PreferencesCubit();
     return MultiRepositoryProvider(
-      providers: [RepositoryProvider.value(value: _puzzleRepository)],
+      providers: [
+        RepositoryProvider.value(value: _puzzleRepository),
+        RepositoryProvider.value(value: _routeObserver),
+      ],
       child: MultiBlocProvider(
         providers: [
           BlocProvider(
@@ -55,7 +60,13 @@ class SudokuAppView extends StatefulWidget {
 }
 
 class _SudokuAppViewState extends State<SudokuAppView> {
-  late final GoRouter _router = router();
+  late final GoRouter _router;
+@override
+  void initState() {
+    final routeObserver = context.read<RouteObserver<ModalRoute<dynamic>>>();
+    _router = router(routeObserver);
+    super.initState();
+  }
   @override
   Widget build(BuildContext context) {
     if (isApple) {

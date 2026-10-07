@@ -20,19 +20,17 @@ class PauseMenu extends StatelessWidget {
     final autoCandidateModeOn = context.select<PreferencesCubit, bool>((cubit) {
       return cubit.state.autoCandidateModeOn;
     });
-    final totalMoves = context.select<PuzzleBloc, int>((bloc) {
-      final state = bloc.state;
-      return state is PuzzlePlayingState ? state.moveCount : 0;
-    });
+    final totalMoves = context.select<PuzzleBloc, int>((bloc) => bloc.state.moveCount);
     final percentComplete = context.select<PuzzleBloc, double>((bloc) {
       final state = bloc.state;
-      if (state is PuzzlePlayingState) {
+      final puzzle = state.puzzle;
+      if (state.status == .loaded && puzzle != null) {
         var originalEmptyCellCount = 0;
         var currentEmptyCellCount = 0;
-        for (final cell in state.originalCells) {
+        for (final cell in puzzle.originalCells) {
           if (cell.value == 0) originalEmptyCellCount++;
         }
-        for (final cell in state.cells) {
+        for (final cell in puzzle.cells) {
           if (cell.value == 0) currentEmptyCellCount++;
         }
         return (originalEmptyCellCount - currentEmptyCellCount) /
@@ -47,7 +45,7 @@ class PauseMenu extends StatelessWidget {
     final gameStats = <String, String>{
       'Elapsed Time:': elapsedTime,
       'Total Moves:': totalMoves.toString(),
-      'Percent Complete': '${percentComplete * 100}%',
+      'Percent Complete': '${(percentComplete * 100).toStringAsFixed(2)}%',
     };
     return SharedPageLayout(
       title: "Game Paused",
@@ -55,7 +53,6 @@ class PauseMenu extends StatelessWidget {
         padding: EdgeInsets.zero,
         onPressed: () {
           if (context.canPop()) {
-            context.read<TimerBloc>().add(const TimerResumed());
             context.pop();
           } else {
             context.go(Routes.home);

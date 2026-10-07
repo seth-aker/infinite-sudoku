@@ -1,35 +1,32 @@
 part of 'puzzle_bloc.dart';
 
-sealed class PuzzleState extends Equatable {
-  const PuzzleState();
-  @override
-  List<Object?> get props;
+enum PuzzleStatus {
+  initial,
+  loading,
+  loaded,
+  error;
+
+  static PuzzleStatus fromJson(String json) {
+    switch (json) {
+      case 'initial':
+        return .initial;
+      case 'loading':
+        return .loading;
+      case 'loaded':
+        return .loaded;
+      case 'error':
+      default:
+        return .error;
+    }
+  }
 }
 
-class PuzzleInitialState extends PuzzleState {
-  const PuzzleInitialState();
-  @override
-  List<Object?> get props => [];
-}
+class PuzzleState extends Equatable {
+  final PuzzleStatus status;
 
-class PuzzlePlayingState extends PuzzleState {
-  final String puzzleId;
+  final String? errorMessage;
 
-  final DifficultyRating rating;
-
-  final int score;
-
-  final List<Cell> cells;
-
-  final List<Cell> originalCells;
-
-  final List<Action> history;
-
-  final List<Action> redoActions;
-
-  final int elapsedSeconds;
-
-  final bool isCompleted;
+  final Puzzle? puzzle;
 
   final int? selectedIdx;
 
@@ -37,69 +34,49 @@ class PuzzlePlayingState extends PuzzleState {
 
   final int moveCount;
 
-  const PuzzlePlayingState({
-    required this.puzzleId,
-    required this.rating,
-    required this.score,
-    required this.cells,
-    required this.originalCells,
-    required this.history,
-    required this.elapsedSeconds,
-    this.redoActions = const [],
-    this.isCompleted = false,
+  const PuzzleState({
+    required this.status,
+    this.errorMessage,
+    this.puzzle,
     this.usingPencil = false,
     this.selectedIdx,
     this.moveCount = 0,
   });
-  PuzzlePlayingState copyWith({
+  PuzzleState copyWith({
     List<Cell>? cells,
     List<Action>? history,
     List<Action>? redoActions,
-    bool? isCompleted,
+    PuzzleStatus? status,
+    String? errorMessage,
     int? elapsedSeconds,
     int? selectedIdx,
     bool? usingPencil,
     int? moveCount,
   }) {
-    return PuzzlePlayingState(
-      puzzleId: puzzleId,
-      rating: rating,
-      score: score,
-      cells: cells ?? this.cells,
-      originalCells: originalCells,
-      history: history ?? this.history,
-      redoActions: redoActions ?? this.redoActions,
-      elapsedSeconds: elapsedSeconds ?? this.elapsedSeconds,
+    final puzzle = this.puzzle;
+    return PuzzleState(
+      status: status ?? this.status,
+      puzzle: puzzle?.copyWith(
+        cells: cells ?? puzzle.cells,
+        history: history ?? puzzle.history,
+        elapsedSeconds: elapsedSeconds ?? puzzle.elapsedSeconds,
+      ),
       usingPencil: usingPencil ?? this.usingPencil,
       selectedIdx: selectedIdx ?? this.selectedIdx,
       moveCount: moveCount ?? this.moveCount,
+      errorMessage: errorMessage ?? this.errorMessage,
     );
   }
 
+  factory PuzzleState.initial() => PuzzleState(status: .initial);
+
   @override
   List<Object?> get props => [
-    puzzleId,
-    rating,
-    originalCells,
-    cells,
-    score,
-    history,
-    elapsedSeconds,
-    isCompleted,
+    status,
+    errorMessage,
+    puzzle,
     selectedIdx,
     usingPencil,
     moveCount,
   ];
-}
-
-class PuzzleLoadingState extends PuzzleState {
-  const PuzzleLoadingState();
-  @override
-  List<Object?> get props => [];
-}
-
-class PuzzleErrorState extends PuzzleState {
-  const PuzzleErrorState();
-  @override
-  List<Object?> get props => [];
 }

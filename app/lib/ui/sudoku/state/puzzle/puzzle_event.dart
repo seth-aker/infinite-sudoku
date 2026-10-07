@@ -74,3 +74,17 @@ class ResetBoardRequested extends PuzzleEvent {
   @override
   List<Object?> get props => [];
 }
+
+class SavePuzzleRequested extends PuzzleEvent {
+  final int elapsedSeconds;
+  const SavePuzzleRequested({required this.elapsedSeconds});
+  @override
+  List<Object?> get props => [elapsedSeconds];
+}
+
+class PuzzleClearRequested extends PuzzleEvent {
+  const PuzzleClearRequested();
+
+  @override
+  List<Object?> get props => [];
+}

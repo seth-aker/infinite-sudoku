@@ -53,6 +53,7 @@ class ApiClient {
 
       if (response.statusCode == 401 && !isRetry) {
         if (_refreshPromise == null && authRefreshFunction != null) {
+        logger.d("Unathenticated response, retrying...");
           _refreshPromise = authRefreshFunction!().whenComplete(
             () => _refreshPromise = null,
           );

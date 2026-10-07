@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 import 'package:infinite_sudoku/routing/routes.dart';
 import 'package:infinite_sudoku/ui/home/views/home_view.dart';
 import 'package:infinite_sudoku/ui/sudoku/views/sudoku_view.dart';
@@ -7,8 +8,9 @@ import 'package:infinite_sudoku/ui/user/views/reset_password_view.dart';
 import 'package:infinite_sudoku/ui/user/views/user_settings_view.dart';
 import 'package:go_router/go_router.dart';
 
-GoRouter router() => GoRouter(
+GoRouter router(RouteObserver<ModalRoute<dynamic>> observer) => GoRouter(
   initialLocation: Routes.home,
+  observers: [observer],
   routes: [
     GoRoute(path: Routes.home, builder: (context, state) => const HomeView()),
     GoRoute(

@@ -11,15 +11,15 @@ class TimerBloc extends Bloc<TimerEvent, TimerState> {
   TimerBloc() : super(const TimerInitialState()) {
     on<TimerStarted>(_onTimerStarted);
     on<TimerPaused>(_onTimerPaused);
-    on<TimerResumed>(_onTimerResumed);
     on<TimerReset>(_onTimerReset);
     on<_TimerTicked>(_onTimerTicked);
   }
 
   void _onTimerStarted(TimerStarted event, Emitter<TimerState> emit) {
-    emit(const TimerPlayingState(elapsedSeconds: 0));
     // Make sure its closed
     _tickerSubscription?.cancel();
+
+    emit(TimerPlayingState(elapsedSeconds: event.seconds));
 
     _tickerSubscription = tickerStream().listen((_) {
       add(_TimerTicked());
@@ -30,13 +30,6 @@ class TimerBloc extends Bloc<TimerEvent, TimerState> {
     if (state is TimerPlayingState) {
       _tickerSubscription?.pause();
       emit(TimerPausedState(elapsedSeconds: state.elapsedSeconds));
-    }
-  }
-
-  void _onTimerResumed(TimerResumed event, Emitter<TimerState> emit) {
-    if (state is TimerPausedState) {
-      _tickerSubscription?.resume();
-      emit(TimerPlayingState(elapsedSeconds: state.elapsedSeconds));
     }
   }
 

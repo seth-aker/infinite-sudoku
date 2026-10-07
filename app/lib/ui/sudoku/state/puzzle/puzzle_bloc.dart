@@ -16,7 +16,7 @@ class PuzzleBloc extends HydratedBloc<PuzzleEvent, PuzzleState> {
   final PuzzleRepository _puzzleRepository;
   final PreferencesCubit _preferencesCubit;
   PuzzleBloc({required this._puzzleRepository, required this._preferencesCubit})
-    : super(const PuzzleInitialState()) {
+    : super(const PuzzleState(status: .initial)) {
     on<NewPuzzleFetched>(_onNewPuzzleFetched);
     on<PuzzleFetched>(_onPuzzleFetched);
     on<CellSelected>(_onCellSelected);
@@ -26,44 +26,33 @@ class PuzzleBloc extends HydratedBloc<PuzzleEvent, PuzzleState> {
     on<RedoPressed>(_onRedoPressed);
     on<AutoCandidateModeToggled>(_onAutoCandidateModeToggled);
     on<ResetBoardRequested>(_onResetBoardRequested);
+    on<SavePuzzleRequested>(_onSavePuzzleRequested);
+    on<PuzzleClearRequested>(_onPuzzleClearRequested);
   }
 
   Future<void> _onNewPuzzleFetched(
     NewPuzzleFetched event,
     Emitter<PuzzleState> emit,
   ) async {
-    emit(const PuzzleLoadingState());
+    emit(state.copyWith(status: .loading));
     final difficulty = event.difficultyRating;
-    // final emptyCells = _generateEmptyCells();
-    // emit(
-    //   PuzzlePlayingState(
-    //     puzzleId: 'test',
-    //     rating: difficulty,
-    //     score: 0,
-    //     cells: emptyCells,
-    //     originalCells: [...emptyCells],
-    //     history: const [],
-    //     elapsedSeconds: 0,
-    //   ),
-    // );
-    // return;
     final result = await _puzzleRepository.getNewPuzzle(difficulty);
     switch (result) {
       case Error<Puzzle>():
-        emit(const PuzzleErrorState());
+        emit(
+          state.copyWith(status: .error, errorMessage: result.error.toString()),
+        );
         return;
       case Ok<Puzzle>():
         final puzzle = result.value;
-
+        final autoCandidateModeOn = _preferencesCubit.state.autoCandidateModeOn;
         emit(
-          PuzzlePlayingState(
-            puzzleId: puzzle.puzzleId,
-            rating: puzzle.rating,
-            score: puzzle.score,
-            cells: puzzle.cells,
-            originalCells: puzzle.orginalCells,
-            history: puzzle.actions,
-            elapsedSeconds: puzzle.elapsedSeconds,
+          PuzzleState(
+            status: .loaded,
+            errorMessage: null,
+            puzzle: autoCandidateModeOn
+                ? puzzle.copyWith(cells: _fillPuzzleCandidates(puzzle.cells))
+                : puzzle,
           ),
         );
     }
@@ -73,46 +62,46 @@ class PuzzleBloc extends HydratedBloc<PuzzleEvent, PuzzleState> {
     PuzzleFetched event,
     Emitter<PuzzleState> emit,
   ) async {
-    emit(const PuzzleLoadingState());
+    emit(state.copyWith(status: .loading));
     final puzzleId = event.puzzleId;
     final result = await _puzzleRepository.getPuzzle(puzzleId);
     switch (result) {
       case Error<Puzzle>():
-        emit(const PuzzleErrorState());
+        emit(
+          state.copyWith(status: .error, errorMessage: result.error.toString()),
+        );
         return;
       case Ok<Puzzle>():
     }
     final puzzle = result.value;
+    final autoCandidateModeOn = _preferencesCubit.state.autoCandidateModeOn;
     emit(
-      PuzzlePlayingState(
-        puzzleId: puzzle.puzzleId,
-        rating: puzzle.rating,
-        score: puzzle.score,
-        cells: puzzle.cells,
-        originalCells: puzzle.orginalCells,
-        history: puzzle.actions,
-        elapsedSeconds: puzzle.elapsedSeconds,
+      PuzzleState(
+        status: .loaded,
+        puzzle: autoCandidateModeOn
+            ? puzzle.copyWith(cells: _fillPuzzleCandidates(puzzle.cells))
+            : puzzle,
       ),
     );
   }
 
   void _onCellSelected(CellSelected event, Emitter<PuzzleState> emit) {
     final state = this.state;
-    if (state is PuzzlePlayingState) {
+    if (state.status == .loaded) {
       emit(state.copyWith(selectedIdx: event.selectedIdx));
     }
   }
 
   void _onPencilToggled(PencilToggled event, Emitter<PuzzleState> emit) {
     final state = this.state;
-    if (state is PuzzlePlayingState) {
+    if (state.status == .loaded) {
       emit(state.copyWith(usingPencil: !state.usingPencil));
     }
   }
 
   void _onNumberPressed(NumberPressed event, Emitter<PuzzleState> emit) {
     final state = this.state;
-    if (state is! PuzzlePlayingState) return;
+    if (state.status != .loaded) return;
 
     final selectedIdx = state.selectedIdx;
     final value = event.value;
@@ -124,7 +113,7 @@ class PuzzleBloc extends HydratedBloc<PuzzleEvent, PuzzleState> {
       return;
     }
 
-    if (state.originalCells[selectedIdx].value != 0) return;
+    if (state.puzzle?.originalCells[selectedIdx].value != 0) return;
 
     if (state.usingPencil) {
       _toggleCandidate(state, selectedIdx, value, emit);
@@ -134,24 +123,26 @@ class PuzzleBloc extends HydratedBloc<PuzzleEvent, PuzzleState> {
   }
 
   void _toggleValue(
-    PuzzlePlayingState state,
+    PuzzleState state,
     int idx,
     int value,
     Emitter<PuzzleState> emit,
   ) {
-    final cells = state.cells;
-    final originalCells = state.originalCells;
+    final puzzle = state.puzzle;
+    if (puzzle == null) return;
+
+    final cells = List<Cell>.from(puzzle.cells);
+    final originalCells = puzzle.originalCells;
     if (originalCells[idx].value != 0) {
       return;
     }
     final prevCell = cells[idx];
-    final history = [...state.history];
+    final history = [...puzzle.history];
     history.add(Action(cell: prevCell, isParent: true));
 
     if (prevCell.value != value) {
       // Apply new value to target.
       cells[idx] = prevCell.copyWith(value: value, candidates: const {});
-
       // Loop through cell peers and remove candidates that equal new value;
       if (_preferencesCubit.state.autoCandidateModeOn) {
         final cellPeers = peers[idx];
@@ -201,28 +192,30 @@ class PuzzleBloc extends HydratedBloc<PuzzleEvent, PuzzleState> {
   }
 
   void _toggleCandidate(
-    PuzzlePlayingState state,
+    PuzzleState state,
     int idx,
     int value,
     Emitter<PuzzleState> emit,
   ) {
-    if (state.originalCells[idx].value != 0) {
+    final puzzle = state.puzzle;
+    if (puzzle == null) return;
+    if (puzzle.originalCells[idx].value != 0) {
       return;
     }
-    final prevCell = state.cells[idx];
+    final prevCell = puzzle.cells[idx];
     final candidates = Set<int>.from(prevCell.candidates);
     if (!candidates.contains(value)) {
       candidates.add(value);
     } else {
       candidates.remove(value);
     }
-    final cells = List<Cell>.from(state.cells);
+    final cells = List<Cell>.from(puzzle.cells);
     cells[idx] = prevCell.copyWith(candidates: candidates);
     emit(
       state.copyWith(
         cells: cells,
         history: [
-          ...state.history,
+          ...puzzle.history,
           Action(cell: prevCell, isParent: true),
         ],
         redoActions: const [],
@@ -233,10 +226,12 @@ class PuzzleBloc extends HydratedBloc<PuzzleEvent, PuzzleState> {
 
   void _onUndoPressed(UndoPressed event, Emitter<PuzzleState> emit) {
     final state = this.state;
-    if (state is PuzzlePlayingState) {
-      final redoActions = [...state.redoActions];
-      final cells = List<Cell>.from(state.cells);
-      final history = [...state.history];
+    if (state.status == .loaded) {
+      final puzzle = state.puzzle;
+      if (puzzle == null) return;
+      final redoActions = [...puzzle.redoActions];
+      final cells = List<Cell>.from(puzzle.cells);
+      final history = [...puzzle.history];
       var action = history.isNotEmpty ? history.removeLast() : null;
       int? selectedIdx = state.selectedIdx;
       // loop through each action that is not a parent action and add it to the redo stack
@@ -268,10 +263,12 @@ class PuzzleBloc extends HydratedBloc<PuzzleEvent, PuzzleState> {
 
   void _onRedoPressed(RedoPressed event, Emitter<PuzzleState> emit) {
     final state = this.state;
-    if (state is PuzzlePlayingState) {
-      final cells = List<Cell>.from(state.cells);
-      final history = [...state.history];
-      final redoActions = [...state.redoActions];
+    if (state.status == .loaded) {
+      final puzzle = state.puzzle;
+      if (puzzle == null) return;
+      final cells = List<Cell>.from(puzzle.cells);
+      final history = [...puzzle.history];
+      final redoActions = [...puzzle.redoActions];
       var action = redoActions.isNotEmpty ? redoActions.removeLast() : null;
       int? selectedIdx = state.selectedIdx;
 
@@ -309,29 +306,17 @@ class PuzzleBloc extends HydratedBloc<PuzzleEvent, PuzzleState> {
     Emitter<PuzzleState> emit,
   ) {
     final state = this.state;
-    if (state is PuzzlePlayingState) {
-      var cells = state.cells;
+    final puzzle = state.puzzle;
+    if (puzzle != null) {
+      var cells = List<Cell>.from(puzzle.cells);
+      // Intentionally doesn't change candiates when mode is toggled off.
       if (event.autoCandidateModeOn) {
-        for (var i = 0; i < 81; i++) {
-          if (cells[i].value != 0) continue;
-          final candidates = <int>{};
-          for (var c = 1; c <= 9; c++) {
-            final cellPeers = peers[i];
-            if (cellPeers.any((idx) => cells[idx].value == c)) {
-              candidates.remove(c);
-            } else {
-              candidates.add(c);
-            }
-          }
-          cells[i] = cells[i].copyWith(candidates: candidates);
-        }
+        cells = _fillPuzzleCandidates(cells);
       }
-      _preferencesCubit.setAutoCandidateMode(autoCandidateMode: event.autoCandidateModeOn);
-      emit(
-        state.copyWith(
-          cells: cells,
-        ),
+      _preferencesCubit.setAutoCandidateMode(
+        autoCandidateMode: event.autoCandidateModeOn,
       );
+      emit(state.copyWith(cells: cells));
     }
   }
 
@@ -339,10 +324,10 @@ class PuzzleBloc extends HydratedBloc<PuzzleEvent, PuzzleState> {
     ResetBoardRequested event,
     Emitter<PuzzleState> emit,
   ) {
-    final state = this.state;
-    if (state is PuzzlePlayingState) {
+    final puzzle = state.puzzle;
+    if (puzzle != null && state.status == .loaded) {
       // TODO: add changes into undoActions
-      emit(state.copyWith(cells: [...state.originalCells], selectedIdx: null));
+      emit(state.copyWith(cells: [...puzzle.originalCells], selectedIdx: null));
     }
   }
 
@@ -360,39 +345,65 @@ class PuzzleBloc extends HydratedBloc<PuzzleEvent, PuzzleState> {
   //   return cells;
   // }
 
+  void _onSavePuzzleRequested(
+    SavePuzzleRequested event,
+    Emitter<PuzzleState> emit,
+  ) async {
+    final state = this.state;
+    final puzzle = state.puzzle;
+    if (state.status == .loaded && puzzle != null) {
+      emit(state.copyWith(elapsedSeconds: event.elapsedSeconds));
+      final result = await _puzzleRepository.saveProgress(puzzle);
+      switch (result) {
+        case Error():
+          emit(
+            state.copyWith(
+              status: .error,
+              errorMessage: result.error.toString(),
+            ),
+          );
+        case Ok():
+      }
+    }
+  }
+
+  void _onPuzzleClearRequested(
+    PuzzleClearRequested event,
+    Emitter<PuzzleState> emit,
+  ) async {
+    emit(
+      PuzzleState(status: .initial)
+    );
+  }
+
+  List<Cell> _fillPuzzleCandidates(List<Cell> cells) {
+    for (var i = 0; i < 81; i++) {
+      if (cells[i].value != 0) continue;
+      final candidates = <int>{};
+      for (var c = 1; c <= 9; c++) {
+        final cellPeers = peers[i];
+        if (cellPeers.any((idx) => cells[idx].value == c)) {
+          candidates.remove(c);
+        } else {
+          candidates.add(c);
+        }
+      }
+      cells[i] = cells[i].copyWith(candidates: candidates);
+    }
+    return cells;
+  }
+
   @override
   PuzzleState? fromJson(Map<String, dynamic> json) {
     try {
-      final type = json['type'];
-      switch (type) {
-        case 'PuzzlePlayingState':
-          return PuzzlePlayingState(
-            puzzleId: json['puzzleId'],
-            rating: DifficultyRating.fromString(json['rating']),
-            score: json['score'] as int,
-            cells: (json['cells'] as List)
-                .map((e) => Cell.fromJson(e))
-                .toList(),
-            originalCells: (json['originalCells'] as List)
-                .map((e) => Cell.fromJson(e))
-                .toList(),
-            history: (json['history'] as List)
-                .map((e) => Action.fromJson(e))
-                .toList(),
-            elapsedSeconds: json['elapsedSeconds'] as int,
-            redoActions: (json['redoActions'] as List)
-                .map((e) => Action.fromJson(e))
-                .toList(),
-            isCompleted: json['isCompleted'] as bool,
-            usingPencil: json['usingPencil'] as bool,
-            selectedIdx: json['selectedIdx'] as int,
-            moveCount: json['moveCount'] as int,
-          );
-        case 'PuzzleLoadingState':
-        case 'PuzzleErrorState':
-        default:
-          return const PuzzleInitialState();
-      }
+      return PuzzleState(
+        status: PuzzleStatus.fromJson(json['status']),
+        errorMessage: json['errorMessage'],
+        puzzle: Puzzle.fromJson(json['puzzle']),
+        selectedIdx: json['selectedIdx'],
+        usingPencil: json['usingPencil'],
+        moveCount: json['moveCount'],
+      );
     } catch (e) {
       // TODO: Implement Error handling
       return null;
@@ -402,32 +413,14 @@ class PuzzleBloc extends HydratedBloc<PuzzleEvent, PuzzleState> {
   @override
   Map<String, dynamic>? toJson(PuzzleState state) {
     try {
-      switch (state) {
-        case PuzzlePlayingState():
-          return {
-            'type': 'PuzzlePlayingState',
-            'puzzleId': state.puzzleId,
-            'rating': state.rating.toString(),
-            'score': state.score,
-            'cells': state.cells.map((c) => c.toJson()).toList(),
-            'originalCells': state.originalCells
-                .map((e) => e.toJson())
-                .toList(),
-            'history': state.history.map((e) => e.toJson()).toList(),
-            'redoActions': state.redoActions.map((e) => e.toJson()).toList(),
-            'elapsedSeconds': state.elapsedSeconds,
-            'isCompleted': state.isCompleted,
-            'usingPencil': state.usingPencil,
-            'selectedIdx': state.selectedIdx,
-            'moveCount': state.moveCount,
-          };
-        case PuzzleInitialState():
-          return {'type': 'PuzzleInitialState'};
-        case PuzzleLoadingState():
-          return {'type': 'PuzzleLoadingState'};
-        case PuzzleErrorState():
-          return {'type': 'PuzzleErrorState'};
-      }
+      return {
+        'status': state.status.toString(),
+        'errorMessage': state.errorMessage,
+        'puzzle': state.puzzle?.toJson(),
+        'selectedIdx': state.selectedIdx,
+        'usingPencil': state.usingPencil,
+        'moveCount': state.moveCount,
+      };
     } catch (e) {
       return null;
     }
