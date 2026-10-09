@@ -15,11 +15,10 @@ However, then I decided to revisit the puzzle generator portion and actually mak
 Reusing a retired PC, this app is *self-hosted* on Ubuntu Server 24.04.4 LTS. Managed by an Nginx reverse-proxy pointing to two docker containers deployed via docker-compose. While this setup likely would quickly be overwhelmed by heavy loads, it is an economical and effective for this use case where I expect traffic to be extremely light. 
 
 ## Comming Next
-- ~~User authentication: Allow users to login, see their puzzle solving statistics, and be able to retrieve puzzle progress from different devices.~~ Complete
-- ~~Dark mode support~~ Complete
-- Hard/Impossible difficulties (this technically comes from Cdoku, but it is part of the project)
+- Mobile App
+- Impossible difficulty. (this technically comes from Cdoku, but it is part of the project)
 - Admin page
 - User stats and leaderboard page
 
 ## \*AI Disclosure\*
-Absolutely no generative AI was used in the production of this site.
+No generative AI was used to produce code for this project.
