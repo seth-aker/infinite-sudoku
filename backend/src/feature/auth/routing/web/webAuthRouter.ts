@@ -56,7 +56,7 @@ export function WebAuthRouter(authService: AuthenticationService) {
       const user = {
         id: result.userId,
         email: req.body.email,
-        emailVerified: false,
+        emailVerified: true, //TODO: make this false when implementing email verification
         username: req.body.username,
         role: "user",
       };

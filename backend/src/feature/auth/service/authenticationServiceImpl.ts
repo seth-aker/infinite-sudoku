@@ -114,12 +114,12 @@ export class AuthenticationServiceImpl implements AuthenticationService {
     }
     const validationToken = await this.validateTokenDataSource.createValidateToken(userId);
     const { accessToken, refreshToken } = await this.getNewTokenSet(userId);
-    transporter.sendMail({
-      to: user.email,
-      from: config.smtpUser,
-      subject: "Infinite Sudoku: Validate Email",
-      html: generateValidateEmailTemplate(validationToken, config.origin),
-    });
+    // transporter.sendMail({
+    //   to: user.email,
+    //   from: config.smtpUser,
+    //   subject: "Infinite Sudoku: Validate Email",
+    //   html: generateValidateEmailTemplate(validationToken, config.origin),
+    // });
     return {
       userId,
       accessToken,
@@ -151,12 +151,12 @@ export class AuthenticationServiceImpl implements AuthenticationService {
           user.user_id,
         );
         // TODO: Handle errors with callback function
-        transporter.sendMail({
-          to: user.email,
-          from: config.smtpUser,
-          subject: "Infinite Sudoku: Reset Password",
-          html: generatePasswordResetEmailBody(token, config.origin),
-        })
+        // transporter.sendMail({
+        //   to: user.email,
+        //   from: config.smtpUser,
+        //   subject: "Infinite Sudoku: Reset Password",
+        //   html: generatePasswordResetEmailBody(token, config.origin),
+        // })
       }
     } catch (err) {
       logger.error(err, "Error occured during password reset request");
