@@ -1,17 +1,8 @@
 import { CustomError } from "./customError.ts";
+import { ErrorType } from "./errorTypes.ts";
 
 export class DatabaseError extends CustomError {
-    statusCode = 500;
-
-    // constructor(public error: Error) {
-    //   super();
-    //   Object.setPrototypeOf(this, DatabaseError.prototype);
-    //   this.message = `[DatabaseError] ${error.message}`
-    // }
-    constructor(message: String) {
-      super();
-      Object.setPrototypeOf(this, DatabaseError.prototype);
-      this.message = `[DatabaseError] ${message}`
-    }
-
+  readonly statusCode = 500;
+  readonly isOperational: boolean = false;
+  protected readonly defaultType: ErrorType = ErrorType.INTERNAL_ERROR;
 }

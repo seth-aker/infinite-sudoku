@@ -1,95 +1,64 @@
-
 import { config } from "@/config";
-import type { ServiceResult } from "./baseService";
+import { safeFetch, type ServiceResult } from "./baseService";
 const BASE_URL: string = config.API_BASE_URL;
 export interface UserDto {
-  id: string,
-  displayName?: string,
-  username: string,
-  imageUrl?: string,
-  currentPuzzleId?: string,
-  role: string
+  id: string;
+  username: string;
+  email: string;
+  imageUrl?: string;
+  currentPuzzleId?: string;
+  role: 'user' | 'admin'
 }
 
-export async function login(username: string, password: string): Promise<ServiceResult<UserDto>> {
-  const result = await fetch(`${BASE_URL}/auth/login`, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    credentials: 'include',
-    body: JSON.stringify({username, password})
-  })
-  if(!result.ok) {
-    return {
-      success: false,
-      error: await result.text()
-    }
-  }
-  return {
-    success: true,
-    body: await result.json()
-  }
+export async function login(
+  email: string,
+  password: string,
+): Promise<ServiceResult<{ user: UserDto }>> {
+  return await safeFetch(`${BASE_URL}/auth/web/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ email, password }),
+  });
 }
 export async function logout(): Promise<ServiceResult<void>> {
-  const result = await fetch(`${BASE_URL}/auth/logout`, {
-    method: 'POST',
-    credentials: 'include'
-  })
-  if(!result.ok) {
-    return {
-      success: false,
-      error: await result.text()
-    }
-  }
-  return {
-    success: true
-  }
+  return await safeFetch(`${BASE_URL}/auth/web/logout`, {
+    method: "POST",
+    credentials: "include",
+  });
 }
-export async function getSession(): Promise<ServiceResult<UserDto | undefined>> {
-  const result = await fetch(`${BASE_URL}/auth/session`, {
-    method: 'GET',
-    headers: { 'Content-Type': 'application/json'},
-    credentials: 'include'
-  })
-  if(!result.ok) {
-    return {
-      success: false,
-      error: await result.text()
-    }
-  }
-  const body = await result.json()
-  if(!body) {
-    return {
-      success: false,
-      error: 'No session found!'
-    }
-  }
-  return {
-    success: true,
-    body
-  }
+export async function getSession(): Promise<
+  ServiceResult<{ user: UserDto }>
+> {
+  return await safeFetch(`${BASE_URL}/users/me`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+  });
 }
-
-export async function register(username: string, password: string, displayName?: string): Promise<ServiceResult<UserDto | undefined>> {
-  const result = await fetch(`${BASE_URL}/auth/register`, {
+export async function register(
+  email: string,
+  password: string,
+  username: string,
+  tosAcknowledged: boolean
+): Promise<ServiceResult<{ user: UserDto }>> {
+  return await safeFetch(`${BASE_URL}/auth/web/register`, {
     method: "POST",
     headers: {
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
     },
-    credentials: 'include',
+    credentials: "include",
     body: JSON.stringify({
-      username,
+      email,
       password,
-      displayName
-    })
+      username,
+      tosAcknowledged,
+    }),
+  });
+}
+
+export async function validateEmail(token: string): Promise<ServiceResult<void>> {
+  return await safeFetch(`${BASE_URL}/auth/validateEmail?token=${token}`, {
+    method: "POST"
   })
-  if(!result.ok) {
-    return {
-      success: false,
-      error: await result.text()
-    }
-  }
-  return {
-    success: true,
-    body: await result.json()
-  }
 }

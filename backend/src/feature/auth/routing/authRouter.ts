@@ -1,96 +1,58 @@
-import { Router } from "express";
-import { loginBodyValidator, registerBodyValidator } from "../middleware/validation";
-import { AuthenticationError } from "../errors/authenticationError";
-import { AuthenticationService } from "../service/authenticationService";
-import { UserService } from "@/feature/users/service/userService";
-import { authConfig } from "../config";
-import { authLimiter } from "../middleware/rateLimiter";
+import { Router, Request } from "express";
+import { MobileAuthRouter } from "./mobile/mobileAuthrouter.ts";
+import { PgUserDataSource } from "@/feature/users/datasource/pgUserDataSource.ts";
+import sql from "@/core/dataSource/postgres.ts";
+import { PgRefreshTokenDataSource } from "../datasource/pgRefreshTokenDataSource.ts";
+import { PgResetTokenDataSource } from "../datasource/pgResetTokenDataSource.ts";
+import {
+  resetPasswordRateLimiter,
+} from "../middleware/rateLimiter.ts";
+import {
+  resetRequestValidator,
+} from "../middleware/validation.ts";
+import { AuthenticationServiceImpl } from "../service/authenticationServiceImpl.ts";
+import { WebAuthRouter } from "./web/webAuthRouter.ts";
+import { PgValidateTokenDataSource } from "../datasource/pgValidateTokenDataSource.ts";
 
-declare module 'express-session' {
-    interface SessionData {
-      user?: {
-        id: string;
-        username: string;
-        role: string;
+function AuthRouter() {
+  const router = Router();
+  const userDataSource = PgUserDataSource.create(sql);
+  const refreshTokenDataSource = PgRefreshTokenDataSource.create(sql);
+  const resetTokenSource = PgResetTokenDataSource.create(sql);
+  const validateTokenSource = PgValidateTokenDataSource.create(sql);
+  const authService = AuthenticationServiceImpl.create(
+    userDataSource,
+    refreshTokenDataSource,
+    resetTokenSource,
+    validateTokenSource,
+  );
+  const mobileAuthRouter = MobileAuthRouter(authService);
+  const webAuthRouter = WebAuthRouter(authService);
+
+  router.use("/mobile", mobileAuthRouter);
+
+  router.use("/web", webAuthRouter);
+
+  router.post(
+    "/resetPasswordToken",
+    resetPasswordRateLimiter(),
+    resetRequestValidator,
+    async (req: Request<{}, {}, { email: string }>, res) => {
+      await authService.requestPasswordResetToken(req.body.email);
+      return res.sendStatus(204);
+    },
+  );
+  router.post(
+    '/validateEmail',
+    async (req: Request<{}, {}, {}, { token: string }>, res) => {
+      const token = req.query.token;
+      const validated = await authService.validateEmail(token)
+      if (!validated) {
+        return res.sendStatus(500)
       }
-    }
+      return res.sendStatus(204);
+    })
+  return router;
 }
 
-export function AuthRouter(authService: AuthenticationService, userService: UserService) {
-  const router = Router()
-
-  router.post('/login', authLimiter(),  loginBodyValidator, async (req, res, next) => {
-    const verifyRes = await authService.verify(req.body.username, req.body.password)
-    const user = verifyRes.user;
-    if(!user || verifyRes.err) {
-      return next(verifyRes?.err ?? new AuthenticationError("Incorrect email or password"))
-    }
-    req.session.regenerate((err) => {
-      if(err) {
-        return next(err)
-      }
-      req.session.user = {
-        id: user.id,
-        username: user.username,
-        role: user.role
-      }
-
-      req.session.save((err) => {
-        if(err) {
-          return next(err)
-        }
-        return res.json(user)
-      })
-    })
-  })
-
-  router.post('/logout', async (req, res, next) => {
-    req.session.user = undefined;
-    req.session.destroy((err) => {
-      if(err) {
-         return res.status(500).send('Could not log out.');
-      }
-      res.clearCookie(authConfig.cookieName)
-      res.sendStatus(204)
-    })
-  })
-
-  router.post('/register', authLimiter(), registerBodyValidator, async (req, res, next) => {
-    const userId = await authService.registerUser(req.body)
-    if(!userId) {
-      return res.sendStatus(500)
-    }
-    req.session.regenerate((err) => {
-      if(err) {
-        next(err);
-      }
-      req.session.user = {
-        username: req.body.username,
-        id: userId,
-        role: 'user'
-      }
-
-      req.session.save((err) => {
-        if(err) {
-          next(err)
-        }
-        res.status(201).send({
-          id: userId,
-          displayName: req.body.displayName,
-          username: req.body.username,
-          role: 'user'
-        })
-      })
-    })
-  })
-
-  router.get('/session', async (req, res,) => {
-    if(!req.session.user) {
-      return res.status(200).json({user: null})
-    }
-    const userId = req.session.user.id
-    const user = await userService.getUser(userId);
-    return res.status(200).json({user})
-  })
-  return router
-}
+export const authRouter = AuthRouter();

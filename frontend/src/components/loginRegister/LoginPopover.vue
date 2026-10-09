@@ -1,30 +1,37 @@
 <script setup lang="ts">
-import Button from '@/components/ui/button/Button.vue';
-import { ref, watch } from 'vue';
-import Popover from '../ui/popover/Popover.vue';
-import PopoverTrigger from '../ui/popover/PopoverTrigger.vue';
-import PopoverContent from '../ui/popover/PopoverContent.vue';
-import Tabs from '../ui/tabs/Tabs.vue';
-import TabsList from '../ui/tabs/TabsList.vue';
-import TabsTrigger from '../ui/tabs/TabsTrigger.vue';
-import TabsContent from '../ui/tabs/TabsContent.vue';
-import LoginForm from './LoginForm.vue';
-import RegisterForm from './RegisterForm.vue';
-import { useGameStore } from '@/stores/gameStore';
+import Button from "@/components/ui/button/Button.vue";
+import { ref, watch } from "vue";
+import Popover from "../ui/popover/Popover.vue";
+import PopoverTrigger from "../ui/popover/PopoverTrigger.vue";
+import PopoverContent from "../ui/popover/PopoverContent.vue";
+import Tabs from "../ui/tabs/Tabs.vue";
+import TabsList from "../ui/tabs/TabsList.vue";
+import TabsTrigger from "../ui/tabs/TabsTrigger.vue";
+import TabsContent from "../ui/tabs/TabsContent.vue";
+import LoginForm from "./LoginForm.vue";
+import RegisterForm from "./RegisterForm.vue";
+import { useGameStore } from "@/stores/gameStore";
 
 const popoverOpen = ref<boolean>(false);
-const store = useGameStore()
+const store = useGameStore();
 watch(popoverOpen, () => {
   if (popoverOpen) {
-    store.selectedIdx = undefined
+    store.selectedIdx = undefined;
   }
-})
+});
 </script>
 
 <template>
-  <Popover v-model:open="popoverOpen" @update:open="(value) => popoverOpen = value">
+  <Popover
+    v-model:open="popoverOpen"
+    @update:open="(value) => (popoverOpen = value)"
+  >
     <PopoverTrigger as-child>
-      <Button variant="ghost" class="dark:hover:bg-orange-400 hover:bg-orange-300/50">Login</Button>
+      <Button
+        variant="ghost"
+        class="dark:hover:bg-orange-400 hover:bg-orange-300/50"
+        >Login</Button
+      >
     </PopoverTrigger>
     <PopoverContent class="mr-2">
       <Tabs default-value="login">

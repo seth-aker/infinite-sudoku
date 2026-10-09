@@ -1,8 +1,7 @@
+import { CustomError } from "@/core/errors/customError";
+import { ErrorType } from "@/core/errors/errorTypes";
 
-export class PuzzleSolverError extends Error {
-  constructor(message: string) {
-    super();
-    this.message = `[PuzzleSolver] ${message}`;
-    Object.setPrototypeOf(this, PuzzleSolverError.prototype)
-  }
+export class PuzzleSolverError extends CustomError {
+  readonly statusCode: number = 500;
+  protected readonly defaultType: ErrorType = ErrorType.INTERNAL_ERROR;
 }

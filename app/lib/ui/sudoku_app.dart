@@ -1,0 +1,91 @@
+import 'package:infinite_sudoku/data/repositories/auth_repository.dart';
+import 'package:infinite_sudoku/routing/router.dart';
+import 'package:infinite_sudoku/ui/core/constants.dart';
+import 'package:infinite_sudoku/ui/sudoku/state/puzzle/puzzle_bloc.dart';
+import 'package:infinite_sudoku/ui/core/app_theme.dart';
+import 'package:infinite_sudoku/data/repositories/puzzle_repository.dart';
+import 'package:infinite_sudoku/ui/sudoku/state/timer/timer_bloc.dart';
+import 'package:infinite_sudoku/ui/user/state/preferences_cubit.dart';
+import 'package:infinite_sudoku/ui/user/state/user_bloc.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
+import 'package:toastification/toastification.dart';
+
+class SudokuApp extends StatelessWidget {
+  const SudokuApp({
+    required this._puzzleRepository,
+    required this._authRepository,
+    required this._routeObserver,
+    super.key,
+  });
+  final AuthRepository _authRepository;
+  final PuzzleRepository _puzzleRepository;
+  final RouteObserver<ModalRoute<dynamic>> _routeObserver;
+  @override
+  Widget build(BuildContext context) {
+    final PreferencesCubit preferencesCubit = PreferencesCubit();
+    return MultiRepositoryProvider(
+      providers: [
+        RepositoryProvider.value(value: _puzzleRepository),
+        RepositoryProvider.value(value: _routeObserver),
+      ],
+      child: MultiBlocProvider(
+        providers: [
+          BlocProvider(
+            create: (_) => PuzzleBloc(
+              puzzleRepository: _puzzleRepository,
+              preferencesCubit: preferencesCubit,
+            ),
+          ),
+          BlocProvider(
+            create: (_) =>
+                UserBloc(authRepository: _authRepository)
+                  ..add(const SessionRestoreRequested()),
+          ),
+          BlocProvider(create: (_) => TimerBloc()),
+          BlocProvider(create: (_) => preferencesCubit),
+        ],
+        child: const ToastificationWrapper(child: SudokuAppView()),
+      ),
+    );
+  }
+}
+
+class SudokuAppView extends StatefulWidget {
+  const SudokuAppView({super.key});
+  @override
+  State<StatefulWidget> createState() => _SudokuAppViewState();
+}
+
+class _SudokuAppViewState extends State<SudokuAppView> {
+  late final GoRouter _router;
+@override
+  void initState() {
+    final routeObserver = context.read<RouteObserver<ModalRoute<dynamic>>>();
+    _router = router(routeObserver);
+    super.initState();
+  }
+  @override
+  Widget build(BuildContext context) {
+    if (isApple) {
+      return CupertinoApp.router(
+        title: 'Sudoku App',
+        theme: CupertinoThemeData(
+          brightness: context.select<PreferencesCubit, Brightness>(
+            (cubit) => cubit.state.isDarkMode ? .dark : .light,
+          ),
+          primaryColor: AppTheme.primary(),
+          applyThemeToAll: true,
+        ),
+        routerConfig: _router,
+      );
+    }
+    return MaterialApp.router(
+      title: 'Sudoku App',
+      theme: ThemeData(primaryColor: AppTheme.primary()),
+      routerConfig: _router,
+    );
+  }
+}

@@ -1,11 +1,7 @@
 import { CustomError } from "./customError.ts";
+import { ErrorType } from "./errorTypes.ts";
 
 export class NotFoundError extends CustomError {
-  statusCode = 404;
-
-  constructor(message: string) {
-    super();
-    this.message = `[Not Found] ${message}`
-    Object.setPrototypeOf(this, NotFoundError.prototype);
-  }
+  readonly statusCode = 404;
+  protected readonly defaultType: ErrorType = ErrorType.RESOURCE_NOT_FOUND;
 }

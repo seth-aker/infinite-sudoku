@@ -1,9 +1,7 @@
 import { CustomError } from "@/core/errors/customError";
+import { ErrorType } from "@/core/errors/errorTypes";
 
 export class AuthorizationError extends CustomError {
-    constructor(message: string) {
-        super()
-        this.message = `[Authorization Error] ${message}`
-    }
-    statusCode: number = 403;
+  readonly statusCode: number = 403;
+  protected readonly defaultType: ErrorType = ErrorType.INSUFFICIENT_ROLE;
 }

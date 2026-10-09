@@ -21,8 +21,17 @@ WORKDIR /apps
 
 COPY . ./sudoku
 COPY ./frontend/.env.production ./sudoku/frontend/
-WORKDIR /apps/sudoku 
-RUN pnpm i
+
+WORKDIR /apps/sudoku/frontend
+
+RUN CI=true pnpm i
+
+WORKDIR /apps/sudoku/backend
+
+RUN CI=true pnpm i
+
+WORKDIR /apps/sudoku
+
 RUN if [ "$DEPLOY_MODE" = "test" ]; then \
       pnpm run build:test; \
     else \
@@ -43,21 +52,14 @@ WORKDIR /sudoku
 RUN mkdir -p /sudoku/logs && chown -R node:node /sudoku/logs
 
 COPY --from=build /apps/sudoku/backend/dist ./
+COPY --from=build /apps/sudoku/backend/db ./db
 COPY --from=build /apps/sudoku/backend/package.json .
-COPY --from=build /apps/sudoku/backend/pnpm*.yaml .
+COPY --from=build /apps/sudoku/backend/pnpm-lock.yaml .
+COPY --from=build /apps/sudoku/backend/pnpm-workspace.yaml .
+
 COPY --chown=node:node --from=c_builder /cdoku/build/src/app/puzzle_generator_app .
 
-WORKDIR /sudoku
-
-RUN pnpm ci --prod
-
-# Remove npm and yarn to minimize vulnerabilities
-RUN rm -rf /usr/local/lib/node_modules/npm \
-    && rm -rf /opt/yarn-* \
-    && rm /usr/local/bin/npm \
-    && rm /usr/local/bin/npx \
-    && rm /usr/local/bin/yarn \
-    && rm /usr/local/bin/yarnpkg
+RUN pnpm i --prod
 
 EXPOSE 3666
 

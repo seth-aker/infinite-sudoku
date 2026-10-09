@@ -1,7 +1,7 @@
 import { Request } from "express";
-import { Difficulty } from "../datasource/models/difficulty.ts";
+import { DifficultyRating } from "../datasource/models/difficulty.ts";
 
 export interface QueryOptions {
-  difficulty?: Difficulty['rating'];
+  difficulty?: DifficultyRating;
 }
 export interface SudokuRequest extends Request<{}, {}, {}, QueryOptions> {}

@@ -1,5 +1,5 @@
-import { type Difficulty } from "./difficulty.ts";
+import { DifficultyRating } from "./difficulty.ts";
 
 export interface PuzzleOptions {
-  difficulty: Difficulty['rating']
+  difficulty: DifficultyRating;
 }

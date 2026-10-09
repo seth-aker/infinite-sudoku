@@ -1,47 +1,93 @@
 import { NextFunction, Request, Response } from "express";
-import * as z from "zod";
+import * as z from "zod/v4";
 
-const passwordRegex = /^(?=.*?[A-Z])(?=.*?[a-z])(?=.*?[0-9])(?=.*?[#?!@$ %^&*-]).{8,}$/
+const passwordRegex =
+  /^(?=.*?[A-Z])(?=.*?[a-z])(?=.*?[0-9])(?=.*?[#?!@$ %^&*-]).{8,}$/;
 
-const passwordSchema = z.string().refine((pw) => passwordRegex.test(pw), "Password must contain a minimum of 8 characters, one uppercase, one lowercase, one number, and one special character")
+const passwordSchema = z
+  .string()
+  .refine(
+    (pw) => passwordRegex.test(pw),
+    "Password must contain a minimum of 8 characters, one uppercase, one lowercase, one number, and one special character",
+  );
 
+const tokenBodySchema = z.discriminatedUnion("grantType", [
+  z.object({
+    grantType: z.literal("password"),
+    email: z.string().min(4),
+    password: z.string().min(4),
+  }),
+  z.object({
+    grantType: z.literal("refreshToken"),
+    refreshToken: z.string().min(1),
+  }),
+]);
 export const loginBodySchema = z.object({
-  username: z.string().refine((val) => val.length >= 4),
-  password: passwordSchema
-})
+  email: z.email(),
+  password: z.string().min(8),
+});
 
 export const registerBodySchema = z.object({
-  username: z.string().refine((val) => val.length >= 4),
+  email: z.email(),
+  username: z.string().min(4),
   password: passwordSchema,
-  displayName: z.string().optional()
-})
+  tosAcknowledged: z.boolean(),
+});
 
-export const requireLoggedin = (req: Request, res: Response, next: NextFunction) => {
-  if(req.session.user) {
-    return next()
+export const loginBodyValidator = (
+  req: Request,
+  _res: Response,
+  next: NextFunction,
+) => {
+  const validationResult = loginBodySchema.safeParse(req.body);
+  if (!validationResult.success) {
+    throw validationResult.error;
   }
-  return res.sendStatus(401)
-}
+  next();
+};
 
-export const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
-  if(req.session.user && req.session.user.role === 'admin') {
-    return next()
+export const registerBodyValidator = (
+  req: Request,
+  _res: Response,
+  next: NextFunction,
+) => {
+  const validationResult = registerBodySchema.safeParse(req.body);
+  if (!validationResult.success) {
+    throw validationResult.error;
   }
-  return res.sendStatus(403)
-}
+  next();
+};
 
-export const loginBodyValidator = (req: Request, _res: Response, next: NextFunction) => {
-  const validationResult = loginBodySchema.safeParse(req.body)
-  if(!validationResult.success) {
-    throw validationResult.error
-  }
-  next()
-}
+export const tokenBodyValidator = (
+  req: Request,
+  _res: Response,
+  next: NextFunction,
+) => {
+  const result = tokenBodySchema.safeParse(req.body);
+  if (!result.success) return next(result.error);
+  req.body = result.data;
+  next();
+};
 
-export const registerBodyValidator = (req: Request, _res: Response, next: NextFunction) => {
-  const validationResult = registerBodySchema.safeParse(req.body)
-  if(!validationResult.success) {
-    throw validationResult.error
+export const resetRequestValidator = (
+  req: Request,
+  _res: Response,
+  next: NextFunction,
+) => {
+  const result = z.email().safeParse(req.body?.email);
+  if (!result.success) {
+    return next(result.error);
   }
-  next()
-}
+  next();
+};
+export const passwordResetValidator = (
+  req: Request,
+  _res: Response,
+  next: NextFunction,
+) => {
+  const pwResult = passwordSchema.safeParse(req.body?.password);
+  if (!pwResult.success) return next(pwResult.error);
+  const tokenResult = z.uuid().safeParse(req.body?.token);
+  if (!tokenResult.success) return next(tokenResult.error);
+  next();
+};

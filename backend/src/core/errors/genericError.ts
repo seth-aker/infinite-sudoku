@@ -1,11 +1,7 @@
 import { CustomError } from "./customError.ts";
+import { ErrorType } from "./errorTypes.ts";
 
 export class GenericError extends CustomError {
-    statusCode =  500;
-
-    constructor(message: string) {
-      super();
-      Object.setPrototypeOf(this, GenericError.prototype);
-      this.message = message;
-    }
+  readonly statusCode = 500;
+  protected readonly defaultType: ErrorType = ErrorType.INTERNAL_ERROR;
 }

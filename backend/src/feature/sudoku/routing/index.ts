@@ -3,7 +3,7 @@ import SudokuRouter from "./sudokuRouter.ts";
 import { PgSudokuDataSource } from "../datasource/pgSudokuDataSource.ts";
 import sql from "@/core/dataSource/postgres.ts";
 
-const sudokuDataSource = PgSudokuDataSource.create(sql)
+const sudokuDataSource = PgSudokuDataSource.create(sql);
 const dataService = SudokuServiceImplementation.create(sudokuDataSource);
 
-export const sudokuRouter = SudokuRouter(dataService)
+export const sudokuRouter = SudokuRouter(dataService);
