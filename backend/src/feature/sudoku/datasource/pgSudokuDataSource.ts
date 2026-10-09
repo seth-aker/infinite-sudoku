@@ -3,9 +3,8 @@ import { PuzzleOptions } from "./models/puzzleOptions";
 import {
   CreatePuzzle,
   SqlPuzzle,
-  SqlUserPuzzle,
   SudokuPuzzleResponse,
-  UpdatePuzzle,
+  UserPuzzleDto,
 } from "./models/sudokuPuzzle";
 import { SudokuDataSource } from "./sudokuDataSource";
 import { Sql } from "postgres";
@@ -40,9 +39,8 @@ export class PgSudokuDataSource implements SudokuDataSource {
           WHERE
             p.difficulty_rating = ${options.difficulty}
             -- inject the NOT EXISTS block only if userId exists
-            ${
-              userId
-                ? this.client`
+            ${userId
+          ? this.client`
                 AND NOT EXISTS (
                   SELECT 1
                   FROM user_puzzles up
@@ -51,8 +49,8 @@ export class PgSudokuDataSource implements SudokuDataSource {
                     AND up.user_id = ${userId}
                 )
               `
-                : this.client``
-            }
+          : this.client``
+        }
           ORDER BY RANDOM()
           LIMIT 1;
           `;
@@ -138,79 +136,95 @@ export class PgSudokuDataSource implements SudokuDataSource {
   }
   async updateUserPuzzle(
     userId: string,
-    puzzle: UpdatePuzzle,
+    puzzle: UserPuzzleDto,
   ): Promise<number> {
-    const res = await this.client.begin(async (sql) => {
-      const updateUpRes = await sql`
-        UPDATE user_puzzles
-        SET cells = ${puzzle.cells},
-          candidates = ${puzzle.candidates},
-          is_completed = ${puzzle.isCompleted},
-          time = ${puzzle.time},
-          actions = ${puzzle.actions}
-          ${puzzle.isCompleted ? this.client`, completed_at = CURRENT_TIMESTAMP ` : this.client``}
-        WHERE user_id = ${userId} AND puzzle_id = ${puzzle.puzzleId}
-      `;
-      if (updateUpRes.count !== 1) {
-        const insertRes = await sql`
-          INSERT INTO user_puzzles (
-            user_id,
-            puzzle_id,
-            cells,
-            candidates,
-            is_completed,
-            time,
-            actions
-            ${puzzle.isCompleted ? this.client`, completed_at` : this.client``}
-          )
-          VALUES (
-            ${userId},
-            ${puzzle.puzzleId},
-            ${puzzle.cells},
-            ${puzzle.candidates},
-            ${puzzle.isCompleted},
-            ${puzzle.time},
-            ${puzzle.actions}
-            ${puzzle.isCompleted ? this.client`, CURRENT_TIMESTAMP` : this.client``}
-          )
-        `;
-        if (insertRes.count !== 1) {
-          return insertRes.count;
-        }
-      }
-      if (puzzle.isCompleted) {
-        const updateRes = await sql`
-          UPDATE users SET current_puzzle_id = null WHERE user_id = ${userId}
-        `;
-        return updateRes.count;
-      }
-      const userRes = await sql`
-        UPDATE users 
-        SET current_puzzle_id = ${puzzle.puzzleId}
-        WHERE user_id = ${userId}
-      `;
-      if (userRes.count !== 1) {
-        return userRes.count;
-      }
-      return 1;
-    });
-    return res;
+    const res = await this.client`
+      UPDATE user_puzzles
+      SET
+        is_completed = ${puzzle.isCompleted},
+        cells = ${puzzle.cells},
+        candidates = ${puzzle.candidates},
+        "time" = ${puzzle.time},
+        actions = ${puzzle.actions}
+      WHERE 
+        user_id = ${userId} AND
+        puzzle_id = ${puzzle.puzzleId} AND
+        NOT is_completed
+      `
+    if(res.count < 1) {
+      const insertRes = await this.client`
+        INSERT INTO user_puzzles (
+          user_id,
+          puzzle_id,
+          cells,
+          candidates,
+          "time",
+          actions,
+          is_completed
+        )
+        VALUES (
+          ${userId},
+          ${puzzle.puzzleId},
+          ${puzzle.cells},
+          ${puzzle.candidates},
+          ${puzzle.time},
+          ${puzzle.actions},
+          ${puzzle.isCompleted}
+        );`
+      return insertRes.count;
+    }
+    return res.count;
+    // if (puzzle.startedAt == null) {
+    //   const res = await this.client`
+    //       UPDATE user_puzzles
+    //       SET
+    //         is_completed = ${puzzle.isCompleted},
+    //         cells = ${puzzle.cells},
+    //         candidates = ${puzzle.candidates},
+    //         "time" = FLOOR(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - started_at)))::int,
+    //         started_at = NULL,
+    //         actions = ${puzzle.actions}
+    //       WHERE
+    //         user_id = ${userId} AND
+    //         puzzle_id = ${puzzle.puzzleId} AND
+    //         started_at IS NOT NULL AND
+    //         NOT is_completed;
+    //     `
+    //   return res.count;
+    // } else {
+    //   // puzzle resumed
+    //   const res = await this.client`
+    //     UPDATE user_puzzles
+    //     SET
+    //       is_completed = ${puzzle.isCompleted},
+    //       cells = ${puzzle.cells},
+    //       candidates = ${puzzle.candidates},
+    //       -- if started_at is already not null, don't update it.
+    //       started_at = COALESCE(started_at, CURRENT_TIMESTAMP),
+    //       actions = ${puzzle.actions}
+    //     WHERE
+    //       user_id = ${userId} AND
+    //       puzzle_id = ${puzzle.puzzleId}
+    //   `
+    //   return res.count;
+    // }
   }
   async getUserPuzzle(
     userId: string,
     puzzleId: string,
-  ): Promise<SqlUserPuzzle> {
-    const [res] = await this.client<(SqlUserPuzzle | undefined)[]>`
+  ): Promise<UserPuzzleDto> {
+    const [res] = await this.client<(UserPuzzleDto | undefined)[]>`
         SELECT 
-          p.puzzle_id,
-          up.is_completed,
-          up.cells as current_cells,
-          up.candidates as current_candidates,
+          p.puzzle_id as puzzleId,
+          up.is_completed as isCompleted,
+          up.cells,
+          up.candidates,
           up.time,
-          p.cells as original_cells,
-          p.difficulty_rating,
-          p.difficulty_score,
-          up.actions
+          p.cells as originalCells,
+          p.difficulty_rating as rating,
+          p.difficulty_score as score,
+          up.actions,
+          up.started_at as startedAt
         FROM user_puzzles AS up
           JOIN puzzles AS p ON p.puzzle_id = up.puzzle_id
         WHERE 

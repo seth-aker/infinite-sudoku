@@ -3,7 +3,7 @@ import { type PuzzleOptions } from "../datasource/models/puzzleOptions";
 import {
   SudokuPuzzle,
   CreatePuzzle,
-  UpdatePuzzle,
+  UpdatePuzzleDto,
   UserPuzzleDto,
 } from "../datasource/models/sudokuPuzzle";
 
@@ -20,6 +20,6 @@ export interface SudokuService {
   // getPuzzle: (puzzleId: string) => Promise<SudokuPuzzle>
   createPuzzles: (puzzles: CreatePuzzle[]) => Promise<number>;
   getUserPuzzle: (userId: string, puzzleId: string) => Promise<UserPuzzleDto>;
-  updateUserPuzzle: (userId: string, puzzle: UpdatePuzzle) => Promise<number>;
+  updateUserPuzzle: (userId: string, puzzle: UpdatePuzzleDto) => Promise<number>;
   deletePuzzle: (puzzleId: string) => Promise<number>;
 }

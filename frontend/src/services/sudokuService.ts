@@ -74,7 +74,7 @@ export async function getNewPuzzle(
     return result;
   }
   const rawPuzzle = result.body;
-  if(!rawPuzzle) {
+  if (!rawPuzzle) {
     return {
       success: false,
       error: 'Puzzle not received',
@@ -128,11 +128,11 @@ export async function getSavedProgress(
     credentials: "include",
   });
 
-  if(!response.success) {
+  if (!response.success) {
     return response;
   }
   const body = response.body;
-  if(!body) {
+  if (!body) {
     return {
       success: false,
       error: "Failed to get progress",

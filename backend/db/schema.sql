@@ -84,15 +84,13 @@ CREATE TABLE IF NOT EXISTS public.user_puzzles (
     candidates text,
     "time" integer DEFAULT 0,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-    completed_at timestamp with time zone,
     actions integer[],
     CONSTRAINT pk_user_id_puzzle_id PRIMARY KEY (user_id, puzzle_id),
-    CONSTRAINT check_valid_completion_time
-        CHECK ((completed_at >= (created_at + (("time")::double precision * '00:00:01'::interval)))),
     CONSTRAINT fk_user_id FOREIGN KEY (user_id)
         REFERENCES public.users(user_id) ON DELETE CASCADE,
     CONSTRAINT fk_puzzle_id FOREIGN KEY (puzzle_id)
-        REFERENCES public.puzzles(puzzle_id) ON DELETE CASCADE
+        REFERENCES public.puzzles(puzzle_id) ON DELETE CASCADE,
+    CONSTRAINT check_time_not_negative CHECK ("time" >= 0)
 );
 
 --
@@ -122,7 +120,7 @@ CREATE TABLE IF NOT EXISTS public.reset_tokens (
 
 CREATE TABLE IF NOT EXISTS public.validate_tokens (
   id BIGSERIAL PRIMARY KEY,
-  user_email uuid NOT NULL REFERENCES public.users(user_id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES public.users(user_id) ON DELETE CASCADE,
   token uuid DEFAULT gen_random_uuid() NOT NULL,
   created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP
 );

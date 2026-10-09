@@ -8,8 +8,8 @@ import {
   getPuzzleValidator,
   updatePuzzleValidator,
 } from "../middleware/validation/validation.ts";
-import { UpdatePuzzle } from "../datasource/models/sudokuPuzzle.ts";
 import { requireLoggedin } from "@/feature/auth/middleware/authentication.ts";
+import { UserPuzzleDto } from "../datasource/models/sudokuPuzzle.ts";
 
 export default function SudokuRouter(sudokuService: SudokuService) {
   const router = express.Router();
@@ -69,7 +69,7 @@ export default function SudokuRouter(sudokuService: SudokuService) {
     async (req: Request, res: Response, next: NextFunction) => {
       try {
         const userId = req.user?.sub!;
-        const updateUserPuzzleDto = req.body as UpdatePuzzle;
+        const updateUserPuzzleDto = req.body as UserPuzzleDto;
         const result = await sudokuService.updateUserPuzzle(
           userId,
           updateUserPuzzleDto,

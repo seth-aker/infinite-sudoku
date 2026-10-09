@@ -4,7 +4,6 @@ import { type PuzzleOptions } from "../datasource/models/puzzleOptions";
 import {
   SudokuPuzzle,
   CreatePuzzle,
-  UpdatePuzzle,
   UserPuzzleDto,
 } from "../datasource/models/sudokuPuzzle";
 import { SudokuService } from "./sudokuService";
@@ -94,25 +93,14 @@ export class SudokuServiceImplementation implements SudokuService {
     userId: string,
     puzzleId: string,
   ): Promise<UserPuzzleDto> {
-    const sqlUserPuzle = await this.sudokuDataSource.getUserPuzzle(
+    return await this.sudokuDataSource.getUserPuzzle(
       userId,
       puzzleId,
     );
-    return {
-      puzzleId: sqlUserPuzle.puzzle_id,
-      cells: sqlUserPuzle.current_cells,
-      candidates: sqlUserPuzle.current_candidates,
-      originalCells: sqlUserPuzle.original_cells,
-      time: sqlUserPuzle.time,
-      isCompleted: sqlUserPuzle.is_completed,
-      actions: sqlUserPuzle.actions,
-      score: sqlUserPuzle.difficulty_score,
-      rating: sqlUserPuzle.difficulty_rating,
-    };
   }
   async updateUserPuzzle(
     userId: string,
-    puzzle: UpdatePuzzle,
+    puzzle: UserPuzzleDto,
   ): Promise<number> {
     // don't trust that the puzzle is actually complete, verfiy
     if (puzzle.isCompleted) {
@@ -121,6 +109,7 @@ export class SudokuServiceImplementation implements SudokuService {
       );
       puzzle.isCompleted = existingPuzzle.solved_cells === puzzle.cells;
     }
+    // TODO: add checks to prevent cheating
     return await this.sudokuDataSource.updateUserPuzzle(userId, puzzle);
   }
   async deletePuzzle(puzzleId: string): Promise<number> {
