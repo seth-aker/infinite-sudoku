@@ -67,7 +67,7 @@ const handleLogin = async (event: SubmitEvent) => {
               <InputGroupInput id="password" v-model:model-value="password" :type="showPassword ? 'text' : 'password'"
                 required autocomplete="current-password" />
               <InputGroupAddon align="inline-end">
-                <InputGroupButton ref="show-password" type="button">
+                <InputGroupButton tabindex="-1" ref="show-password" type="button">
                   <Icon :icon="showPassword
                       ? 'radix-icons:eye-open'
                       : 'radix-icons:eye-closed'

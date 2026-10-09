@@ -149,7 +149,7 @@ const { pressed: showConfirmPassword } = useMousePressed({
           <Field>
             <FieldLabel for="Username">Username</FieldLabel>
             <Input :aria-invalid="usernameErrorMessage !== undefined" id="username" v-model:model-value="username"
-              type="text" placeholder="sudoku-lover123" autocomplete="username" required />
+              type="text" autocomplete="username" required />
             <FieldError :errors="[usernameErrorMessage]"></FieldError>
           </Field>
           <Field>
@@ -158,7 +158,7 @@ const { pressed: showConfirmPassword } = useMousePressed({
               <InputGroupInput id="password" v-model:model-value="password" :type="showPassword ? 'text' : 'password'"
                 required />
               <InputGroupAddon align="inline-end">
-                <InputGroupButton ref="show-password" type="button">
+                <InputGroupButton tabindex="-1" ref="show-password" type="button">
                   <Icon :icon="showPassword
                     ? 'radix-icons:eye-open'
                     : 'radix-icons:eye-closed'
@@ -175,7 +175,7 @@ const { pressed: showConfirmPassword } = useMousePressed({
                 :aria-invalid="confirmPasswordErrorMessage !== undefined"
                 :type="showConfirmPassword ? 'text' : 'password'" required />
               <InputGroupAddon align="inline-end">
-                <InputGroupButton ref="show-confirm-password" type="button">
+                <InputGroupButton tabindex="-1" ref="show-confirm-password" type="button">
                   <Icon :icon="showConfirmPassword
                     ? 'radix-icons:eye-open'
                     : 'radix-icons:eye-closed'
