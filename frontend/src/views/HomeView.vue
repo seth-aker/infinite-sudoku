@@ -36,7 +36,7 @@ const resumePuzzle = async () => {
   <main class="w-full h-full flex items-center justify-center my-20">
     <Card class="w-[85%] md:w-100">
       <CardHeader class="flex flex-col items-center justify-center">
-        <CardTitle class="text-4xl">Sudoku</CardTitle>
+        <CardTitle class="text-4xl text-orange-400">Infinite Sudoku</CardTitle>
         <CardDescription>Pick a difficulty to get started</CardDescription>
       </CardHeader>
       <CardContent class="flex flex-col items-center justify-center">

@@ -13,7 +13,6 @@ import InputGroup from "../ui/input-group/InputGroup.vue";
 import InputGroupInput from "../ui/input-group/InputGroupInput.vue";
 import InputGroupAddon from "../ui/input-group/InputGroupAddon.vue";
 import InputGroupButton from "../ui/input-group/InputGroupButton.vue";
-import Checkbox from "../ui/checkbox/Checkbox.vue";
 import { Icon } from "@iconify/vue";
 import Button from "../ui/button/Button.vue";
 import {
@@ -35,8 +34,8 @@ const password = ref<string>("");
 const passwordErrorMessage = ref<string | undefined>(undefined);
 const confirmPassword = ref<string>("");
 const confirmPasswordErrorMessage = ref<string | undefined>(undefined);
-const tosAcknowledged = ref<boolean>(false);
-const tosAcknowledgedErrorMessage = ref<string | undefined>(undefined);
+// const tosAcknowledged = ref<boolean>(false);
+// const tosAcknowledgedErrorMessage = ref<string | undefined>(undefined);
 watchDebounced(
   username,
   (value) => {
@@ -87,23 +86,32 @@ watchDebounced(
   },
   { debounce: 500 },
 );
-
+// watch(
+//   tosAcknowledged,
+//   (value) => {
+//     if (!value) {
+//       tosAcknowledgedErrorMessage.value = "Please accept terms of service"
+//     } else {
+//       tosAcknowledgedErrorMessage.value = undefined
+//     }
+//   }
+// )
 const handleRegister = async (event: SubmitEvent) => {
   event.preventDefault();
   const userNameRes = usernameSchema.safeParse(username.value);
   const emailRes = z.email().safeParse(email.value);
   const passwordRes = passwordSchema.safeParse(password.value);
   const confirmMatches = password.value === confirmPassword.value;
-  if (!tosAcknowledged.value) {
-    tosAcknowledgedErrorMessage.value = "Please accept Terms of Service";
-    return;
-  }
+  // if (!tosAcknowledged.value) {
+  //   tosAcknowledgedErrorMessage.value = "Please accept Terms of Service";
+  //   return;
+  // }
   if (!userNameRes.success || !emailRes.success || !passwordRes.success || !confirmMatches) {
     return;
   }
   (toast.promise(
     Promise.all([
-      register(email.value, password.value, username.value, tosAcknowledged.value),
+      register(email.value, password.value, username.value, true),
       new Promise((resolve) => setTimeout(resolve, 500)),
     ]),
   ),
@@ -177,18 +185,20 @@ const { pressed: showConfirmPassword } = useMousePressed({
             </InputGroup>
             <FieldError :errors="[confirmPasswordErrorMessage]" />
           </Field>
-          <Field>
-            <FieldLabel for="accept-tos">Accept Terms of Service</FieldLabel>
-            <Checkbox id="accept-tos" v-model:model-value="tosAcknowledged" type="checkbox"
-              :aria-invalid="tosAcknowledgedErrorMessage !== undefined" />
-            <FieldError :errors="[tosAcknowledgedErrorMessage]" />
-          </Field>
+          <!--   <Field orientation="horizontal" class="content-end"> -->
+          <!--     <div class="flex items-center"> -->
+          <!--       <Checkbox id="accept-tos" class="m-1" v-model:model-value="tosAcknowledged" type="checkbox" -->
+          <!--         :aria-invalid="tosAcknowledgedErrorMessage !== undefined" /> -->
+          <!--       <FieldLabel for="accept-tos" :class="tosAcknowledgedErrorMessage ? -->
+          <!--         'text-red-700' -->
+          <!--         : ''">Accept Terms of Service</FieldLabel> -->
+          <!--     </div> -->
+          <!--   </Field> -->
         </FieldGroup>
       </FieldSet>
       <Field orientation="horizontal" class="justify-end">
-        <Button type="submit" v-if="!userStore.loading" :disabled="emailErrorMessage ||
-          passwordErrorMessage ||
-          confirmPasswordErrorMessage || tosAcknowledgedErrorMessage
+        <Button type="submit" v-if="!userStore.loading" :disabled="emailErrorMessage || usernameErrorMessage ||
+          passwordErrorMessage || confirmPasswordErrorMessage
           " class="w-30 bg-orange-400 hover:bg-orange-400/60">Create Account</Button>
         <Button class="w-30 bg-orange-400" v-else>
           <Icon icon="line-md:loading-twotone-loop" />

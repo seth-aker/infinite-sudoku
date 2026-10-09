@@ -51,7 +51,7 @@ const gotoPuzzle = async (difficulty: DifficultyRating) => {
 <template>
   <header class="w-full p-4 flex justify-between border-b shadow">
     <h1 class="text-3xl hover:cursor-pointer text-orange-400 font-bold">
-      <a @click="router.push({ name: 'home' })">Sudoku</a>
+      <a @click="router.push({ name: 'home' })">Infinite Sudoku</a>
     </h1>
     <!-- Medium and wider menu -->
     <div class="hidden md:flex md:flex-row">
