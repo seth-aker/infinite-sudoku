@@ -15,7 +15,7 @@ import InputGroupAddon from "../ui/input-group/InputGroupAddon.vue";
 import InputGroupButton from "../ui/input-group/InputGroupButton.vue";
 import { Icon } from "@iconify/vue";
 import Button from "../ui/button/Button.vue";
-import { toast } from "vue-sonner";
+import { RouterLink } from "vue-router";
 import { useAuth } from "@/composables/useAuth";
 const userStore = useUserStore();
 const { login } = useAuth();
@@ -28,24 +28,10 @@ const { pressed: showPassword } = useMousePressed({ target: showPasswordRef });
 
 const handleLogin = async (event: SubmitEvent) => {
   event.preventDefault();
-  toast.promise(
-    () =>
-      Promise.all([
-        login(email.value, password.value),
-        new Promise((resolve) => setTimeout(resolve, 500)),
-      ]),
-    {
-      success: () => {
-        if (userStore.isAuthenticated) {
-          popoverOpen.value = false;
-          return `Welcome back, ${!userStore.username ? userStore.username :
-            userStore.email}!`;
-        }
-      },
-      loading: "Loading...",
-      error: "An unexpected error occured.",
-    },
-  );
+  const success = await login(email.value, password.value);
+  if (success) {
+    popoverOpen.value = false;
+  }
 };
 </script>
 
@@ -69,13 +55,15 @@ const handleLogin = async (event: SubmitEvent) => {
               <InputGroupAddon align="inline-end">
                 <InputGroupButton tabindex="-1" ref="show-password" type="button">
                   <Icon :icon="showPassword
-                      ? 'radix-icons:eye-open'
-                      : 'radix-icons:eye-closed'
+                    ? 'radix-icons:eye-open'
+                    : 'radix-icons:eye-closed'
                     " />
                 </InputGroupButton>
               </InputGroupAddon>
             </InputGroup>
           </Field>
+          <RouterLink class="text-orange-400 text-xs" :to="{ name: 'request-password-reset' }">Forgot Password?
+          </RouterLink>
         </FieldGroup>
       </FieldSet>
       <Field orientation="horizontal" class="justify-end">

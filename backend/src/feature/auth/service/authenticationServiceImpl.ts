@@ -14,10 +14,12 @@ import { AuthorizationError } from "../errors/authorizationError";
 import { ResetTokenDataSource } from "../datasource/resetTokenDataSource";
 import { NotFoundError } from "@/core/errors/notFoundError";
 import { logger } from "@/core/logging/logger";
-import { transporter } from "../email/smtpEmailer";
-import { generateValidateEmailTemplate } from "../email/validateEmailTemplate";
+import { generateValidateEmailTemplate } from "../email/templates/validateEmailTemplate";
 import { ValidateTokenDataSource } from "../datasource/validateTokenDataSource";
-import { generatePasswordResetEmailBody } from "../email/passwordResetTemplate";
+import { generatePasswordResetEmailBody } from "../email/templates/passwordResetTemplate";
+import { GenericError } from "@/core/errors/genericError";
+import { Emailer } from "../email/smtpEmailer";
+import { BadRequestError } from "@/core/errors/badRequestError";
 const SCRYPT_KEYLEN = 64;
 const SALT_LEN = 16;
 
@@ -35,16 +37,19 @@ export class AuthenticationServiceImpl implements AuthenticationService {
   private resetTokenDataSource: ResetTokenDataSource;
   private validateTokenDataSource: ValidateTokenDataSource;
   private textEncoder: TextEncoder;
+  private emailer: Emailer;
   private constructor(
     userDataSource: UserDataSource,
     accessTokenDataSource: RefreshTokenDataSource,
     resetTokenDataSource: ResetTokenDataSource,
     validateTokenDataSource: ValidateTokenDataSource,
+    emailer: Emailer,
   ) {
     this.userDataSource = userDataSource;
     this.accessTokenDataSource = accessTokenDataSource;
     this.resetTokenDataSource = resetTokenDataSource;
     this.validateTokenDataSource = validateTokenDataSource;
+    this.emailer = emailer;
     this.textEncoder = new TextEncoder();
   }
 
@@ -53,6 +58,7 @@ export class AuthenticationServiceImpl implements AuthenticationService {
     accessTokenDataSource: RefreshTokenDataSource,
     resetTokenDataSource: ResetTokenDataSource,
     validateTokenDataSource: ValidateTokenDataSource,
+    emailer: Emailer
   ): AuthenticationServiceImpl {
     if (AuthenticationServiceImpl.instance === null) {
       AuthenticationServiceImpl.instance = new AuthenticationServiceImpl(
@@ -60,6 +66,7 @@ export class AuthenticationServiceImpl implements AuthenticationService {
         accessTokenDataSource,
         resetTokenDataSource,
         validateTokenDataSource,
+        emailer,
       );
     }
     return AuthenticationServiceImpl.instance;
@@ -114,12 +121,19 @@ export class AuthenticationServiceImpl implements AuthenticationService {
     }
     const validationToken = await this.validateTokenDataSource.createValidateToken(userId);
     const { accessToken, refreshToken } = await this.getNewTokenSet(userId);
-    // transporter.sendMail({
-    //   to: user.email,
-    //   from: config.smtpUser,
-    //   subject: "Infinite Sudoku: Validate Email",
-    //   html: generateValidateEmailTemplate(validationToken, config.origin),
-    // });
+    try {
+      const info = await this.emailer.sendMail({
+        to: user.email,
+        from: config.smtpUser,
+        subject: "Infinite Sudoku: Validate Email",
+        html: generateValidateEmailTemplate(validationToken, config.origin),
+      });
+      logger.info(`Email verification sent to: ${user.email}\nMessageId: ${info.messageId}`)
+    } catch (err) {
+      logger.error(err);
+      throw new GenericError("Internal server error", { type: ErrorType.INTERNAL_ERROR })
+    }
+
     return {
       userId,
       accessToken,
@@ -150,16 +164,40 @@ export class AuthenticationServiceImpl implements AuthenticationService {
         const token = await this.resetTokenDataSource.createResetToken(
           user.user_id,
         );
-        // TODO: Handle errors with callback function
-        // transporter.sendMail({
-        //   to: user.email,
-        //   from: config.smtpUser,
-        //   subject: "Infinite Sudoku: Reset Password",
-        //   html: generatePasswordResetEmailBody(token, config.origin),
-        // })
+        const info = await this.emailer.sendMail({
+          to: user.email,
+          from: config.smtpUser,
+          subject: "Infinite Sudoku: Reset Password",
+          html: generatePasswordResetEmailBody(token, config.origin),
+        })
+        logger.info(`Reset email sent: ${info.messageId}`);
       }
     } catch (err) {
       logger.error(err, "Error occured during password reset request");
+      throw err
+    }
+  }
+
+  async requestEmailVerification(email: string) {
+    try {
+      const user = await this.userDataSource.getUserByEmail(email);
+      if(!user) {
+        throw new NotFoundError(`User with email: ${email} not found.`)
+      }
+      if(user.email_verified) {
+        throw new BadRequestError("Email already verified!");
+      }
+      const validationToken = await this.validateTokenDataSource.createValidateToken(user.user_id)
+      const info = await this.emailer.sendMail({
+        to: user.email,
+        from: config.smtpUser,
+        subject: "Infinite Sudoku: Validate Email",
+        html: generateValidateEmailTemplate(validationToken, config.origin),
+      });
+      logger.info(`Validation email sent: ${info.message}`)
+    } catch (err) {
+      logger.error(err, "Error occurred sending email verification")
+      throw err;
     }
   }
 
@@ -178,7 +216,6 @@ export class AuthenticationServiceImpl implements AuthenticationService {
       salt,
     );
     await this.accessTokenDataSource.invalidateAllForUser(unusedToken.userId);
-    return await this.getNewTokenSet(unusedToken.userId);
   }
 
   async validateEmail(token: string) {

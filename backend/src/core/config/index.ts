@@ -8,7 +8,13 @@ if (!process.env.DB_CONNECTION_STRING) {
   );
 }
 if (!process.env.JWT_SECRET) {
-  throw new Error("Invalid/Missing environment varibale: JWT_SECRET");
+  throw new Error("Invalid/Missing environment variable: JWT_SECRET");
+}
+if (!process.env.SES_ACCESS_KEY_ID) {
+  throw new Error("Invalid/Missing environment variable: SES_ACCESS_KEY_ID");
+}
+if(!process.env.SES_SECRET_ACCESS_KEY) {
+  throw new Error("Invalid/Missing environment variable: SES_SECRET_ACCESS_KEY");
 }
 
 export const config = {
@@ -25,8 +31,7 @@ export const config = {
   jwtSecret: process.env.JWT_SECRET,
   isProduction: process.env.NODE_ENV === "production",
   logLevel: process.env.LOG_LEVEL,
-  smtpHost: process.env.SMTP_HOST,
-  smtpPort: process.env.SMTP_PORT,
-  smtpUser: process.env.SMTP_USER,
-  smtpPassword: process.env.SMTP_PASSWORD,
+  sesAccessKeyId: process.env.SES_ACCESS_KEY_ID,
+  sesSecretAccessKey: process.env.SES_SECRET_ACCESS_KEY,
+  smtpUser: process.env.STMP_USER || 'no-reply@aker-bergeron.dev',
 };

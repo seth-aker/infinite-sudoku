@@ -27,18 +27,16 @@ export class PgUserDataSource implements UserDataSource {
         password_hash,
         salt,
         role,
-        tos_acknowledged,
-        email_verified
+        tos_acknowledged
       )
       VALUES (
         ${user.email},
         ${user.username},
         ${user.passwordHash},
         ${user.salt},
-        ${user.role}, 
-        ${user.tosAcknowledged},
-        true
-      ) 
+        ${user.role},
+        ${user.tosAcknowledged}
+      )
       RETURNING user_id;
     `;
     return res.user_id;

@@ -1,12 +1,19 @@
 import { config } from "@/core/config";
-import { createTransport } from "nodemailer";
+import { logger } from "@/core/logging/logger";
+import nodemailer, { SendMailOptions, Transporter } from "nodemailer";
 
-export const transporter = createTransport({
-  host: config.smtpHost,
-  port: config.smtpPort,
-  secure: false,
-  auth: {
-    user: config.smtpUser,
-    pass: config.smtpPassword,
-  },
-});
+export class Emailer implements Emailer {
+  private _transporter: Transporter;
+  constructor(transporter: Transporter) {
+    this._transporter = transporter;
+  }
+
+  async sendMail(data: SendMailOptions) {
+    const result = await this._transporter.sendMail(data);
+    if(!config.isProduction) {
+      const message = nodemailer.getTestMessageUrl(result);
+      logger.debug(`Email preview: ${message}`);
+    }
+    return result;
+  };
+}

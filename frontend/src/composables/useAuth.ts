@@ -5,10 +5,12 @@ import { useGameSession } from "./useGameSession";
 import { useDialog } from "./useDialog";
 import { useGameClock } from "./useGameClock";
 import { toast } from "vue-sonner";
+import { useRouter } from "vue-router";
 export function useAuth() {
   const userStore = useUserStore();
   const gameStore = useGameStore();
   const clock = useGameClock();
+  const router = useRouter()
   const { showDialog } = useDialog();
   const { resumeSavedPuzzle, saveToServer } = useGameSession();
 
@@ -20,15 +22,26 @@ export function useAuth() {
         password,
       );
       if (!result.success) {
-        toast.error(result.error ?? "Invalid email or password!");
+        if (result.error && result.error.includes("Email not verified")) {
+          toast.error("Email not verified!", {
+            important: true,
+            action: {
+              label: "Resend verification email?",
+              onClick: () => router.push({name: "request-email-verification"}),
+            },
+            duration: Infinity
+          });
+        } else {
+          toast.error(result.error ?? "Invalid email or password")
+        }
         userStore.loading = false;
-        return;
+        return false;
       }
       const user = result.body?.user;
       if (!user) {
         toast.error("Invalid email or password")
         userStore.loading = false;
-        return;
+        return false;
       }
       userStore.set(user);
       if (gameStore.puzzleId) {
@@ -72,6 +85,7 @@ export function useAuth() {
         }
       }
       userStore.loading = false;
+      return true;
     } catch (err) {
       userStore.loading = false;
       toast.error("Oops! An error occured!", {
@@ -149,10 +163,47 @@ export function useAuth() {
       }
     }
   }
+  async function requestPasswordReset(email: string) {
+    const res = await userService.requestPasswordReset(email);
+    if (!res.success) {
+      toast.error("Oops! An error occured", {
+        description: `Failed to send reset request: ${res.error ?? 'internal server error'}`,
+      })
+      return false;
+    }
+    return true;
+  }
+  async function resetPassword(token: string, newPassword: string) {
+    userStore.loading = true;
+    const res = await userService.resetPassword(token, newPassword);
+    if (!res.success) {
+      toast.error("Oops! An error occured", {
+        description: `Failed to reset password: ${res.error ?? 'internal server error'}`
+      })
+      return false
+    }
+    if (userStore.isAuthenticated) {
+      userStore.$reset();
+    }
+    userStore.loading = false;
+    return true;
+  }
+
+  async function requestEmailVerification(email: string) {
+    const res = await userService.requestEmailVerification(email);
+    if(!res.success) {
+      toast.error(res.error ?? "An error occured")
+    } else {
+      toast.success("Verification email sent!")
+    }
+  }
   return {
     login,
     logout,
     register,
+    resetPassword,
+    requestPasswordReset,
+    requestEmailVerification,
     getSession,
   };
 }

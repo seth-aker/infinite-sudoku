@@ -18,6 +18,6 @@ export interface AuthenticationService {
   resetPassword: (
     resetToken: string,
     newPassword: string,
-  ) => Promise<{ accessToken: string; refreshToken: string }>;
+  ) => Promise<void>;
   validateEmail: (token: string, email: string) => Promise<boolean>;
 }

@@ -56,7 +56,7 @@ export function WebAuthRouter(authService: AuthenticationService) {
       const user = {
         id: result.userId,
         email: req.body.email,
-        emailVerified: true, //TODO: make this false when implementing email verification
+        emailVerified: false,
         username: req.body.username,
         role: "user",
       };
@@ -89,8 +89,8 @@ export function WebAuthRouter(authService: AuthenticationService) {
       if(!resetToken || !password) {
         throw new GenericError("Missing required field in request body", {type: ErrorType.MALFORMED_BODY });
       }
-      const { accessToken, refreshToken } = await authService.resetPassword(resetToken, password);
-      setAuthCookies(res, accessToken, refreshToken);
+      await authService.resetPassword(resetToken, password);
+      clearAuthCookies(res);
       res.sendStatus(200);
     }
   )

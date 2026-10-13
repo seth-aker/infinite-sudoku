@@ -56,7 +56,48 @@ export async function register(
     }),
   });
 }
-
+export async function requestPasswordReset(
+  email: string,
+): Promise<ServiceResult<void>> {
+  return await safeFetch(`${BASE_URL}/auth/resetPasswordToken`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    credentials: "include",
+    body: JSON.stringify({
+      email
+    })
+  })
+}
+export async function resetPassword(
+  token: string,
+  newPassword: string,
+): Promise<ServiceResult<void>> {
+  return await safeFetch(`${BASE_URL}/auth/web/resetPassword`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    credentials: 'include',
+    body: JSON.stringify({
+      token,
+      password: newPassword
+    })
+  })
+}
+export async function requestEmailVerification(email: string): Promise<ServiceResult<void>> {
+  return await safeFetch(`${BASE_URL}/auth/requestEmailVerification`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    credentials: 'include',
+    body: JSON.stringify({
+      email
+    })
+  })
+}
 export async function validateEmail(token: string): Promise<ServiceResult<void>> {
   return await safeFetch(`${BASE_URL}/auth/validateEmail?token=${token}`, {
     method: "POST"

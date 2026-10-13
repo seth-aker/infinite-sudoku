@@ -2,6 +2,7 @@ export const ErrorType = {
   // 400
   VALIDATION_FAILED: "validation_failed",
   MALFORMED_BODY: "malformed_body",
+  BAD_REQUEST: "bad_request",
   // 401
   INVALID_CREDENTIALS: "invalid_credentials",
   TOKEN_MISSING: "token_missing",
