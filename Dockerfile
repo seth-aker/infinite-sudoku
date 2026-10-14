@@ -19,8 +19,11 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /apps
 
-COPY . ./sudoku
+COPY ./frontend ./sudoku/frontend
 COPY ./frontend/.env.production ./sudoku/frontend/
+# For the frontend about page
+COPY ./README.md ./sudoku
+COPY ./backend ./sudoku/backend
 
 WORKDIR /apps/sudoku/frontend
 
