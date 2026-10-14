@@ -24,19 +24,16 @@ COPY ./frontend/.env.production ./sudoku/frontend/
 
 WORKDIR /apps/sudoku/frontend
 
-RUN CI=true pnpm i --prod
+RUN CI=true pnpm i && \
+  if [ "$DEPLOY_MODE" = "test" ]; then \
+    pnpm run build:test; \
+  else \
+    pnpm run build; \
+  fi
 
 WORKDIR /apps/sudoku/backend
 
-RUN CI=true pnpm i --prod
-
-WORKDIR /apps/sudoku
-
-RUN if [ "$DEPLOY_MODE" = "test" ]; then \
-      pnpm run build:test; \
-    else \
-      pnpm run build; \
-    fi
+RUN CI=true pnpm i && pnpm build;
 
 # BACKEND
 FROM node:24-alpine AS backend

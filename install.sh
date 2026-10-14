@@ -1,4 +1,6 @@
 #!/bin/bash
+set -eou pipefail;
+
 echo "Running pnpm install on frontend"
 
 cd ./frontend || exit

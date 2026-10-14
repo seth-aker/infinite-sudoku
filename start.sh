@@ -1,4 +1,6 @@
 #!/bin/bash
+set -eou pipefail;
+
 if [ "$1" == "DEV" ]; then
 
 export NODE_ENV=development
