@@ -2,7 +2,7 @@
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { Card, CardContent } from '@/components/ui/card';
-import PasswordResetForm from '@/components/loginRegister/passwordResetForm.vue';
+import PasswordResetForm from '@/components/loginRegister/PasswordResetForm.vue';
 const router = useRouter();
 const isLoading = ref<boolean>(false);
 const error = ref<string>();
