@@ -36,7 +36,7 @@ class AppIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (isApple) {
+    if (useCupertino) {
       return Icon(
         cupertinoIconMap[icon],
         size: size,

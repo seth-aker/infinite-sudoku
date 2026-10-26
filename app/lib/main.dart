@@ -16,7 +16,7 @@ import 'package:path_provider/path_provider.dart';
 void main() async {
   logger.t("Starting Sudoku App");
   WidgetsFlutterBinding.ensureInitialized();
-  final apiClient = ApiClient();
+  final apiClient = ApiClient(host: "10.0.2.2", port: 3666);
   final puzzleRepository = PuzzleRepository(
     puzzleService: PuzzleServiceRemote(client: apiClient),
   );

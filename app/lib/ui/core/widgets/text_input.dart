@@ -56,7 +56,7 @@ class _TextInputState extends State<TextInput> {
     return Stack(
       alignment: .centerRight,
       children: [
-        isApple
+        useCupertino
             ? CupertinoTextField(
                 decoration: BoxDecoration(
                   border: Border.all(

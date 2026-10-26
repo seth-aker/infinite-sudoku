@@ -69,7 +69,7 @@ class _SudokuAppViewState extends State<SudokuAppView> {
   }
   @override
   Widget build(BuildContext context) {
-    if (isApple) {
+    if (useCupertino) {
       return CupertinoApp.router(
         title: 'Sudoku App',
         theme: CupertinoThemeData(

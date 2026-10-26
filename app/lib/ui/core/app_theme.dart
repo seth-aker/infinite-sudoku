@@ -3,7 +3,7 @@ import 'package:infinite_sudoku/ui/core/constants.dart';
 import 'package:flutter/cupertino.dart';
 
 class AppTheme {
-  static bool get isIos => isApple;
+  static bool get isIos => useCupertino;
 
   static bool isDarkMode(BuildContext context) {
     return CupertinoTheme.brightnessOf(context) == .dark; 

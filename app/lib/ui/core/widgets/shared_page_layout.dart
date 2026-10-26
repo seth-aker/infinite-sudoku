@@ -25,7 +25,7 @@ class SharedPageLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (isApple) {
+    if (useCupertino) {
       return CupertinoLayout(
         title: title,
         leading: leading,

@@ -97,7 +97,7 @@ final class PrimaryButton extends Button {
 
   @override
   Widget build(BuildContext context) {
-    if (isApple) {
+    if (useCupertino) {
       return CupertinoButton(
         onPressed: isDisabled ? null : onPressed,
         padding: padding,
@@ -133,7 +133,7 @@ final class GhostButton extends Button {
 
   @override
   Widget build(BuildContext context) {
-    if (isApple) {
+    if (useCupertino) {
       return CupertinoButton(
           onPressed: isDisabled ? null : onPressed,
           padding: padding,
@@ -169,7 +169,7 @@ final class SecondaryButton extends Button {
   });
   @override
   Widget build(BuildContext context) {
-    if (isApple) {
+    if (useCupertino) {
       return CupertinoButton(
         onPressed: isDisabled ? null : onPressed,
         color: backgroundColor ?? AppTheme.secondaryColor(context),
@@ -204,7 +204,7 @@ final class IconButton extends Button {
   });
   @override
   Widget build(BuildContext context) {
-    if (isApple) {
+    if (useCupertino) {
       return CupertinoButton(
         onPressed: isDisabled ? null : onPressed,
         color: backgroundColor ?? AppTheme.buttonPrimary(context),
