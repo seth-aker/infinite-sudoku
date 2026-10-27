@@ -1,5 +1,4 @@
 allowBuilds:
-  better-sqlite3: true
   esbuild: true
 minimumReleaseAgeExclude:
   - ip-address@10.1.1
@@ -7,7 +6,6 @@ minimumReleaseAgeExclude:
   - qs@6.15.2
   - esbuild@0.28.1
 onlyBuiltDependencies:
-  - better-sqlite3
   - esbuild
 overrides:
   ip-address@<=10.1.0: ^10.1.1
