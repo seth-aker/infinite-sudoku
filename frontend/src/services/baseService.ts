@@ -26,12 +26,12 @@ export async function safeFetch<T>(input: RequestInfo | URL, init?: RequestInit,
   try {
     const response = await fetch(input, init);
     // intercept 401 errors
-    if(response.status === 401 && !_isRetry) {
-      if(!refreshPromise) {
+    if (response.status === 401 && !_isRetry) {
+      if (!refreshPromise) {
         refreshPromise = reauthenticate().finally(() => refreshPromise = null);
       }
       const refreshResult = await refreshPromise;
-      if(refreshResult.success) {
+      if (refreshResult.success) {
         return await safeFetch<T>(input, init, true);
       } else {
         return {
@@ -45,7 +45,7 @@ export async function safeFetch<T>(input: RequestInfo | URL, init?: RequestInit,
     const contentType = response.headers.get('content-type');
     const isJson = contentType && contentType.includes('application/json')
 
-    if(response.ok) {
+    if (response.ok) {
       return {
         success: true,
         body: isJson ? safeParseJson<T>(resText) : undefined,
@@ -67,29 +67,29 @@ export async function safeFetch<T>(input: RequestInfo | URL, init?: RequestInit,
   }
 }
 
-async function reauthenticate(): Promise<ServiceResult<void>> {
+export async function reauthenticate(): Promise<ServiceResult<void>> {
   try {
     const response = await fetch(`${BASE_URL}/auth/web/refresh`, {
       method: "POST",
       credentials: 'include',
     })
-    if(response.ok) {
+    if (response.ok) {
       return {
         success: true,
         status: response.status
       }
     } else {
-    const resText = await response.text()
-    const contentType = response.headers.get('content-type');
-    const isJson = contentType && contentType.includes('application/json')
+      const resText = await response.text()
+      const contentType = response.headers.get('content-type');
+      const isJson = contentType && contentType.includes('application/json')
       return {
         success: false,
         status: response.status,
-        error: isJson ? safeParseJson<{error: string}>(resText)?.error: undefined
+        error: isJson ? safeParseJson<{ error: string }>(resText)?.error : undefined
       }
     }
   } catch (e) {
-     return {
+    return {
       success: false,
       error: e instanceof Error ? `${e.name}: ${e.message}` : "An unexpected error occured.",
       status: 500,
