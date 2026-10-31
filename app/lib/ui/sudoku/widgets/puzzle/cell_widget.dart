@@ -3,6 +3,7 @@ import 'package:infinite_sudoku/domain/models/constants/puzzle_constants.dart';
 import 'package:infinite_sudoku/ui/core/app_theme.dart';
 import 'package:infinite_sudoku/ui/core/colors/app_colors.dart';
 import 'package:infinite_sudoku/ui/core/spacing/app_spacing.dart';
+import 'package:infinite_sudoku/ui/core/widgets/shimmer.dart';
 import 'package:infinite_sudoku/ui/sudoku/state/puzzle/puzzle_bloc.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -150,5 +151,16 @@ class _CandidateText extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class CellSkeleton extends StatelessWidget {
+  const CellSkeleton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Shimmer(child: Container(
+      decoration: BoxDecoration(color: AppTheme.background(context)),
+      child: Center(child: const Text(" "))));
   }
 }

@@ -18,7 +18,7 @@ class AnimatedFormContainer extends StatelessWidget {
       child: Container(
         clipBehavior: Clip.hardEdge,
         decoration: BoxDecoration(
-          border: BoxBorder.all(color: AppTheme.foreground(context)),
+          color: AppTheme.cardBackground(context),
           borderRadius: const BorderRadius.all(
             Radius.circular(AppSpacing.one),
           ),

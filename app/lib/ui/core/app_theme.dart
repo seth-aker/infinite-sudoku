@@ -28,6 +28,13 @@ class AppTheme {
       return AppColors.backgroundLight;
     }
   }
+  static Color cardBackground(BuildContext context) {
+    if (isDarkMode(context)) {
+      return AppColors.neutral900;
+    } else {
+    return AppColors.white;
+    }
+  }
 
   static Color accent(BuildContext context) {
     if (isDarkMode(context)) {

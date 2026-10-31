@@ -1,9 +1,11 @@
 import 'package:infinite_sudoku/routing/routes.dart';
 import 'package:infinite_sudoku/ui/core/app_theme.dart';
+import 'package:infinite_sudoku/ui/core/colors/app_colors.dart';
 import 'package:infinite_sudoku/ui/core/icons/app_icons.dart';
 import 'package:infinite_sudoku/ui/core/spacing/app_spacing.dart';
 import 'package:infinite_sudoku/ui/core/widgets/app_icon.dart';
 import 'package:infinite_sudoku/ui/core/widgets/shared_page_layout.dart';
+import 'package:infinite_sudoku/ui/core/widgets/shimmer_provider.dart';
 import 'package:infinite_sudoku/ui/sudoku/state/puzzle/puzzle_bloc.dart';
 import 'package:infinite_sudoku/ui/sudoku/state/timer/timer_bloc.dart';
 import 'package:infinite_sudoku/ui/sudoku/views/puzzle_complete_view.dart';
@@ -23,6 +25,7 @@ class SudokuView extends StatefulWidget {
 }
 
 class _SudokuViewState extends State<SudokuView> with RouteAware {
+  bool _isLoading = true;
   // store references to these objects so they can be used in the dispose method.
   late TimerBloc _timerBloc;
   late PuzzleBloc _puzzleBloc;
@@ -97,7 +100,7 @@ class _SudokuViewState extends State<SudokuView> with RouteAware {
       ),
       child: MultiBlocListener(
         listeners: [
-          // Start Timer Listener
+          // Puzzle loaded listener
           BlocListener<PuzzleBloc, PuzzleState>(
             listener: (context, state) {
               context.read<TimerBloc>().add(
@@ -107,6 +110,7 @@ class _SudokuViewState extends State<SudokuView> with RouteAware {
                       : 0,
                 ),
               );
+              _isLoading = false;
             },
             listenWhen: ((previous, current) =>
                 current.status == .loaded &&
@@ -135,30 +139,43 @@ class _SudokuViewState extends State<SudokuView> with RouteAware {
             }),
           ),
         ],
-        child: ColoredBox(
-          color: AppTheme.background(context),
-          child: Column(
-            children: [
-              InfoBar(),
-              Align(
-                alignment: AlignmentGeometry.topCenter,
-                child: AspectRatio(aspectRatio: 1, child: const PuzzleWidget()),
-              ),
-              ControlPanel(),
-              Expanded(
-                child: SizedBox(
-                  width:
-                      AppSpacing.four * 3 +
-                      AppSpacing.half *
-                          2, // AppSpacing.four sized buttons + AppSpacing.half * 2
-                  child: Numpad(
-                    onTap: (value) => context.read<PuzzleBloc>().add(
-                      NumberPressed(value: value),
+        child: ShimmerProvider(
+          linearGradient: LinearGradient(
+            colors: [AppColors.gray100, AppColors.gray300, AppColors.gray100],
+            stops: const [0.1, 0.3, 0.4],
+            begin: const Alignment(-1.0, -0.3),
+            end: const Alignment(1.0, 0.3),
+          ),
+          child: ColoredBox(
+            color: AppTheme.background(context),
+            child: Column(
+              children: [
+                _isLoading ? InfoBarSkeleton() : InfoBar(),
+                Align(
+                  alignment: AlignmentGeometry.topCenter,
+                  child: AspectRatio(
+                    aspectRatio: 1,
+                    child: _isLoading
+                        ? const PuzzleSkeleton()
+                        : const PuzzleWidget(),
+                  ),
+                ),
+                ControlPanel(),
+                Expanded(
+                  child: SizedBox(
+                    width:
+                        AppSpacing.four * 3 +
+                        AppSpacing.half *
+                            2, // AppSpacing.four sized buttons + AppSpacing.half * 2
+                    child: Numpad(
+                      onTap: (value) => context.read<PuzzleBloc>().add(
+                        NumberPressed(value: value),
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

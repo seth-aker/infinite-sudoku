@@ -1,5 +1,6 @@
 import 'package:infinite_sudoku/ui/core/app_theme.dart';
 import 'package:infinite_sudoku/ui/core/spacing/app_spacing.dart';
+import 'package:infinite_sudoku/ui/core/widgets/shimmer.dart';
 import 'package:infinite_sudoku/ui/sudoku/state/timer/timer_bloc.dart';
 import 'package:infinite_sudoku/utils/format_duration.dart';
 import 'package:flutter/cupertino.dart';
@@ -25,6 +26,23 @@ class InfoBar extends StatelessWidget {
               fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class InfoBarSkeleton extends StatelessWidget {
+  const InfoBarSkeleton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Shimmer(
+      child: ColoredBox(
+        color: AppTheme.accent(context),
+        child: Padding(
+          padding: EdgeInsetsGeometry.symmetric(vertical: AppSpacing.half),
+          child: Center(child: Text("0:00")),
         ),
       ),
     );

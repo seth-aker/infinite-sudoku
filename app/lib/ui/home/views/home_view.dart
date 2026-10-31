@@ -47,7 +47,7 @@ class HomeView extends StatelessWidget {
               child: Padding(
                 padding: const EdgeInsets.all(AppSpacing.half),
                 child: Text(
-                  'Sudoku',
+                  'Infinite Sudoku',
                   style: TextStyle(
                     fontSize: AppSpacing.two,
                     fontWeight: FontWeight.bold,
@@ -58,7 +58,7 @@ class HomeView extends StatelessWidget {
             ),
             Container(
               decoration: BoxDecoration(
-                border: Border.all(color: AppTheme.foreground(context)),
+                color: AppTheme.cardBackground(context),
                 borderRadius: BorderRadius.all(Radius.circular(AppSpacing.one)),
               ),
               padding: EdgeInsets.all(AppSpacing.one),
