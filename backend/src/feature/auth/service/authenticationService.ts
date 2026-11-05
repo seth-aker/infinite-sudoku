@@ -19,5 +19,6 @@ export interface AuthenticationService {
     resetToken: string,
     newPassword: string,
   ) => Promise<void>;
-  validateEmail: (token: string, email: string) => Promise<boolean>;
+  validateEmail: (token: string) => Promise<boolean>;
+  requestEmailVerification: (email: string) => Promise<void>;
 }

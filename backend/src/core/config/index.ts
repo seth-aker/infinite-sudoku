@@ -34,4 +34,7 @@ export const config = {
   sesAccessKeyId: process.env.SES_ACCESS_KEY_ID,
   sesSecretAccessKey: process.env.SES_SECRET_ACCESS_KEY,
   smtpUser: process.env.STMP_USER || 'no-reply@aker-bergeron.dev',
+  etherealUser: process.env.ETHEREAL_USER || 'emerald9@ethereal.email',
+  etherealPass: process.env.ETHEREAL_PASS || 'pfRS4GPAWQdGyyFcEh'
 };
+export type AppConfig = typeof config;

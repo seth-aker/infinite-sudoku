@@ -1,52 +1,13 @@
-import express from "express";
-import { configureRouting } from "./core/routing/index";
 import { config } from "./core/config/index";
-import cors from "cors";
-import helmet from "helmet";
-import rateLimit from "express-rate-limit";
 import prexit from "prexit";
-import cookieParser from "cookie-parser";
-import { notFoundHandler } from "./core/middleware/notfoundHandler";
-import { errorHandler } from "./core/middleware/errorHandler";
-import { requestIdSetter } from "./core/middleware/requestIdSetter";
 import { logger } from "./core/logging/logger";
-const app = express();
-app.use(requestIdSetter); // should always be registered first
+import { createApp } from "./app";
+import { composeRouters } from "./compose";
+import { setupDataSource } from "./core/dataSource/postgres";
 
-app.use(express.json());
-
-if (config.isProduction) {
-  app.set("trust proxy", 1);
-  app.use(
-    cors({
-      origin: config.origin,
-      credentials: true,
-    }),
-  );
-  app.use(helmet());
-  app.use(
-    rateLimit({
-      windowMs: 10 * 60 * 1000, // 10 minute window
-      limit: 100,
-      standardHeaders: "draft-8",
-      legacyHeaders: false,
-    }),
-  );
-} else {
-  app.use(
-    cors({
-      origin: ["http://localhost:5173", "http://127.0.0.1:5173"],
-      credentials: true,
-    }),
-  );
-}
-
-app.use(cookieParser());
-configureRouting(app);
-
-// notFoundHandler and error handler should always be registered last.
-app.use(notFoundHandler);
-app.use(errorHandler);
+const sql = await setupDataSource(config);
+const routers = await composeRouters(sql, config);
+const app = createApp({ config, routers })
 
 const server = app.listen(config.port, () => {
   console.log("Sudoku app listening at:", config.port);

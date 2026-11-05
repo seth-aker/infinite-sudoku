@@ -2,38 +2,44 @@ import { Router, Request, Response } from "express";
 import { UserService } from "../service/userService";
 import { requireLoggedin, requireSelfOrAdmin } from "@/feature/auth/middleware/authentication";
 
-export function UserRouter(userService: UserService) {
-  const router = Router();
-  // Must be first to get caught before /:id
-  router.get("/me", requireLoggedin, async (req: Request, res: Response) => {
-    const userId = req.user?.sub;
-    const user = await userService.getUser(userId);
-    return res.json({
-      user
-    })
-  });
-  router.get(
-    "/:id",
-    requireLoggedin,
-    requireSelfOrAdmin,
-    async (req: Request<{ id: string }>, res) => {
-      // get user
-      const userId = req.params.id;
-      const user = await userService.getUser(userId);
+export class UserRouter {
+  private userService: UserService;
+  public constructor(userService: UserService) {
+    this.userService = userService;
+  }
+  public setup() {
+    const router = Router();
+    // Must be first to get caught before /:id
+    router.get("/me", requireLoggedin, async (req: Request, res: Response) => {
+      const userId = req.user?.sub;
+      const user = await this.userService.getUser(userId);
       return res.json({
         user
       })
-    },
-  );
-  router.get(
-    "/:id/stats",
-    requireLoggedin,
-    requireSelfOrAdmin,
-    async (req: Request<{ id: string }>, res) => {
-      const userId = req.params.id;
-      const stats = await userService.getUserStats(userId);
-      return res.json({ stats })
-    },
-  );
-  return router;
+    });
+    router.get(
+      "/:id",
+      requireLoggedin,
+      requireSelfOrAdmin,
+      async (req: Request<{ id: string }>, res) => {
+        // get user
+        const userId = req.params.id;
+        const user = await this.userService.getUser(userId);
+        return res.json({
+          user
+        })
+      },
+    );
+    router.get(
+      "/:id/stats",
+      requireLoggedin,
+      requireSelfOrAdmin,
+      async (req: Request<{ id: string }>, res) => {
+        const userId = req.params.id;
+        const stats = await this.userService.getUserStats(userId);
+        return res.json({ stats })
+      },
+    );
+    return router;
+  }
 }
