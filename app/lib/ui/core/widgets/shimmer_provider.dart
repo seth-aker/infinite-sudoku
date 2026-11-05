@@ -20,7 +20,7 @@ class ShimmerProviderState extends State<ShimmerProvider> with SingleTickerProvi
   void initState() {
     super.initState();
     _controller = AnimationController.unbounded(vsync: this)
-      ..repeat(min: -1, max: 1, period: const Duration(milliseconds: 1000));
+      ..repeat(min: -1.5, max: 1.3, period: const Duration(milliseconds: 850));
   }
 
   @override

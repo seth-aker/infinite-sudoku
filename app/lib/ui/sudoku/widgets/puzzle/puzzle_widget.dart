@@ -1,6 +1,7 @@
 import 'package:infinite_sudoku/domain/models/constants/puzzle_constants.dart';
+import 'package:infinite_sudoku/ui/core/colors/app_colors.dart';
 import 'package:infinite_sudoku/ui/core/spacing/app_spacing.dart';
-import 'package:infinite_sudoku/ui/core/widgets/shimmer.dart';
+import 'package:infinite_sudoku/ui/core/widgets/shimmer_provider.dart';
 import 'package:infinite_sudoku/ui/sudoku/state/puzzle/puzzle_bloc.dart';
 import 'package:infinite_sudoku/ui/sudoku/widgets/puzzle/cell_widget.dart';
 import 'package:flutter/cupertino.dart';
@@ -69,7 +70,18 @@ class PuzzleSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return ShimmerProvider(
+      linearGradient: LinearGradient(
+        colors: [
+          AppColors.neutral300,
+          AppColors.neutral200,
+          AppColors.neutral300,
+        ],
+        stops: const [0.1, 0.3, 0.4],
+        begin: const Alignment(-1.0, -0.1),
+        end: const Alignment(1.0, 0),
+      ),
+      child: Container(
         padding: const EdgeInsetsGeometry.all(AppSpacing.eighth),
         color: const Color.fromARGB(255, 177, 174, 170),
         child: Column(
@@ -96,6 +108,7 @@ class PuzzleSkeleton extends StatelessWidget {
             ),
           ),
         ),
+      ),
     );
   }
 }

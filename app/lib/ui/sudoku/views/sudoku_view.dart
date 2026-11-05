@@ -139,14 +139,7 @@ class _SudokuViewState extends State<SudokuView> with RouteAware {
             }),
           ),
         ],
-        child: ShimmerProvider(
-          linearGradient: LinearGradient(
-            colors: [AppColors.gray100, AppColors.gray300, AppColors.gray100],
-            stops: const [0.1, 0.3, 0.4],
-            begin: const Alignment(-1.0, -0.3),
-            end: const Alignment(1.0, 0.3),
-          ),
-          child: ColoredBox(
+        child: ColoredBox(
             color: AppTheme.background(context),
             child: Column(
               children: [
@@ -178,7 +171,6 @@ class _SudokuViewState extends State<SudokuView> with RouteAware {
             ),
           ),
         ),
-      ),
     );
   }
 }
