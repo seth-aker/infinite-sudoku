@@ -39,7 +39,7 @@ services:
       args:
       - DEPLOY_MODE=${DEPLOY_MODE}
     ports:
-      - "3666:3666"
+      - "127.0.0.1:3666:3666"
     cap_drop: 
       - ALL
     security_opt: 
@@ -83,7 +83,7 @@ services:
       args:
         - DEPLOY_MODE=${DEPLOY_MODE}
     ports:
-      - "8081:8080"
+      - "127.0.0.1:8081:8080"
     cap_drop: 
       - ALL
     security_opt: 

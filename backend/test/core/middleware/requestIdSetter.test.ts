@@ -29,9 +29,10 @@ describe("requestIdSetter", () => {
   it.each(["abc-123", "A", "a".repeat(64), "UPPER-lower-0123"])(
     "reuses a safe inbound id (%s)",
     (inbound) => {
-      const { req, res } = run({ "x-request-id": inbound });
+      const { req, res, next } = run({ "x-request-id": inbound });
       expect(req.id).toBe(inbound);
       expect(res.setHeader).toHaveBeenCalledWith("x-request-id", inbound);
+      expect(next).toHaveBeenCalledWith();
     },
   );
 
@@ -39,12 +40,14 @@ describe("requestIdSetter", () => {
     ["too long", "a".repeat(65)],
     ["empty", ""],
     ["with spaces", "abc 123"],
-    ["with injection characters", "abc\r\nset-cookie: x"],
+    ["with header injection characters", "abc\r\nset-cookie: x"],
+    ["with a trailing newline", "abc\n"],
     ["with underscores", "abc_123"],
     ["with slashes", "../etc"],
   ])("replaces an unsafe inbound id (%s)", (_label, inbound) => {
-    const { req } = run({ "x-request-id": inbound });
-    expect(req.id).not.toBe(inbound);
+    const { req, res, next } = run({ "x-request-id": inbound });
     expect(req.id).toMatch(UUID_RE);
+    expect(res.setHeader).toHaveBeenCalledWith("x-request-id", req.id);
+    expect(next).toHaveBeenCalledWith();
   });
 });

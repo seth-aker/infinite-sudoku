@@ -10,7 +10,7 @@ import {
 import { DatabaseError } from "@/core/errors/databaseError";
 import { AuthenticationError } from "../../errors/authenticationError";
 import { ErrorType } from "@/core/errors/errorTypes";
-import { GenericError } from "@/core/errors/genericError";
+import { BadRequestError } from "@/core/errors/badRequestError";
 import { TokenPasswordBody, TokenRefreshBody, ResetPasswordBody } from "../types";
 
 
@@ -96,10 +96,10 @@ export function MobileAuthRouter(authService: AuthenticationService) {
       const resetToken = req.body.token;
       const password = req.body.password;
       if(!resetToken || !password) {
-        throw new GenericError("Missing required field in request body", {type: ErrorType.MALFORMED_BODY });
+        throw new BadRequestError("Missing required field in request body", 400, { type: ErrorType.MALFORMED_BODY });
       }
-      const { accessToken, refreshToken } = await authService.resetPassword(resetToken, password);
-      return res.json({accessToken, refreshToken});
+      await authService.resetPassword(resetToken, password);
+      return res.sendStatus(200);
     }
   )
   return router;

@@ -5,8 +5,8 @@ import { AppConfig } from "../config";
 
 async function initTables(sql: Sql, config: AppConfig) {
   try {
-    await sql.begin(async (sql) => {
-      await sql.file(`${config.rootDir}/db/schema.sql`).simple();
+    await sql.begin(async (transaction) => {
+      await transaction.file(`${config.rootDir}/db/schema.sql`).simple();
     });
   } catch (e) {
     throw new DatabaseError(`An error occured initializing the database: ${e}`);

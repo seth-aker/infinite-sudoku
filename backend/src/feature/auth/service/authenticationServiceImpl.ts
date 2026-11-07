@@ -18,8 +18,8 @@ import { generateValidateEmailTemplate } from "../email/templates/validateEmailT
 import { ValidateTokenDataSource } from "../datasource/validateTokenDataSource";
 import { generatePasswordResetEmailBody } from "../email/templates/passwordResetTemplate";
 import { GenericError } from "@/core/errors/genericError";
-import { Emailer } from "../email/smtpEmailer";
 import { BadRequestError } from "@/core/errors/badRequestError";
+import { Emailer } from "@/core/email/smtpEmailer";
 const SCRYPT_KEYLEN = 64;
 const SALT_LEN = 16;
 

@@ -9,7 +9,7 @@ import { clearAuthCookies, setAuthCookies } from "../../utils/cookies";
 import { DatabaseError } from "@/core/errors/databaseError";
 import { requireLoggedin } from "../../middleware/authentication";
 import { ErrorType } from "@/core/errors/errorTypes";
-import { GenericError } from "@/core/errors/genericError";
+import { BadRequestError } from "@/core/errors/badRequestError";
 import { ResetPasswordBody } from "../types";
 
 export function WebAuthRouter(authService: AuthenticationService) {
@@ -87,7 +87,7 @@ export function WebAuthRouter(authService: AuthenticationService) {
       const resetToken = req.body.token;
       const password = req.body.password;
       if(!resetToken || !password) {
-        throw new GenericError("Missing required field in request body", {type: ErrorType.MALFORMED_BODY });
+        throw new BadRequestError("Missing required field in request body",400, { type: ErrorType.MALFORMED_BODY });
       }
       await authService.resetPassword(resetToken, password);
       clearAuthCookies(res);

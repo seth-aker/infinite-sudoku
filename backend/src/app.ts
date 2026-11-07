@@ -8,6 +8,7 @@ import { errorHandler } from "./core/middleware/errorHandler";
 import { notFoundHandler } from "./core/middleware/notfoundHandler";
 import { requestIdSetter } from "./core/middleware/requestIdSetter";
 import { configureRouting } from "./core/routing";
+import { HEALTH_CHECK_PATH } from "./feature/health/routing/healthRouter";
 export interface AppRouter {
   path: string,
   router: Router
@@ -37,12 +38,13 @@ export function createApp({ config, routers }: AppDeps) {
         limit: 100,
         standardHeaders: "draft-8",
         legacyHeaders: false,
+        skip: (req) => req.path === HEALTH_CHECK_PATH,
       }),
     );
   } else {
     app.use(
       cors({
-        origin: ["*"],
+        origin: ["http://localhost:5173", "http://127.0.0.1:5173"],
         credentials: true,
       }),
     );

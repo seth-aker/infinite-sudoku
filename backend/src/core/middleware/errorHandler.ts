@@ -9,6 +9,7 @@ import { DatabaseError } from "../errors/databaseError";
 import type { ErrorRequestHandler } from "express";
 import { config } from "@/core/config/index.ts";
 import { logger } from "../logging/logger";
+import { BadRequestError } from "../errors/badRequestError";
 
 export const errorHandler: ErrorRequestHandler = (err, req, res, next) => {
   const e = normalizeError(err);
@@ -44,7 +45,7 @@ function fromPostgres(err: InstanceType<typeof PostgresError>): CustomError {
     case "23505": // unique_violation
       return new ConflictError(
         `Duplicate value violates ${err.constraint_name ?? "unique constraint"}`,
-        { cause: err },
+        { cause: err, clientMessage: "A record with this value already exists" },
       );
     case "23503": // foreign_key_violation
       return new ValidationError([], "Referenced record does not exist", {
@@ -55,13 +56,30 @@ function fromPostgres(err: InstanceType<typeof PostgresError>): CustomError {
       return new ValidationError(
         [],
         `Missing required field: ${err.column_name ?? "unknown"}`,
-        { cause: err },
+        { cause: err, clientMessage: "A required field is missing" },
       );
     default:
       return new DatabaseError(`Database error ${err.code}: ${err.message}`, {
         cause: err,
       });
   }
+}
+
+// Only trust the status on errors known to come from Express or its body parser.
+function fromExpress(err: unknown): CustomError | undefined {
+  if (!(err instanceof Error)) return undefined;
+  const { status, expose } = err as { status?: number; expose?: boolean };
+  if (status === undefined || status < 400 || status > 499) return undefined;
+
+  // The router throws URIError when a route param has invalid percent-encoding.
+  if (err instanceof URIError) {
+    return new BadRequestError("Malformed URL", status, { cause: err });
+  }
+  // body-parser uses http-errors, which marks messages safe to show with `expose`.
+  if (expose === true) {
+    return new BadRequestError(err.message, status, { cause: err });
+  }
+  return undefined;
 }
 
 export function normalizeError(err: unknown): CustomError {
@@ -76,6 +94,9 @@ export function normalizeError(err: unknown): CustomError {
   ) {
     return new ValidationError([], "Malformed JSON body", { cause: err });
   }
+
+  const expressError = fromExpress(err);
+  if (expressError) return expressError;
 
   return new GenericError(
     err instanceof Error ? err.message : `Non-error thrown: ${String(err)}`,
