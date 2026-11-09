@@ -1,5 +1,5 @@
-# BUILD STAGE
-FROM alpine:latest AS c_builder
+# BUILD STAGE (alpine)
+FROM alpine@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf AS c_builder
 
 RUN apk add --no-cache build-base cmake
 
@@ -10,7 +10,8 @@ COPY --from=generator_src . .
 RUN cmake -B build -S . -DCMAKE_BUILD_TYPE=Release && \
     cmake --build build
 
-FROM node:24-bookworm AS build
+# (node:24-bookworm)
+FROM node@sha256:8fa96264f302f58bbb13aa7339c541547b56975766ce956c875da149452a3e40 AS build
 
 RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
 
@@ -35,8 +36,8 @@ WORKDIR /apps/sudoku/backend
 
 RUN CI=true pnpm i && pnpm build;
 
-# BACKEND
-FROM node:24-alpine AS backend
+# BACKEND (node:24-alpine)
+FROM node@sha256:a34ab6d7f6f4813f4d0c5469d74685604b962fbdbf5793a7bc7b4998ecb867c8 AS backend
 
 RUN apk update && apk upgrade --no-cache && \
     apk add curl && \
@@ -66,8 +67,8 @@ USER node
 
 CMD [ "node", "index.js" ]
 
-# FRONTEND
-FROM nginxinc/nginx-unprivileged:alpine AS frontend
+# FRONTEND (nginxinc/nginx-unprivileged:alpine)
+FROM nginxinc/nginx-unprivileged@sha256:b5047b9b76845eac124358373c6852377c52e4b05834a47647e955dd91cb8f1e AS frontend
 
 COPY --from=build /apps/sudoku/frontend/dist /usr/share/nginx/html
 COPY --from=build /apps/sudoku/frontend/nginx.conf /etc/nginx/conf.d/default.conf
