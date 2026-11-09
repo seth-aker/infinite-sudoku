@@ -1,25 +1,25 @@
-import { Router, Request } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import {
   loginBodyValidator,
+  passwordResetValidator,
   registerBodyValidator,
 } from "../../middleware/validation";
 import { AuthenticationService } from "../../service/authenticationService";
-import { authLimiter, resetPasswordRateLimiter } from "../../middleware/rateLimiter";
+import { passwordGrantLimiter, refreshGrantLimiter, resetPasswordRateLimiter } from "../../middleware/rateLimiter";
 import { clearAuthCookies, setAuthCookies } from "../../utils/cookies";
 import { DatabaseError } from "@/core/errors/databaseError";
-import { requireLoggedin } from "../../middleware/authentication";
-import { ErrorType } from "@/core/errors/errorTypes";
-import { BadRequestError } from "@/core/errors/badRequestError";
 import { ResetPasswordBody } from "../types";
+import { AuthenticationError } from "../../errors/authenticationError";
+import { ErrorType } from "@/core/errors/errorTypes";
 
 export function WebAuthRouter(authService: AuthenticationService) {
   const router = Router();
 
   router.post(
     "/login",
-    authLimiter(),
+    passwordGrantLimiter,
     loginBodyValidator,
-    async (req, res, _next) => {
+    async (req: Request, res: Response, _next: NextFunction) => {
       const user = await authService.verify(req.body.email, req.body.password);
 
       const { accessToken, refreshToken } = await authService.getNewTokenSet(
@@ -32,7 +32,7 @@ export function WebAuthRouter(authService: AuthenticationService) {
     },
   );
 
-  router.post("/logout", authLimiter(), requireLoggedin, async (req, res) => {
+  router.post("/logout", async (req, res) => {
     const refreshToken = req.cookies?.refreshToken;
 
     if (refreshToken) {
@@ -46,9 +46,9 @@ export function WebAuthRouter(authService: AuthenticationService) {
 
   router.post(
     "/register",
-    authLimiter(),
+    passwordGrantLimiter,
     registerBodyValidator,
-    async (req, res, _next) => {
+    async (req: Request, res: Response, _next: NextFunction) => {
       const result = await authService.registerUser(req.body);
       if (!result.userId) {
         throw new DatabaseError("An error occured registering the user");
@@ -67,28 +67,27 @@ export function WebAuthRouter(authService: AuthenticationService) {
     },
   );
 
-  router.post("/refresh", authLimiter(), async (req, res) => {
+  router.post("/refresh", refreshGrantLimiter, async (req, res) => {
     const refreshToken = req.cookies?.refreshToken;
     if (!refreshToken) {
-      return res.status(401).send({ error: "Refresh token required" });
+      throw new AuthenticationError("Refresh token required", {
+        type: ErrorType.TOKEN_MISSING,
+      })
     }
     const { accessToken, refreshToken: newRefreshToken } =
       await authService.refreshAccessToken(refreshToken);
 
     setAuthCookies(res, accessToken, newRefreshToken);
-    res.sendStatus(201);
+    res.sendStatus(200);
   });
 
   router.post(
     "/resetPassword",
-    authLimiter(),
     resetPasswordRateLimiter,
-    async (req: Request<{},{}, ResetPasswordBody>, res, _next) => {
+    passwordResetValidator,
+    async (req: Request<{}, {}, ResetPasswordBody>, res, _next) => {
       const resetToken = req.body.token;
       const password = req.body.password;
-      if(!resetToken || !password) {
-        throw new BadRequestError("Missing required field in request body",400, { type: ErrorType.MALFORMED_BODY });
-      }
       await authService.resetPassword(resetToken, password);
       clearAuthCookies(res);
       res.sendStatus(200);

@@ -1,6 +1,7 @@
 import { Sql } from "postgres";
 import { ResetTokenDataSource } from "./resetTokenDataSource";
 import { logger } from "@/core/logging/logger";
+import { DatabaseError } from "@/core/errors/databaseError";
 export class PgResetTokenDataSource implements ResetTokenDataSource {
   static instance: PgResetTokenDataSource | null = null;
   private client: Sql;
@@ -14,7 +15,7 @@ export class PgResetTokenDataSource implements ResetTokenDataSource {
 	      DELETE FROM reset_tokens WHERE created_at + INTERVAL '15 minutes' < now()
 	  `;
       } catch (err) {
-        logger.error({ err }, "refresh token sweep failed");
+        logger.error({ err }, "reset token sweep failed");
       }
     }, this.CLEAR_INTERVAL);
     this.timer.unref();
@@ -25,15 +26,19 @@ export class PgResetTokenDataSource implements ResetTokenDataSource {
     }
     return PgResetTokenDataSource.instance;
   }
-
+  public close() {
+    clearInterval(this.timer);
+  }
   async createResetToken(userId: string) {
     const [res] = await this.client<{ reset_token: string }[]>`
       INSERT INTO reset_tokens
-	(user_id)
+        (user_id)
       VALUES 
-	(${userId})
+        (${userId})
       RETURNING reset_token;
     `;
+
+    if (!res) throw new DatabaseError("INSERT INTO reset_tokens returned no row")
     return res.reset_token;
   }
 
@@ -45,11 +50,11 @@ export class PgResetTokenDataSource implements ResetTokenDataSource {
       SET status = 'USED'
       WHERE reset_token = ${token} AND status = 'UNUSED'
       RETURNING
-	user_id,
-	reset_token,
-	created_at;
+        user_id,
+        reset_token,
+        created_at;
     `;
-    if (res.length != 1) return undefined;
+    if (res.length != 1 || !res[0]) return undefined;
     return {
       userId: res[0].user_id,
       token: res[0].reset_token,

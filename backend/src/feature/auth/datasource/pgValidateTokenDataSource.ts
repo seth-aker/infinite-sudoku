@@ -1,9 +1,12 @@
 import { Sql } from "postgres";
 import { ValidateTokenDataSource } from "./validateTokenDataSource";
 import { NotFoundError } from "@/core/errors/notFoundError";
-
+import { DatabaseError } from "@/core/errors/databaseError";
+import { AuthenticationError } from "../errors/authenticationError";
+import { ErrorType } from "@/core/errors/errorTypes";
+const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
 export class PgValidateTokenDataSource implements ValidateTokenDataSource {
-  private static instance: PgValidateTokenDataSource | null = null;
+  static instance: PgValidateTokenDataSource | null = null;
   private client: Sql;
 
   private constructor(client: Sql) {
@@ -13,7 +16,7 @@ export class PgValidateTokenDataSource implements ValidateTokenDataSource {
     if (!PgValidateTokenDataSource.instance) {
       PgValidateTokenDataSource.instance = new PgValidateTokenDataSource(client);
     }
-    return this.instance;
+    return PgValidateTokenDataSource.instance;
   }
 
   async createValidateToken(userId: string) {
@@ -24,17 +27,23 @@ export class PgValidateTokenDataSource implements ValidateTokenDataSource {
         (${userId})
       RETURNING token;
       `
+    if (!res) {
+      throw new DatabaseError("INSERT INTO validate_tokens returned no rows")
+    }
     return res.token;
   }
 
   async validateEmail(token: string) {
     const updateRes = await this.client.begin(async sql => {
-      const [res] = await sql<{ user_id: string }[]>`
-        SELECT user_id
+      const [res] = await sql<{ user_id: string, created_at: Date }[]>`
+        SELECT user_id, created_at
         FROM validate_tokens
         WHERE token = ${token}`
-      if(!res?.user_id) {
+      if (!res?.user_id) {
         throw new NotFoundError('Account not found');
+      }
+      if(!res?.created_at || (res?.created_at && res.created_at.getTime() + TWENTY_FOUR_HOURS_MS < Date.now())) {
+        throw new AuthenticationError("Token expired", { type: ErrorType.TOKEN_EXPIRED })
       }
       const updated = await sql`
         UPDATE users

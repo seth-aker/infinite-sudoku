@@ -19,7 +19,7 @@ export class PgUserDataSource implements UserDataSource {
     return PgUserDataSource.instance;
   }
 
-  async createUser(user: ICreateUser): Promise<string | undefined> {
+  async createUser(user: ICreateUser): Promise<string> {
     const [res] = await this.client<{ user_id: string }[]>`
       INSERT INTO users (
         email,
@@ -39,6 +39,9 @@ export class PgUserDataSource implements UserDataSource {
       )
       RETURNING user_id;
     `;
+    if(!res) {
+      throw new DatabaseError("INSERT INTO users returned no row")
+    }
     return res.user_id;
   }
   async getUser(userId: string): Promise<ISqlUser> {
@@ -65,7 +68,7 @@ export class PgUserDataSource implements UserDataSource {
     }
     return user;
   }
-  async getUserByEmail(email: string): Promise<ISqlUser> {
+  async getUserByEmail(email: string): Promise<ISqlUser | undefined> {
     const [user] = await this.client<ISqlUser[]>`
       SELECT 
         user_id,
@@ -79,11 +82,7 @@ export class PgUserDataSource implements UserDataSource {
         current_puzzle_id,
         deleted_at
       FROM users WHERE email = ${email.toLowerCase()}`;
-    if (!user) {
-      throw new NotFoundError(`User email not found`, {
-        type: ErrorType.RESOURCE_NOT_FOUND,
-      });
-    }
+    // intentially return undefined if not exist.
     return user;
   }
   async getUserStats(userId: string): Promise<IUserStats> {

@@ -38,7 +38,7 @@ describe("HealthRouter", () => {
     );
     const res = await server.get("/api/_health");
     expect(res.status).toBe(200);
-    expect(sql.mock.calls[0][0].join("")).toContain("SELECT NOW()");
+    expect(sql.mock.calls[0]![0].join("")).toContain("SELECT NOW()");
     expect(logger.warn).not.toHaveBeenCalled();
   });
 

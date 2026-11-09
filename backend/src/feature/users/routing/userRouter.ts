@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import { UserService } from "../service/userService";
 import { requireLoggedin, requireSelfOrAdmin } from "@/feature/auth/middleware/authentication";
+import { AuthenticationError } from "@/feature/auth/errors/authenticationError";
 
 export class UserRouter {
   private userService: UserService;
@@ -12,6 +13,9 @@ export class UserRouter {
     // Must be first to get caught before /:id
     router.get("/me", requireLoggedin, async (req: Request, res: Response) => {
       const userId = req.user?.sub;
+      if(!userId) {
+        throw new AuthenticationError("No user id found in access token");
+      }
       const user = await this.userService.getUser(userId);
       return res.json({
         user

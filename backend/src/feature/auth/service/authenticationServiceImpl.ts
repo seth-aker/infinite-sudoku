@@ -1,5 +1,5 @@
 import { IUserDTO } from "@/feature/users/datasource/models/user";
-import { timingSafeEqual, randomBytes, scryptSync } from "node:crypto";
+import { timingSafeEqual, randomBytes, scrypt, BinaryLike } from "node:crypto";
 import { AuthenticationService } from "./authenticationService";
 import { AuthenticationError } from "../errors/authenticationError";
 import { UserDataSource } from "@/feature/users/datasource/userDataSource";
@@ -17,14 +17,15 @@ import { logger } from "@/core/logging/logger";
 import { generateValidateEmailTemplate } from "../email/templates/validateEmailTemplate";
 import { ValidateTokenDataSource } from "../datasource/validateTokenDataSource";
 import { generatePasswordResetEmailBody } from "../email/templates/passwordResetTemplate";
-import { GenericError } from "@/core/errors/genericError";
-import { BadRequestError } from "@/core/errors/badRequestError";
 import { Emailer } from "@/core/email/smtpEmailer";
+import { promisify } from "node:util";
+
+const scryptAsync = promisify<BinaryLike, BinaryLike, number, NonSharedBuffer>(scrypt);
 const SCRYPT_KEYLEN = 64;
 const SALT_LEN = 16;
 
 const DUMMY_SALT = randomBytes(SALT_LEN);
-const DUMMY_HASHED = scryptSync(
+const DUMMY_HASHED = await scryptAsync(
   "not-a-real-password",
   DUMMY_SALT,
   SCRYPT_KEYLEN,
@@ -74,15 +75,16 @@ export class AuthenticationServiceImpl implements AuthenticationService {
   async verify(email: string, password: string): Promise<IUserDTO> {
     const res = await this.userDataSource.getUserByEmail(email);
     const salt = res?.salt ? Buffer.from(res.salt, "hex") : DUMMY_SALT;
-    const storedPassword = res.password_hash
+    const storedPassword = res?.password_hash
       ? Buffer.from(res.password_hash, "hex")
       : DUMMY_HASHED;
-    const hashedPassword = scryptSync(
+    const hashedPassword = await scryptAsync(
       password.normalize(),
       salt,
       SCRYPT_KEYLEN,
     );
-    const matches = timingSafeEqual(storedPassword, hashedPassword);
+    const matches = storedPassword.length === hashedPassword.length
+      && timingSafeEqual(storedPassword, hashedPassword);
     if (!res || !res.salt || !res.password_hash || res.deleted_at || !matches) {
       throw new AuthenticationError("Incorrect Email or Password");
     }
@@ -116,9 +118,6 @@ export class AuthenticationServiceImpl implements AuthenticationService {
       role: "user",
     });
 
-    if (!userId) {
-      throw new DatabaseError(`Insert Operation failed`);
-    }
     const validationToken = await this.validateTokenDataSource.createValidateToken(userId);
     const { accessToken, refreshToken } = await this.getNewTokenSet(userId);
     try {
@@ -131,9 +130,7 @@ export class AuthenticationServiceImpl implements AuthenticationService {
       logger.info(`Email verification sent to: ${user.email}\nMessageId: ${info.messageId}`)
     } catch (err) {
       logger.error(err);
-      throw new GenericError("Internal server error", { type: ErrorType.INTERNAL_ERROR })
     }
-
     return {
       userId,
       accessToken,
@@ -181,20 +178,16 @@ export class AuthenticationServiceImpl implements AuthenticationService {
   async requestEmailVerification(email: string) {
     try {
       const user = await this.userDataSource.getUserByEmail(email);
-      if(!user) {
-        throw new NotFoundError(`User with email: ${email} not found.`)
+      if (user && !user.email_verified) {
+        const validationToken = await this.validateTokenDataSource.createValidateToken(user.user_id)
+        const info = await this.emailer.sendMail({
+          to: user.email,
+          from: config.smtpUser,
+          subject: "Infinite Sudoku: Validate Email",
+          html: generateValidateEmailTemplate(validationToken, config.origin),
+        });
+        logger.info(`Validation email sent: ${info.messageId}`)
       }
-      if(user.email_verified) {
-        throw new BadRequestError("Email already verified!");
-      }
-      const validationToken = await this.validateTokenDataSource.createValidateToken(user.user_id)
-      const info = await this.emailer.sendMail({
-        to: user.email,
-        from: config.smtpUser,
-        subject: "Infinite Sudoku: Validate Email",
-        html: generateValidateEmailTemplate(validationToken, config.origin),
-      });
-      logger.info(`Validation email sent: ${info.message}`)
     } catch (err) {
       logger.error(err, "Error occurred sending email verification")
       throw err;
@@ -229,7 +222,7 @@ export class AuthenticationServiceImpl implements AuthenticationService {
     const issuerUrl = config.issuer;
     return await new SignJWT({
       role: user.role,
-      email_verified: user.email_verified,
+      emailVerified: user.email_verified,
     })
       .setProtectedHeader({ alg: "HS256" })
       .setExpirationTime("15m")
@@ -242,7 +235,7 @@ export class AuthenticationServiceImpl implements AuthenticationService {
 
   private async hashPassword(password: string) {
     const salt = randomBytes(SALT_LEN);
-    const hashedPassword = scryptSync(
+    const hashedPassword = await scryptAsync(
       password.normalize(),
       salt,
       SCRYPT_KEYLEN,

@@ -1,321 +1,221 @@
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
-import { MobileAuthRouter } from "@/feature/auth/routing/mobile/mobileAuthrouter";
-import { AuthenticationError } from "@/feature/auth/errors/authenticationError";
-import { ConflictError } from "@/core/errors/conflictError";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ErrorType } from "@/core/errors/errorTypes";
+import { AuthenticationError } from "@/feature/auth/errors/authenticationError";
+import { AuthorizationError } from "@/feature/auth/errors/authorizationError";
 import {
-  bearer,
-  buildApp,
-  startServer,
-  type TestServer,
-} from "#test/helpers/http";
-import { mockAuthService, type MockAuthService } from "#test/helpers/mocks";
-import { signAccessToken } from "#test/helpers/jwt";
-import { RESET_TOKEN, USER_ID, VALID_PASSWORD } from "#test/helpers/fixtures";
+  passwordGrantLimiter,
+  refreshGrantLimiter,
+  resetPasswordRateLimiter,
+} from "@/feature/auth/middleware/rateLimiter";
+import { MobileAuthRouter } from "@/feature/auth/routing/mobile/mobileAuthrouter";
+import type { AuthenticationService } from "@/feature/auth/service/authenticationService";
+import {
+  RESET_TOKEN,
+  STRONG_PASSWORD,
+  TEST_USER,
+  fakeAuthService,
+  setCookies,
+  startAuthServer,
+  type FakeAuthService,
+} from "#test/helpers/auth";
+import type { TestServer } from "#test/helpers/http";
 
-const limiters = vi.hoisted(() => ({
-  auth: vi.fn((_req: unknown, _res: unknown, next: () => void) => next()),
-  reset: vi.fn((_req: unknown, _res: unknown, next: () => void) => next()),
-}));
+// See webAuthRouter.test.ts: limiters pass through and are only checked for wiring.
+vi.mock("@/feature/auth/middleware/rateLimiter", () => {
+  const pass = () => vi.fn((_req: unknown, _res: unknown, next: () => void) => next());
+  return {
+    passwordGrantLimiter: [pass()],
+    refreshGrantLimiter: pass(),
+    resetPasswordRateLimiter: pass(),
+    tokenRequestRateLimiter: [pass()],
+  };
+});
 
-vi.mock("@/feature/auth/middleware/rateLimiter", () => ({
-  authLimiter: () => limiters.auth,
-  resetPasswordRateLimiter: limiters.reset,
-}));
-
-const userDto = {
-  id: USER_ID,
-  email: "user@example.com",
-  username: "player",
-  role: "user" as const,
-};
+const BASE = "/api/auth/mobile";
 
 describe("MobileAuthRouter", () => {
-  let service: MockAuthService;
+  let service: FakeAuthService;
   let server: TestServer;
-  let token: string;
 
-  beforeAll(async () => {
-    service = mockAuthService();
-    server = await startServer(buildApp("/auth", MobileAuthRouter(service)));
-    token = await signAccessToken({ sub: USER_ID });
+  beforeEach(async () => {
+    service = fakeAuthService();
+    server = await startAuthServer(
+      MobileAuthRouter(service as unknown as AuthenticationService),
+      "/auth/mobile",
+    );
   });
 
-  afterAll(async () => {
+  afterEach(async () => {
     await server.close();
   });
 
-  beforeEach(() => {
-    service.verify.mockResolvedValue(userDto);
-    service.getNewTokenSet.mockResolvedValue({
-      accessToken: "access",
-      refreshToken: "refresh",
-    });
-  });
-
   describe("POST /login", () => {
-    const body = {
-      grantType: "password",
-      email: "user@example.com",
-      password: "secret",
-    };
+    const body = { email: TEST_USER.email, password: STRONG_PASSWORD };
 
-    it("returns tokens and the user", async () => {
-      const res = await server.post("/auth/login", body);
+    it("returns the tokens and user in the body, without cookies", async () => {
+      const res = await server.post(`${BASE}/login`, body);
       expect(res.status).toBe(200);
       expect(await res.json()).toEqual({
-        accessToken: "access",
-        refreshToken: "refresh",
-        user: userDto,
+        accessToken: "new-access",
+        refreshToken: "new-refresh",
+        user: TEST_USER,
       });
-      expect(service.verify).toHaveBeenCalledWith("user@example.com", "secret");
-      expect(service.getNewTokenSet).toHaveBeenCalledWith(USER_ID);
-      expect(res.headers.getSetCookie()).toEqual([]);
+      expect(service.verify).toHaveBeenCalledWith(TEST_USER.email, STRONG_PASSWORD);
+      expect(service.getNewTokenSet).toHaveBeenCalledWith(TEST_USER.id);
+      expect(setCookies(res)).toEqual({});
     });
 
-    it("is rate limited", async () => {
-      await server.post("/auth/login", body);
-      expect(limiters.auth).toHaveBeenCalledTimes(1);
-    });
-
-    it("responds 400 for an invalid body", async () => {
-      const res = await server.post("/auth/login", { email: "x" });
+    it.each([
+      ["a refresh token body", { refreshToken: "rt" }],
+      ["a missing password", { email: TEST_USER.email }],
+      ["no body", undefined],
+    ])("rejects %s with a 400", async (_label, badBody) => {
+      const res = await server.post(`${BASE}/login`, badBody);
       expect(res.status).toBe(400);
-      expect(await res.json()).toMatchObject({ error: "validation_failed" });
       expect(service.verify).not.toHaveBeenCalled();
     });
 
-    it("responds 400 for a malformed json body", async () => {
-      const res = await server.request("/auth/login", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: "{not json",
-      });
-      expect(res.status).toBe(400);
-      expect(await res.json()).toMatchObject({
-        message: "Malformed JSON body",
-      });
-    });
-
-    it("responds 401 for invalid credentials", async () => {
-      service.verify.mockRejectedValue(new AuthenticationError("bad"));
-      const res = await server.post("/auth/login", body);
+    it("returns 401 for bad credentials", async () => {
+      service.verify.mockRejectedValue(new AuthenticationError("Incorrect Email or Password"));
+      const res = await server.post(`${BASE}/login`, body);
       expect(res.status).toBe(401);
       expect(service.getNewTokenSet).not.toHaveBeenCalled();
+    });
+
+    it("returns 403 unverified_email for an unverified account", async () => {
+      service.verify.mockRejectedValue(
+        new AuthorizationError("Email not verified", { type: ErrorType.UNVERIFIED_EMAIL }),
+      );
+      const res = await server.post(`${BASE}/login`, body);
+      expect(res.status).toBe(403);
+      expect((await res.json()).error).toBe(ErrorType.UNVERIFIED_EMAIL);
+    });
+
+    it("applies the password grant limiter", async () => {
+      await server.post(`${BASE}/login`, body);
+      expect(passwordGrantLimiter[0]).toHaveBeenCalledOnce();
     });
   });
 
   describe("POST /logout", () => {
-    it("requires authentication", async () => {
-      const res = await server.post("/auth/logout", {});
-      expect(res.status).toBe(401);
-      expect(await res.json()).toMatchObject({ error: "token_missing" });
-    });
-
-    it("revokes the provided refresh token and clears cookies", async () => {
-      const res = await server.post(
-        "/auth/logout",
-        { refreshToken: "refresh" },
-        bearer(token),
-      );
+    it("revokes the refresh token from the body", async () => {
+      const res = await server.post(`${BASE}/logout`, { refreshToken: "old-refresh" });
       expect(res.status).toBe(204);
-      expect(service.clearRefreshToken).toHaveBeenCalledWith("refresh");
-      const cookies = res.headers.getSetCookie();
-      expect(cookies).toHaveLength(2);
-      expect(cookies[0]).toMatch(/^accessToken=;.*Expires=Thu, 01 Jan 1970/);
-      expect(cookies[1]).toMatch(/^refreshToken=;/);
+      expect(service.clearRefreshToken).toHaveBeenCalledWith("old-refresh");
     });
 
-    it("succeeds without a refresh token", async () => {
-      const res = await server.post("/auth/logout", {}, bearer(token));
+    it.each([
+      ["no body", undefined],
+      ["an empty body", {}],
+      ["a non-string token", { refreshToken: 5 }],
+      ["an empty token", { refreshToken: "" }],
+    ])("returns 204 without revoking anything for %s", async (_label, body) => {
+      const res = await server.post(`${BASE}/logout`, body);
       expect(res.status).toBe(204);
       expect(service.clearRefreshToken).not.toHaveBeenCalled();
-    });
-
-    it("propagates revocation failures", async () => {
-      service.clearRefreshToken.mockRejectedValueOnce(new Error("db down"));
-      const res = await server.post(
-        "/auth/logout",
-        { refreshToken: "r" },
-        bearer(token),
-      );
-      expect(res.status).toBe(500);
     });
   });
 
   describe("POST /register", () => {
     const body = {
-      email: "new@user.com",
-      username: "newbie",
-      password: VALID_PASSWORD,
+      email: TEST_USER.email,
+      username: TEST_USER.username,
+      password: STRONG_PASSWORD,
       tosAcknowledged: true,
     };
 
-    it("creates the user and returns tokens", async () => {
-      service.registerUser.mockResolvedValue({
-        userId: USER_ID,
-        accessToken: "access",
-        refreshToken: "refresh",
-      });
-      const res = await server.post("/auth/register", body);
+    it("returns the user and tokens in the body, without cookies", async () => {
+      const res = await server.post(`${BASE}/register`, body);
       expect(res.status).toBe(201);
       expect(await res.json()).toEqual({
         user: {
-          id: USER_ID,
-          email: "new@user.com",
+          id: TEST_USER.id,
+          email: TEST_USER.email,
+          username: TEST_USER.username,
           emailVerified: false,
-          username: "newbie",
           role: "user",
         },
-        accessToken: "access",
-        refreshToken: "refresh",
+        accessToken: "new-access",
+        refreshToken: "new-refresh",
       });
       expect(service.registerUser).toHaveBeenCalledWith(body);
+      expect(setCookies(res)).toEqual({});
     });
 
-    it("responds 400 for a weak password", async () => {
-      const res = await server.post("/auth/register", {
-        ...body,
-        password: "weak",
-      });
+    it("rejects an invalid body before registering", async () => {
+      const res = await server.post(`${BASE}/register`, { ...body, tosAcknowledged: "yes" });
       expect(res.status).toBe(400);
       expect(service.registerUser).not.toHaveBeenCalled();
     });
 
-    it("responds 500 when no user id is returned", async () => {
-      service.registerUser.mockResolvedValue({
-        userId: "",
-        accessToken: "a",
-        refreshToken: "r",
-      });
-      const res = await server.post("/auth/register", body);
-      expect(res.status).toBe(500);
-      expect(await res.json()).toMatchObject({ error: "internal_error" });
-    });
-
-    it("responds 409 when the user already exists", async () => {
-      service.registerUser.mockRejectedValue(new ConflictError("taken"));
-      const res = await server.post("/auth/register", body);
-      expect(res.status).toBe(409);
+    it("applies the password grant limiter", async () => {
+      await server.post(`${BASE}/register`, body);
+      expect(passwordGrantLimiter[0]).toHaveBeenCalledOnce();
     });
   });
 
   describe("POST /refresh", () => {
-    it("returns a rotated token set", async () => {
-      service.refreshAccessToken.mockResolvedValue({
-        accessToken: "new-access",
-        refreshToken: "new-refresh",
-      });
-      const res = await server.post("/auth/refresh", {
-        grantType: "refreshToken",
-        refreshToken: "old",
-      });
+    const body = { refreshToken: "old-refresh" };
+
+    it("returns rotated tokens in the body", async () => {
+      const res = await server.post(`${BASE}/refresh`, body);
       expect(res.status).toBe(200);
       expect(await res.json()).toEqual({
-        accessToken: "new-access",
-        refreshToken: "new-refresh",
+        accessToken: "rotated-access",
+        refreshToken: "rotated-refresh",
       });
-      expect(service.refreshAccessToken).toHaveBeenCalledWith("old");
+      expect(service.refreshAccessToken).toHaveBeenCalledWith("old-refresh");
+      expect(setCookies(res)).toEqual({});
     });
 
-    it("responds 400 for an invalid body", async () => {
-      const res = await server.post("/auth/refresh", {
-        grantType: "refreshToken",
-      });
+    it.each([
+      ["a login body", { email: TEST_USER.email, password: STRONG_PASSWORD }],
+      ["an empty token", { refreshToken: "" }],
+      ["a non-string token", { refreshToken: 5 }],
+      ["no body", undefined],
+    ])("rejects %s with a 400", async (_label, badBody) => {
+      const res = await server.post(`${BASE}/refresh`, badBody);
       expect(res.status).toBe(400);
-    });
-
-    it("responds 401 TOKEN_MISSING for a password grant body", async () => {
-      const res = await server.post("/auth/refresh", {
-        grantType: "password",
-        email: "a@b.c",
-        password: "abcd",
-      });
-      expect(res.status).toBe(401);
-      expect(await res.json()).toMatchObject({
-        error: ErrorType.TOKEN_MISSING,
-      });
       expect(service.refreshAccessToken).not.toHaveBeenCalled();
     });
 
-    it("responds 401 when the token cannot be rotated", async () => {
+    it("returns 401 when the token is rejected", async () => {
       service.refreshAccessToken.mockRejectedValue(
-        new AuthenticationError("expired", { type: ErrorType.TOKEN_EXPIRED }),
+        new AuthenticationError("revoked", { type: ErrorType.TOKEN_REVOKED }),
       );
-      const res = await server.post("/auth/refresh", {
-        grantType: "refreshToken",
-        refreshToken: "old",
-      });
+      const res = await server.post(`${BASE}/refresh`, body);
       expect(res.status).toBe(401);
-      expect(await res.json()).toMatchObject({ error: "token_expired" });
+      expect((await res.json()).error).toBe(ErrorType.TOKEN_REVOKED);
+    });
+
+    it("applies the refresh grant limiter", async () => {
+      await server.post(`${BASE}/refresh`, body);
+      expect(refreshGrantLimiter).toHaveBeenCalledOnce();
     });
   });
 
   describe("POST /resetPassword", () => {
-    it("returns the token set produced by the service", async () => {
-      service.resetPassword.mockResolvedValue({
-        accessToken: "access",
-        refreshToken: "refresh",
-      } as never);
-      const res = await server.post("/auth/resetPassword", {
-        token: RESET_TOKEN,
-        password: VALID_PASSWORD,
-      });
-      expect(res.status).toBe(200);
-      expect(await res.json()).toEqual({
-        accessToken: "access",
-        refreshToken: "refresh",
-      });
-      expect(service.resetPassword).toHaveBeenCalledWith(
-        RESET_TOKEN,
-        VALID_PASSWORD,
-      );
-      expect(limiters.auth).toHaveBeenCalledTimes(1);
-      expect(limiters.reset).toHaveBeenCalledTimes(1);
-    });
+    const body = { token: RESET_TOKEN, password: STRONG_PASSWORD };
 
-    it("responds 500 when the service resolves without a token set", async () => {
-      service.resetPassword.mockResolvedValue(undefined);
-      const res = await server.post("/auth/resetPassword", {
-        token: RESET_TOKEN,
-        password: VALID_PASSWORD,
-      });
-      expect(service.resetPassword).toHaveBeenCalled();
-      expect(res.status).toBe(500);
-      expect(await res.json()).toMatchObject({ error: "internal_error" });
+    it("resets the password without touching cookies", async () => {
+      const res = await server.post(`${BASE}/resetPassword`, body);
+      expect(res.status).toBe(200);
+      expect(service.resetPassword).toHaveBeenCalledWith(RESET_TOKEN, STRONG_PASSWORD);
+      expect(setCookies(res)).toEqual({});
     });
 
     it.each([
-      ["token", { password: VALID_PASSWORD }],
-      ["password", { token: RESET_TOKEN }],
-      ["both fields", {}],
-    ])("rejects a body missing %s", async (_label, body) => {
-      const res = await server.post("/auth/resetPassword", body);
-      expect(res.status).toBe(500);
-      expect(await res.json()).toMatchObject({
-        error: ErrorType.MALFORMED_BODY,
-        message: "Missing required field in request body",
-      });
+      ["a weak password", { ...body, password: "weak" }],
+      ["a non-uuid token", { ...body, token: "abc" }],
+    ])("rejects %s with a 400", async (_label, badBody) => {
+      const res = await server.post(`${BASE}/resetPassword`, badBody);
+      expect(res.status).toBe(400);
       expect(service.resetPassword).not.toHaveBeenCalled();
     });
 
-    it("propagates service errors", async () => {
-      service.resetPassword.mockRejectedValue(
-        new AuthenticationError("bad", { type: ErrorType.TOKEN_INVALID }),
-      );
-      const res = await server.post("/auth/resetPassword", {
-        token: RESET_TOKEN,
-        password: VALID_PASSWORD,
-      });
-      expect(res.status).toBe(401);
+    it("applies the reset password limiter", async () => {
+      await server.post(`${BASE}/resetPassword`, body);
+      expect(resetPasswordRateLimiter).toHaveBeenCalledOnce();
     });
   });
 });

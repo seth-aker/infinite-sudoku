@@ -29,7 +29,7 @@ describe("normalizeError", () => {
     const zodErr = z.object({ a: z.string() }).safeParse({}).error!;
     const err = normalizeError(zodErr);
     expect(err).toBeInstanceOf(ValidationError);
-    expect((err as ValidationError).issues[0].path).toBe("a");
+    expect((err as ValidationError).issues[0]!.path).toBe("a");
   });
 
   describe("PostgresError", () => {
@@ -304,10 +304,10 @@ describe("errorHandler", () => {
         expect(res.json).toHaveBeenCalledWith(
           expect.objectContaining({ error, message, requestId: "req-1" }),
         );
-        expect(JSON.stringify(res.json.mock.calls[0][0])).not.toContain(
+        expect(JSON.stringify(res.json.mock.calls[0]![0])).not.toContain(
           schemaName,
         );
-        const logged = vi.mocked(logger.warn).mock.calls[0][0] as unknown as {
+        const logged = vi.mocked(logger.warn).mock.calls[0]![0] as unknown as {
           err: Error;
         };
         expect(logged.err.message).toContain(schemaName);

@@ -11,18 +11,14 @@ const passwordSchema = z
     "Password must contain a minimum of 8 characters, one uppercase, one lowercase, one number, and one special character",
   );
 
-const tokenBodySchema = z.discriminatedUnion("grantType", [
-  z.object({
-    grantType: z.literal("password"),
-    email: z.string().min(4),
-    password: z.string().min(4),
-  }),
-  z.object({
-    grantType: z.literal("refreshToken"),
-    refreshToken: z.string().min(1),
-  }),
-]);
-export const loginBodySchema = z.object({
+const mobileLoginBodySchema = z.object({
+  email: z.string().min(4),
+  password: z.string().min(4),
+});
+const mobileRefreshBodySchema = z.object({
+  refreshToken: z.string().min(1),
+});
+const loginBodySchema = z.object({
   email: z.email(),
   password: z.string().min(8),
 });
@@ -58,16 +54,27 @@ export const registerBodyValidator = (
   next();
 };
 
-export const tokenBodyValidator = (
+export const mobileLoginBodyValidator = (
   req: Request,
   _res: Response,
   next: NextFunction,
 ) => {
-  const result = tokenBodySchema.safeParse(req.body);
+  const result = mobileLoginBodySchema.safeParse(req.body);
   if (!result.success) return next(result.error);
   req.body = result.data;
   next();
 };
+
+export const mobileRefreshBodyValidator = (
+  req: Request,
+  _res: Response,
+  next: NextFunction,
+) => {
+  const result = mobileRefreshBodySchema.safeParse(req.body);
+  if (!result.success) return next(result.error);
+  req.body = result.data;
+  next();
+}
 
 export const resetRequestValidator = (
   req: Request,
@@ -91,3 +98,13 @@ export const passwordResetValidator = (
   if (!tokenResult.success) return next(tokenResult.error);
   next();
 };
+
+export const validateEmailTokenValidator = (
+  req: Request,
+  _res: Response,
+  next: NextFunction,
+) => {
+  const tokenQuery = z.uuid().safeParse(req.query?.token)
+  if(!tokenQuery.success) return next(tokenQuery.error);
+  next();
+}

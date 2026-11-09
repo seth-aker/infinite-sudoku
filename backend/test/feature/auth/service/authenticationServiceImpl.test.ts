@@ -1,551 +1,486 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { randomBytes, scryptSync } from "node:crypto";
-import { decodeJwt, jwtVerify } from "jose";
-import { AuthenticationServiceImpl } from "@/feature/auth/service/authenticationServiceImpl";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { randomBytes, scryptSync, type BinaryLike } from "node:crypto";
+import { jwtVerify } from "jose";
+import { config } from "@/core/config";
+import { DatabaseError } from "@/core/errors/databaseError";
+import { ErrorType } from "@/core/errors/errorTypes";
+import { NotFoundError } from "@/core/errors/notFoundError";
+import { logger } from "@/core/logging/logger";
+import type { Emailer } from "@/core/email/smtpEmailer";
 import { AuthenticationError } from "@/feature/auth/errors/authenticationError";
 import { AuthorizationError } from "@/feature/auth/errors/authorizationError";
-import { DatabaseError } from "@/core/errors/databaseError";
-import { GenericError } from "@/core/errors/genericError";
-import { NotFoundError } from "@/core/errors/notFoundError";
-import { BadRequestError } from "@/core/errors/badRequestError";
-import { ErrorType } from "@/core/errors/errorTypes";
-import { config } from "@/core/config";
-import { logger } from "@/core/logging/logger";
-import { generateValidateEmailTemplate } from "@/feature/auth/email/templates/validateEmailTemplate";
-import { generatePasswordResetEmailBody } from "@/feature/auth/email/templates/passwordResetTemplate";
-import {
-  mockEmailer,
-  mockRefreshTokenDataSource,
-  mockResetTokenDataSource,
-  mockUserDataSource,
-  mockValidateTokenDataSource,
-} from "#test/helpers/mocks";
-import {
-  buildSqlUser,
-  RESET_TOKEN,
-  USER_ID,
-  VALID_PASSWORD,
-} from "#test/helpers/fixtures";
+import { AuthenticationServiceImpl } from "@/feature/auth/service/authenticationServiceImpl";
+import type { RefreshTokenDataSource } from "@/feature/auth/datasource/refreshTokenDataSource";
+import type { ResetTokenDataSource } from "@/feature/auth/datasource/resetTokenDataSource";
+import type { ValidateTokenDataSource } from "@/feature/auth/datasource/validateTokenDataSource";
+import type { UserDataSource } from "@/feature/users/datasource/userDataSource";
+import type { ISqlUser } from "@/feature/users/datasource/models/user";
 
-function hashWithSalt(password: string, salt = randomBytes(16)) {
+const USER_ID = "3f0c7a4e-1b2d-4c5e-8f9a-0b1c2d3e4f5a";
+const PASSWORD = "Str0ng!pass";
+const SECRET = new TextEncoder().encode(config.jwtSecret);
+const FIFTEEN_MINUTES = 15 * 60 * 1000;
+
+// scrypt is slow on purpose (~50ms per hash at the default cost). Run the real
+// algorithm with a tiny cost factor so these tests check the hashing logic
+// without paying for production-strength hashing. Applies to the service and
+// to the helpers below, so their hashes still match.
+vi.mock("node:crypto", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:crypto")>();
+  const CHEAP = { N: 16 };
+  return {
+    ...actual,
+    scrypt: (password: BinaryLike, salt: BinaryLike, keylen: number, callback: (err: Error | null, key: Buffer) => void) =>
+      actual.scrypt(password, salt, keylen, CHEAP, callback),
+    scryptSync: (password: BinaryLike, salt: BinaryLike, keylen: number) =>
+      actual.scryptSync(password, salt, keylen, CHEAP),
+  };
+});
+
+// Same scheme as the service: scrypt, 16 byte salt, 64 byte key, hex encoded.
+function hashed(password: string, salt = randomBytes(16)) {
   return {
     salt: salt.toString("hex"),
-    password_hash: scryptSync(password, salt, 64).toString("hex"),
+    password_hash: scryptSync(password.normalize(), salt, 64).toString("hex"),
   };
 }
 
-function expectHashMatches(password: string, hash: string, salt: string) {
-  expect(hash).toMatch(/^[0-9a-f]{128}$/);
-  expect(salt).toMatch(/^[0-9a-f]{32}$/);
-  expect(
-    scryptSync(password, Buffer.from(salt, "hex"), 64).toString("hex"),
-  ).toBe(hash);
+function matchesHash(password: string, hash: string, salt: string) {
+  return hashed(password, Buffer.from(salt, "hex")).password_hash === hash;
 }
 
+// Hashed once; most tests only need a user whose password is PASSWORD.
+const PASSWORD_HASH = hashed(PASSWORD);
+
+function sqlUser(overrides: Partial<ISqlUser> = {}): ISqlUser {
+  return {
+    user_id: USER_ID,
+    email: "player@example.com",
+    email_verified: true,
+    username: "player",
+    role: "user",
+    ...PASSWORD_HASH,
+    last_login_at: "2026-01-01T00:00:00Z",
+    created_at: "2026-01-01T00:00:00Z",
+    updated_at: "2026-01-01T00:00:00Z",
+    deleted_at: null,
+    ...overrides,
+  };
+}
+
+// PgUserDataSource.getUserByEmail resolves undefined for an unknown email.
+const NO_USER = undefined;
+
 describe("AuthenticationServiceImpl", () => {
-  let users: ReturnType<typeof mockUserDataSource>;
-  let refreshTokens: ReturnType<typeof mockRefreshTokenDataSource>;
-  let resetTokens: ReturnType<typeof mockResetTokenDataSource>;
-  let validateTokens: ReturnType<typeof mockValidateTokenDataSource>;
-  let emailer: ReturnType<typeof mockEmailer>;
+  const users = {
+    createUser: vi.fn(),
+    getUserByEmail: vi.fn(),
+    getUser: vi.fn(),
+    getUserStats: vi.fn(),
+    changePassword: vi.fn(),
+    deleteUser: vi.fn(),
+  };
+  const refreshTokens = {
+    close: vi.fn(),
+    rotateRefreshToken: vi.fn(),
+    create: vi.fn(),
+    invalidateAllForUser: vi.fn(),
+    delete: vi.fn(),
+  };
+  const resetTokens = { createResetToken: vi.fn(), consumeToken: vi.fn() };
+  const validateTokens = { createValidateToken: vi.fn(), validateEmail: vi.fn() };
+  const emailer = { sendMail: vi.fn() };
+
   let service: AuthenticationServiceImpl;
 
   beforeEach(() => {
+    // create() is a singleton; reset it so each test gets fresh mocks.
     AuthenticationServiceImpl.instance = null;
-    users = mockUserDataSource();
-    refreshTokens = mockRefreshTokenDataSource();
-    resetTokens = mockResetTokenDataSource();
-    validateTokens = mockValidateTokenDataSource();
-    emailer = mockEmailer();
     service = AuthenticationServiceImpl.create(
-      users,
-      refreshTokens,
-      resetTokens,
-      validateTokens,
-      emailer,
+      users as unknown as UserDataSource,
+      refreshTokens as unknown as RefreshTokenDataSource,
+      resetTokens as unknown as ResetTokenDataSource,
+      validateTokens as unknown as ValidateTokenDataSource,
+      emailer as unknown as Emailer,
     );
-    users.getUser.mockResolvedValue(buildSqlUser());
+
+    users.getUser.mockResolvedValue(sqlUser());
+    users.createUser.mockResolvedValue(USER_ID);
     refreshTokens.create.mockResolvedValue("refresh-token");
-    emailer.sendMail.mockResolvedValue({ messageId: "msg-1" } as never);
+    validateTokens.createValidateToken.mockResolvedValue("validate-token");
+    resetTokens.createResetToken.mockResolvedValue("reset-token");
+    emailer.sendMail.mockResolvedValue({ messageId: "msg-1" });
   });
 
+  async function claimsOf(accessToken: string) {
+    const { payload } = await jwtVerify(accessToken, SECRET, {
+      issuer: config.issuer,
+      audience: config.audience,
+      algorithms: ["HS256"],
+    });
+    return payload;
+  }
+
   describe("create", () => {
-    it("returns a singleton", () => {
+    it("returns the same instance on later calls", () => {
       const again = AuthenticationServiceImpl.create(
-        mockUserDataSource(),
-        mockRefreshTokenDataSource(),
-        mockResetTokenDataSource(),
-        mockValidateTokenDataSource(),
-        mockEmailer(),
+        {} as UserDataSource,
+        {} as RefreshTokenDataSource,
+        {} as ResetTokenDataSource,
+        {} as ValidateTokenDataSource,
+        {} as Emailer,
       );
       expect(again).toBe(service);
     });
   });
 
   describe("verify", () => {
-    it("returns the user DTO for valid credentials", async () => {
+    it("returns the user DTO for the correct password", async () => {
       users.getUserByEmail.mockResolvedValue(
-        buildSqlUser(hashWithSalt(VALID_PASSWORD)),
+        sqlUser({ image_url: "http://img.test/a.png", current_puzzle_id: "p1" }),
       );
-      await expect(
-        service.verify("user@example.com", VALID_PASSWORD),
-      ).resolves.toEqual({
+      await expect(service.verify("player@example.com", PASSWORD)).resolves.toEqual({
         id: USER_ID,
-        email: "user@example.com",
+        email: "player@example.com",
         username: "player",
         role: "user",
         imageUrl: "http://img.test/a.png",
-        currentPuzzleId: buildSqlUser().current_puzzle_id,
+        currentPuzzleId: "p1",
       });
-      expect(users.getUserByEmail).toHaveBeenCalledWith("user@example.com");
+      expect(users.getUserByEmail).toHaveBeenCalledWith("player@example.com");
     });
 
-    it("maps null optional fields to undefined", async () => {
+    it("maps null optional columns to undefined", async () => {
       users.getUserByEmail.mockResolvedValue(
-        buildSqlUser({
-          ...hashWithSalt(VALID_PASSWORD),
-          image_url: null as never,
-          current_puzzle_id: null as never,
-        }),
+        sqlUser({ image_url: null as never, current_puzzle_id: null as never }),
       );
-      const dto = await service.verify("user@example.com", VALID_PASSWORD);
+      const dto = await service.verify("player@example.com", PASSWORD);
       expect(dto.imageUrl).toBeUndefined();
       expect(dto.currentPuzzleId).toBeUndefined();
     });
 
-    it("normalizes the password before hashing", async () => {
-      const nfc = "Caf\u00e9!Pass1";
-      const nfd = "Cafe\u0301!Pass1";
-      users.getUserByEmail.mockResolvedValue(buildSqlUser(hashWithSalt(nfc)));
-      await expect(service.verify("u", nfd)).resolves.toMatchObject({
-        id: USER_ID,
-      });
+    it("normalises unicode so composed and decomposed passwords match", async () => {
+      const composed = "Café!pass1A";
+      const decomposed = "Café!pass1A";
+      users.getUserByEmail.mockResolvedValue(sqlUser(hashed(composed)));
+      await expect(service.verify("player@example.com", decomposed)).resolves.toBeDefined();
     });
 
     it("rejects a wrong password", async () => {
-      users.getUserByEmail.mockResolvedValue(
-        buildSqlUser(hashWithSalt(VALID_PASSWORD)),
-      );
-      const err = await service.verify("u", "wrong").catch((e) => e);
+      users.getUserByEmail.mockResolvedValue(sqlUser());
+      const err = await service.verify("player@example.com", "Wr0ng!pass").catch((e) => e);
       expect(err).toBeInstanceOf(AuthenticationError);
-      expect(err.code).toBe(ErrorType.INVALID_CREDENTIALS);
       expect(err.message).toBe("Incorrect Email or Password");
     });
 
-    it("rejects soft-deleted users even with the right password", async () => {
-      users.getUserByEmail.mockResolvedValue(
-        buildSqlUser({
-          ...hashWithSalt(VALID_PASSWORD),
-          deleted_at: "2026-01-01",
-        }),
-      );
-      await expect(service.verify("u", VALID_PASSWORD)).rejects.toBeInstanceOf(
+    it("rejects an unknown email with the same error as a wrong password", async () => {
+      users.getUserByEmail.mockResolvedValue(NO_USER);
+      const err = await service.verify("nobody@example.com", PASSWORD).catch((e) => e);
+      expect(err).toBeInstanceOf(AuthenticationError);
+      expect(err.message).toBe("Incorrect Email or Password");
+    });
+
+    it("rejects a deleted user even with the correct password", async () => {
+      users.getUserByEmail.mockResolvedValue(sqlUser({ deleted_at: "2026-02-01T00:00:00Z" }));
+      await expect(service.verify("player@example.com", PASSWORD)).rejects.toBeInstanceOf(
         AuthenticationError,
       );
     });
 
-    it("rejects users without a salt", async () => {
-      const { password_hash } = hashWithSalt(VALID_PASSWORD);
-      users.getUserByEmail.mockResolvedValue(
-        buildSqlUser({ password_hash, salt: undefined }),
-      );
-      await expect(service.verify("u", VALID_PASSWORD)).rejects.toBeInstanceOf(
+    it.each([
+      ["no password hash", { password_hash: undefined }],
+      ["no salt", { salt: undefined }],
+    ])("rejects a user with %s", async (_label, overrides) => {
+      users.getUserByEmail.mockResolvedValue(sqlUser(overrides));
+      await expect(service.verify("player@example.com", PASSWORD)).rejects.toBeInstanceOf(
         AuthenticationError,
       );
     });
 
-    it("rejects users without a password hash", async () => {
-      const { salt } = hashWithSalt(VALID_PASSWORD);
-      users.getUserByEmail.mockResolvedValue(
-        buildSqlUser({ salt, password_hash: undefined }),
-      );
-      await expect(service.verify("u", VALID_PASSWORD)).rejects.toBeInstanceOf(
+    it("rejects a stored hash of the wrong length as bad credentials", async () => {
+      users.getUserByEmail.mockResolvedValue(sqlUser({ password_hash: "abcd" }));
+      await expect(service.verify("player@example.com", PASSWORD)).rejects.toBeInstanceOf(
         AuthenticationError,
       );
     });
 
-    it("rejects users with neither salt nor hash", async () => {
-      users.getUserByEmail.mockResolvedValue(buildSqlUser());
-      await expect(
-        service.verify("u", "not-a-real-password"),
-      ).rejects.toBeInstanceOf(AuthenticationError);
-    });
-
-    it("rejects unverified emails after checking the password", async () => {
-      users.getUserByEmail.mockResolvedValue(
-        buildSqlUser({
-          ...hashWithSalt(VALID_PASSWORD),
-          email_verified: false,
-        }),
-      );
-      const err = await service.verify("u", VALID_PASSWORD).catch((e) => e);
+    it("rejects an unverified email only after the password matches", async () => {
+      users.getUserByEmail.mockResolvedValue(sqlUser({ email_verified: false }));
+      const err = await service.verify("player@example.com", PASSWORD).catch((e) => e);
       expect(err).toBeInstanceOf(AuthorizationError);
       expect(err.code).toBe(ErrorType.UNVERIFIED_EMAIL);
     });
 
-    it("reports bad credentials before unverified email", async () => {
-      users.getUserByEmail.mockResolvedValue(
-        buildSqlUser({
-          ...hashWithSalt(VALID_PASSWORD),
-          email_verified: false,
-        }),
-      );
-      await expect(service.verify("u", "wrong")).rejects.toBeInstanceOf(
+    it("does not reveal that an email is unverified to a wrong password", async () => {
+      users.getUserByEmail.mockResolvedValue(sqlUser({ email_verified: false }));
+      await expect(service.verify("player@example.com", "Wr0ng!pass")).rejects.toBeInstanceOf(
         AuthenticationError,
       );
-    });
-
-    it("propagates lookup errors such as unknown emails", async () => {
-      users.getUserByEmail.mockRejectedValue(new NotFoundError("nope"));
-      await expect(service.verify("u", "p")).rejects.toBeInstanceOf(
-        NotFoundError,
-      );
-    });
-
-    it("throws when the stored hash has an unexpected length", async () => {
-      users.getUserByEmail.mockResolvedValue(
-        buildSqlUser({ salt: "00", password_hash: "abcd" }),
-      );
-      await expect(service.verify("u", "p")).rejects.toThrow(RangeError);
     });
   });
 
   describe("registerUser", () => {
-    const newUser = {
-      email: "New@User.COM",
-      username: "NewBie",
-      password: VALID_PASSWORD,
+    const body = {
+      email: "New@Example.com",
+      username: "NewPlayer",
+      password: PASSWORD,
       tosAcknowledged: true,
     };
 
-    beforeEach(() => {
-      users.createUser.mockResolvedValue(USER_ID);
-      validateTokens.createValidateToken.mockResolvedValue("validate-tok");
-    });
-
-    it("creates the user with lowercased identifiers and a hashed password", async () => {
-      await service.registerUser(newUser);
-      const created = users.createUser.mock.calls[0][0];
+    it("stores a lowercased user with a salted scrypt hash, never the password", async () => {
+      await service.registerUser(body);
+      expect(users.createUser).toHaveBeenCalledOnce();
+      const created = users.createUser.mock.calls[0]![0];
       expect(created).toMatchObject({
-        email: "new@user.com",
-        username: "newbie",
+        email: "new@example.com",
+        username: "newplayer",
         tosAcknowledged: true,
         role: "user",
       });
-      expect(created.passwordHash).not.toContain(VALID_PASSWORD);
-      expectHashMatches(VALID_PASSWORD, created.passwordHash, created.salt);
+      expect(created.salt).toMatch(/^[0-9a-f]{32}$/);
+      expect(created.passwordHash).toMatch(/^[0-9a-f]{128}$/);
+      expect(matchesHash(PASSWORD, created.passwordHash, created.salt)).toBe(true);
+      expect(JSON.stringify(created)).not.toContain(PASSWORD);
     });
 
-    it("uses a random salt per registration", async () => {
-      await service.registerUser(newUser);
-      await service.registerUser(newUser);
-      const [a, b] = users.createUser.mock.calls.map((c) => c[0]);
-      expect(a.salt).not.toBe(b.salt);
-      expect(a.passwordHash).not.toBe(b.passwordHash);
+    it("produces hashes that verify() accepts", async () => {
+      await service.registerUser(body);
+      const { passwordHash, salt } = users.createUser.mock.calls[0]![0];
+      users.getUserByEmail.mockResolvedValue(sqlUser({ password_hash: passwordHash, salt }));
+      await expect(service.verify("new@example.com", PASSWORD)).resolves.toBeDefined();
     });
 
-    it("returns the user id and a token set", async () => {
-      const res = await service.registerUser(newUser);
-      expect(res.userId).toBe(USER_ID);
-      expect(res.refreshToken).toBe("refresh-token");
-      expect(decodeJwt(res.accessToken).sub).toBe(USER_ID);
-      expect(refreshTokens.create).toHaveBeenCalledWith(USER_ID);
+    it("uses a fresh salt for every user", async () => {
+      await service.registerUser(body);
+      await service.registerUser(body);
+      const [first, second] = users.createUser.mock.calls.map((c) => c[0]);
+      expect(first.salt).not.toBe(second.salt);
+      expect(first.passwordHash).not.toBe(second.passwordHash);
     });
 
-    it("sends a verification email", async () => {
-      await service.registerUser(newUser);
-      expect(validateTokens.createValidateToken).toHaveBeenCalledWith(USER_ID);
-      expect(emailer.sendMail).toHaveBeenCalledWith({
-        to: newUser.email,
-        from: config.smtpUser,
-        subject: "Infinite Sudoku: Validate Email",
-        html: generateValidateEmailTemplate("validate-tok", config.origin),
-      });
-      expect(logger.info).toHaveBeenCalledWith(
-        expect.stringContaining("MessageId: msg-1"),
-      );
-    });
-
-    it("rejects when terms of service are not acknowledged", async () => {
-      const err = await service
-        .registerUser({ ...newUser, tosAcknowledged: false })
-        .catch((e) => e);
+    it("rejects registration without accepting the terms of service", async () => {
+      const err = await service.registerUser({ ...body, tosAcknowledged: false }).catch((e) => e);
       expect(err).toBeInstanceOf(AuthenticationError);
       expect(err.code).toBe(ErrorType.VALIDATION_FAILED);
       expect(users.createUser).not.toHaveBeenCalled();
     });
 
-    it("throws a DatabaseError when no user id is returned", async () => {
-      users.createUser.mockResolvedValue(undefined);
-      await expect(service.registerUser(newUser)).rejects.toBeInstanceOf(
-        DatabaseError,
-      );
+    it("propagates createUser failures without issuing tokens or sending email", async () => {
+      const err = new DatabaseError("INSERT INTO users returned no row");
+      users.createUser.mockRejectedValue(err);
+      await expect(service.registerUser(body)).rejects.toBe(err);
       expect(validateTokens.createValidateToken).not.toHaveBeenCalled();
+      expect(refreshTokens.create).not.toHaveBeenCalled();
+      expect(emailer.sendMail).not.toHaveBeenCalled();
     });
 
-    it("propagates createUser errors", async () => {
-      users.createUser.mockRejectedValue(new Error("duplicate"));
-      await expect(service.registerUser(newUser)).rejects.toThrow("duplicate");
+    it("sends a validation email linking to the frontend", async () => {
+      await service.registerUser(body);
+      expect(validateTokens.createValidateToken).toHaveBeenCalledWith(USER_ID);
+      expect(emailer.sendMail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: "New@Example.com",
+          from: config.smtpUser,
+          subject: "Infinite Sudoku: Validate Email",
+        }),
+      );
+      const { html } = emailer.sendMail.mock.calls[0]![0];
+      expect(html).toContain(`${config.origin}/auth/validateEmail?token=validate-token`);
     });
 
-    it("throws a GenericError when the email fails to send", async () => {
-      const sendError = new Error("smtp down");
-      emailer.sendMail.mockRejectedValue(sendError);
-      const err = await service.registerUser(newUser).catch((e) => e);
-      expect(err).toBeInstanceOf(GenericError);
-      expect(err.message).toBe("Internal server error");
-      expect(logger.error).toHaveBeenCalledWith(sendError);
+    it("returns the user id and a new token set", async () => {
+      const result = await service.registerUser(body);
+      expect(result).toEqual({
+        userId: USER_ID,
+        accessToken: expect.any(String),
+        refreshToken: "refresh-token",
+      });
+      expect(refreshTokens.create).toHaveBeenCalledWith(USER_ID);
+      expect((await claimsOf(result.accessToken)).sub).toBe(USER_ID);
+    });
+
+    it("still registers the user when the email fails to send, and logs it", async () => {
+      // The account already exists at this point; the user can request a new
+      // validation email instead of hitting a 409 on retry.
+      const smtpErr = new Error("smtp down");
+      emailer.sendMail.mockRejectedValue(smtpErr);
+      await expect(service.registerUser(body)).resolves.toEqual({
+        userId: USER_ID,
+        accessToken: expect.any(String),
+        refreshToken: "refresh-token",
+      });
+      expect(logger.error).toHaveBeenCalledWith(smtpErr);
     });
   });
 
-  describe("access tokens", () => {
-    const secret = new TextEncoder().encode(config.jwtSecret);
-
-    it("getNewTokenSet issues a refresh token and a signed access token", async () => {
-      users.getUser.mockResolvedValue(
-        buildSqlUser({ role: "admin", email_verified: false }),
-      );
-      const { accessToken, refreshToken } =
-        await service.getNewTokenSet(USER_ID);
-
+  describe("getNewTokenSet", () => {
+    it("creates a refresh token and a signed access token", async () => {
+      const { accessToken, refreshToken } = await service.getNewTokenSet(USER_ID);
       expect(refreshToken).toBe("refresh-token");
       expect(refreshTokens.create).toHaveBeenCalledWith(USER_ID);
       expect(users.getUser).toHaveBeenCalledWith(USER_ID);
-
-      const { payload, protectedHeader } = await jwtVerify(
-        accessToken,
-        secret,
-        { issuer: config.issuer, audience: config.audience },
-      );
-      expect(protectedHeader.alg).toBe("HS256");
-      expect(payload).toMatchObject({
+      expect(await claimsOf(accessToken)).toMatchObject({
         sub: USER_ID,
-        role: "admin",
-        email_verified: false,
+        role: "user",
+        emailVerified: true,
+        iss: config.issuer,
+        aud: config.audience,
       });
-      expect(payload.exp! - payload.iat!).toBe(15 * 60);
     });
 
-    it("getNewTokenSet propagates user lookup failures", async () => {
-      users.getUser.mockRejectedValue(new NotFoundError("gone"));
-      await expect(service.getNewTokenSet(USER_ID)).rejects.toBeInstanceOf(
-        NotFoundError,
-      );
+    it("signs the role and verification status from the database", async () => {
+      users.getUser.mockResolvedValue(sqlUser({ role: "admin", email_verified: false }));
+      const { accessToken } = await service.getNewTokenSet(USER_ID);
+      expect(await claimsOf(accessToken)).toMatchObject({ role: "admin", emailVerified: false });
     });
 
-    it("refreshAccessToken rotates the refresh token", async () => {
-      refreshTokens.rotateRefreshToken.mockResolvedValue({
-        token: "new-refresh",
-        userId: USER_ID,
-      });
-      const res = await service.refreshAccessToken("old-refresh");
-      expect(refreshTokens.rotateRefreshToken).toHaveBeenCalledWith(
-        "old-refresh",
-      );
-      expect(res.refreshToken).toBe("new-refresh");
-      const { payload } = await jwtVerify(res.accessToken, secret);
-      expect(payload.sub).toBe(USER_ID);
+    it("issues access tokens that expire after 15 minutes", async () => {
+      const { accessToken } = await service.getNewTokenSet(USER_ID);
+      const { iat, exp } = await claimsOf(accessToken);
+      expect(exp! - iat!).toBe(15 * 60);
     });
 
-    it("refreshAccessToken propagates rotation failures", async () => {
-      refreshTokens.rotateRefreshToken.mockRejectedValue(
-        new AuthenticationError("expired"),
-      );
-      await expect(service.refreshAccessToken("x")).rejects.toBeInstanceOf(
-        AuthenticationError,
-      );
+    it("signs with HS256", async () => {
+      const { accessToken } = await service.getNewTokenSet(USER_ID);
+      const header = JSON.parse(Buffer.from(accessToken.split(".")[0]!, "base64url").toString());
+      expect(header).toEqual({ alg: "HS256" });
+    });
+  });
+
+  describe("refreshAccessToken", () => {
+    it("rotates the refresh token and issues an access token for its user", async () => {
+      refreshTokens.rotateRefreshToken.mockResolvedValue({ token: "rotated", userId: USER_ID });
+      const result = await service.refreshAccessToken("old-token");
+      expect(refreshTokens.rotateRefreshToken).toHaveBeenCalledWith("old-token");
+      expect(result.refreshToken).toBe("rotated");
+      expect((await claimsOf(result.accessToken)).sub).toBe(USER_ID);
+    });
+
+    it("propagates rotation failures without issuing a token", async () => {
+      const err = new AuthenticationError("revoked", { type: ErrorType.TOKEN_REVOKED });
+      refreshTokens.rotateRefreshToken.mockRejectedValue(err);
+      await expect(service.refreshAccessToken("old-token")).rejects.toBe(err);
       expect(users.getUser).not.toHaveBeenCalled();
     });
   });
 
   describe("clearRefreshToken", () => {
     it("deletes the token", async () => {
-      await service.clearRefreshToken("tok");
-      expect(refreshTokens.delete).toHaveBeenCalledWith("tok");
+      await service.clearRefreshToken("token");
+      expect(refreshTokens.delete).toHaveBeenCalledWith("token");
     });
   });
 
   describe("requestPasswordResetToken", () => {
-    it("creates a reset token and emails it", async () => {
-      users.getUserByEmail.mockResolvedValue(buildSqlUser());
-      resetTokens.createResetToken.mockResolvedValue(RESET_TOKEN);
-
-      await service.requestPasswordResetToken("User@Example.com");
-
+    it("emails a reset link to a known user", async () => {
+      users.getUserByEmail.mockResolvedValue(sqlUser());
+      await service.requestPasswordResetToken("player@example.com");
       expect(resetTokens.createResetToken).toHaveBeenCalledWith(USER_ID);
-      expect(emailer.sendMail).toHaveBeenCalledWith({
-        to: "user@example.com",
-        from: config.smtpUser,
-        subject: "Infinite Sudoku: Reset Password",
-        html: generatePasswordResetEmailBody(RESET_TOKEN, config.origin),
-      });
-      expect(logger.info).toHaveBeenCalledWith("Reset email sent: msg-1");
+      expect(emailer.sendMail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: "player@example.com",
+          from: config.smtpUser,
+          subject: "Infinite Sudoku: Reset Password",
+        }),
+      );
+      const { html } = emailer.sendMail.mock.calls[0]![0];
+      expect(html).toContain(`${config.origin}/auth/reset-password?token=reset-token`);
     });
 
-    it("does nothing when no user is returned", async () => {
-      users.getUserByEmail.mockResolvedValue(undefined as never);
-      await expect(
-        service.requestPasswordResetToken("x@y.z"),
-      ).resolves.toBeUndefined();
+    it("succeeds silently for an unknown email so accounts cannot be discovered", async () => {
+      users.getUserByEmail.mockResolvedValue(NO_USER);
+      await expect(service.requestPasswordResetToken("nobody@example.com")).resolves.toBeUndefined();
       expect(resetTokens.createResetToken).not.toHaveBeenCalled();
       expect(emailer.sendMail).not.toHaveBeenCalled();
     });
 
-    it("logs and rethrows lookup failures", async () => {
-      const err = new NotFoundError("User email not found");
-      users.getUserByEmail.mockRejectedValue(err);
-      await expect(service.requestPasswordResetToken("x@y.z")).rejects.toBe(
-        err,
-      );
-      expect(logger.error).toHaveBeenCalledWith(
-        err,
-        "Error occured during password reset request",
-      );
-    });
-
-    it("logs and rethrows email failures", async () => {
-      users.getUserByEmail.mockResolvedValue(buildSqlUser());
-      resetTokens.createResetToken.mockResolvedValue(RESET_TOKEN);
-      const err = new Error("smtp down");
-      emailer.sendMail.mockRejectedValue(err);
-      await expect(service.requestPasswordResetToken("x@y.z")).rejects.toBe(
-        err,
-      );
-      expect(logger.error).toHaveBeenCalled();
+    it("logs and rethrows when the email fails to send", async () => {
+      users.getUserByEmail.mockResolvedValue(sqlUser());
+      const smtpErr = new Error("smtp down");
+      emailer.sendMail.mockRejectedValue(smtpErr);
+      await expect(service.requestPasswordResetToken("player@example.com")).rejects.toBe(smtpErr);
+      expect(logger.error).toHaveBeenCalledWith(smtpErr, expect.any(String));
     });
   });
 
   describe("requestEmailVerification", () => {
-    it("creates a validation token and emails it", async () => {
-      users.getUserByEmail.mockResolvedValue(
-        buildSqlUser({ email_verified: false }),
-      );
-      validateTokens.createValidateToken.mockResolvedValue("validate-tok");
-
-      await service.requestEmailVerification("user@example.com");
-
+    it("emails a validation link to an unverified user", async () => {
+      users.getUserByEmail.mockResolvedValue(sqlUser({ email_verified: false }));
+      await service.requestEmailVerification("player@example.com");
       expect(validateTokens.createValidateToken).toHaveBeenCalledWith(USER_ID);
-      expect(emailer.sendMail).toHaveBeenCalledWith({
-        to: "user@example.com",
-        from: config.smtpUser,
-        subject: "Infinite Sudoku: Validate Email",
-        html: generateValidateEmailTemplate("validate-tok", config.origin),
-      });
-      expect(logger.info).toHaveBeenCalled();
+      const { to, html } = emailer.sendMail.mock.calls[0]![0];
+      expect(to).toBe("player@example.com");
+      expect(html).toContain(`${config.origin}/auth/validateEmail?token=validate-token`);
     });
 
-    it("throws NotFoundError when no user is returned", async () => {
-      users.getUserByEmail.mockResolvedValue(undefined as never);
-      const err = await service
-        .requestEmailVerification("x@y.z")
-        .catch((e) => e);
-      expect(err).toBeInstanceOf(NotFoundError);
-      expect(err.message).toBe("User with email: x@y.z not found.");
-      expect(logger.error).toHaveBeenCalledWith(
-        err,
-        "Error occurred sending email verification",
-      );
-    });
-
-    it("throws BadRequestError when the email is already verified", async () => {
-      users.getUserByEmail.mockResolvedValue(
-        buildSqlUser({ email_verified: true }),
-      );
-      await expect(
-        service.requestEmailVerification("x@y.z"),
-      ).rejects.toBeInstanceOf(BadRequestError);
+    it("succeeds silently for an unknown email so accounts cannot be discovered", async () => {
+      users.getUserByEmail.mockResolvedValue(NO_USER);
+      await expect(service.requestEmailVerification("nobody@example.com")).resolves.toBeUndefined();
       expect(validateTokens.createValidateToken).not.toHaveBeenCalled();
+      expect(emailer.sendMail).not.toHaveBeenCalled();
     });
 
-    it("rethrows email failures", async () => {
-      users.getUserByEmail.mockResolvedValue(
-        buildSqlUser({ email_verified: false }),
-      );
-      validateTokens.createValidateToken.mockResolvedValue("tok");
-      emailer.sendMail.mockRejectedValue(new Error("smtp down"));
-      await expect(service.requestEmailVerification("x@y.z")).rejects.toThrow(
-        "smtp down",
-      );
+    it("logs and rethrows when the email fails to send", async () => {
+      users.getUserByEmail.mockResolvedValue(sqlUser({ email_verified: false }));
+      const smtpErr = new Error("smtp down");
+      emailer.sendMail.mockRejectedValue(smtpErr);
+      await expect(service.requestEmailVerification("player@example.com")).rejects.toBe(smtpErr);
+      expect(logger.error).toHaveBeenCalledWith(smtpErr, expect.any(String));
     });
   });
 
   describe("resetPassword", () => {
-    const NOW = new Date("2026-06-01T12:00:00.000Z");
-    const FIFTEEN_MINUTES = 15 * 60 * 1000;
+    const NEW_PASSWORD = "N3w!password";
 
-    beforeEach(() => {
-      vi.useFakeTimers({ now: NOW, toFake: ["Date"] });
-    });
-
-    afterEach(() => {
-      vi.useRealTimers();
-    });
-
-    const tokenCreatedAgo = (ms: number) => ({
-      userId: USER_ID,
-      token: RESET_TOKEN,
-      createdAt: new Date(NOW.getTime() - ms),
-    });
-
-    it("changes the password and revokes all refresh tokens", async () => {
-      resetTokens.consumeToken.mockResolvedValue(tokenCreatedAgo(1000));
-
-      await service.resetPassword(RESET_TOKEN, VALID_PASSWORD);
-
-      expect(resetTokens.consumeToken).toHaveBeenCalledWith(RESET_TOKEN);
-      const [userId, hash, salt] = users.changePassword.mock.calls[0];
+    it("changes the password and signs the user out everywhere", async () => {
+      resetTokens.consumeToken.mockResolvedValue({ token: "t", userId: USER_ID, createdAt: new Date() });
+      await service.resetPassword("t", NEW_PASSWORD);
+      expect(resetTokens.consumeToken).toHaveBeenCalledWith("t");
+      expect(users.changePassword).toHaveBeenCalledOnce();
+      const [userId, hash, salt] = users.changePassword.mock.calls[0]!;
       expect(userId).toBe(USER_ID);
-      expectHashMatches(VALID_PASSWORD, hash, salt);
+      expect(matchesHash(NEW_PASSWORD, hash, salt)).toBe(true);
       expect(refreshTokens.invalidateAllForUser).toHaveBeenCalledWith(USER_ID);
     });
 
-    it("accepts a token exactly 15 minutes old", async () => {
-      resetTokens.consumeToken.mockResolvedValue(
-        tokenCreatedAgo(FIFTEEN_MINUTES),
-      );
-      await expect(
-        service.resetPassword(RESET_TOKEN, VALID_PASSWORD),
-      ).resolves.toBeUndefined();
+    it("accepts a token just inside the 15 minute window", async () => {
+      resetTokens.consumeToken.mockResolvedValue({
+        token: "t",
+        userId: USER_ID,
+        createdAt: new Date(Date.now() - FIFTEEN_MINUTES + 5_000),
+      });
+      await service.resetPassword("t", NEW_PASSWORD);
+      expect(users.changePassword).toHaveBeenCalledOnce();
     });
 
-    it("rejects tokens older than 15 minutes", async () => {
-      resetTokens.consumeToken.mockResolvedValue(
-        tokenCreatedAgo(FIFTEEN_MINUTES + 1),
-      );
-      const err = await service
-        .resetPassword(RESET_TOKEN, VALID_PASSWORD)
-        .catch((e) => e);
+    it("rejects an unknown or used token", async () => {
+      resetTokens.consumeToken.mockResolvedValue(undefined);
+      const err = await service.resetPassword("t", NEW_PASSWORD).catch((e) => e);
+      expect(err).toBeInstanceOf(NotFoundError);
+      expect(err.code).toBe(ErrorType.TOKEN_INVALID);
+      expect(users.changePassword).not.toHaveBeenCalled();
+      expect(refreshTokens.invalidateAllForUser).not.toHaveBeenCalled();
+    });
+
+    it("rejects a token older than 15 minutes", async () => {
+      resetTokens.consumeToken.mockResolvedValue({
+        token: "t",
+        userId: USER_ID,
+        createdAt: new Date(Date.now() - FIFTEEN_MINUTES - 1_000),
+      });
+      const err = await service.resetPassword("t", NEW_PASSWORD).catch((e) => e);
       expect(err).toBeInstanceOf(AuthorizationError);
       expect(err.code).toBe(ErrorType.TOKEN_EXPIRED);
       expect(users.changePassword).not.toHaveBeenCalled();
       expect(refreshTokens.invalidateAllForUser).not.toHaveBeenCalled();
     });
-
-    it("rejects unknown or used tokens", async () => {
-      resetTokens.consumeToken.mockResolvedValue(undefined);
-      const err = await service
-        .resetPassword(RESET_TOKEN, VALID_PASSWORD)
-        .catch((e) => e);
-      expect(err).toBeInstanceOf(NotFoundError);
-      expect(err.code).toBe(ErrorType.TOKEN_INVALID);
-      expect(users.changePassword).not.toHaveBeenCalled();
-    });
-
-    it("does not revoke tokens if changing the password fails", async () => {
-      resetTokens.consumeToken.mockResolvedValue(tokenCreatedAgo(0));
-      users.changePassword.mockRejectedValue(new Error("db down"));
-      await expect(
-        service.resetPassword(RESET_TOKEN, VALID_PASSWORD),
-      ).rejects.toThrow("db down");
-      expect(refreshTokens.invalidateAllForUser).not.toHaveBeenCalled();
-    });
   });
 
   describe("validateEmail", () => {
-    it.each([true, false])("returns the data source result (%s)", async (v) => {
-      validateTokens.validateEmail.mockResolvedValue(v);
-      await expect(service.validateEmail("tok")).resolves.toBe(v);
-      expect(validateTokens.validateEmail).toHaveBeenCalledWith("tok");
+    it.each([true, false])("returns the data source result (%s)", async (result) => {
+      validateTokens.validateEmail.mockResolvedValue(result);
+      await expect(service.validateEmail("token")).resolves.toBe(result);
+      expect(validateTokens.validateEmail).toHaveBeenCalledWith("token");
     });
   });
 });

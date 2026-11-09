@@ -1,230 +1,247 @@
 import { describe, expect, it } from "vitest";
-import type { Request, Response, NextFunction } from "express";
-import { ZodError } from "zod/v4";
+import type { Request, RequestHandler } from "express";
+import * as z from "zod/v4";
 import {
-  loginBodySchema,
   loginBodyValidator,
   passwordResetValidator,
   registerBodySchema,
   registerBodyValidator,
   resetRequestValidator,
-  tokenBodyValidator,
+  mobileLoginBodyValidator,
+  mobileRefreshBodyValidator,
+  validateEmailTokenValidator,
 } from "@/feature/auth/middleware/validation";
 import { mockNext, mockRequest, mockResponse } from "#test/helpers/express";
-import { RESET_TOKEN, VALID_PASSWORD } from "#test/helpers/fixtures";
 
-type Validator = (req: Request, res: Response, next: NextFunction) => void;
+const STRONG_PASSWORD = "Str0ng!pass";
+const TOKEN = "3f0c7a4e-1b2d-4c5e-8f9a-0b1c2d3e4f5a";
 
-function run(validator: Validator, body: unknown) {
-  const req = mockRequest<Request>({ body });
+// Some validators throw the ZodError and some pass it to next(); both reach
+// the errorHandler the same way, so normalise them here.
+function run(handler: RequestHandler, body: unknown, query: Record<string, unknown> = {}) {
+  const req = mockRequest<Request>({ body, query });
   const next = mockNext();
   let thrown: unknown;
   try {
-    validator(req, mockResponse(), next);
-  } catch (e) {
-    thrown = e;
+    handler(req, mockResponse(), next);
+  } catch (err) {
+    thrown = err;
   }
-  return { req, next, thrown };
+  const error = thrown ?? next.mock.calls[0]?.[0];
+  return { req, next, error };
 }
 
-const validRegister = {
-  email: "new@user.com",
-  username: "newbie",
-  password: VALID_PASSWORD,
-  tosAcknowledged: true,
-};
+function expectPass(handler: RequestHandler, body: unknown) {
+  const result = run(handler, body);
+  expect(result.error).toBeUndefined();
+  expect(result.next).toHaveBeenCalledOnce();
+  expect(result.next).toHaveBeenCalledWith();
+  return result;
+}
 
-const invalidPasswords: [string, string][] = [
-  ["too short", "Ab1!abc"],
-  ["missing uppercase", "str0ng!pass"],
-  ["missing lowercase", "STR0NG!PASS"],
-  ["missing number", "Strong!Pass"],
-  ["missing special character", "Str0ngPass1"],
-  ["empty", ""],
-];
+function expectFail(handler: RequestHandler, body: unknown, path?: string) {
+  const result = run(handler, body);
+  expect(result.error).toBeInstanceOf(z.ZodError);
+  if (path !== undefined) {
+    const paths = (result.error as z.ZodError).issues.map((i) => i.path.join("."));
+    expect(paths).toContain(path);
+  }
+  // next must not also be called with no arguments (which would run the route).
+  expect(result.next.mock.calls.filter((c) => c.length === 0)).toHaveLength(0);
+  return result;
+}
 
-describe("loginBodySchema / loginBodyValidator", () => {
-  it("passes a valid body", () => {
-    const { next, thrown } = run(loginBodyValidator, {
+describe("password rules (register and reset)", () => {
+  const register = (password: unknown) => ({
+    email: "a@b.co",
+    username: "player",
+    password,
+    tosAcknowledged: true,
+  });
+
+  it.each([
+    "Str0ng!pass",
+    "Aa1#aaaa",
+    "Aa1 aaaa", // space counts as a special character
+    "Aa1-" + "a".repeat(100),
+  ])("accepts %j", (password) => {
+    expectPass(registerBodyValidator, register(password));
+    expectPass(passwordResetValidator, { password, token: TOKEN });
+  });
+
+  it.each([
+    ["too short", "Aa1#aaa"],
+    ["no uppercase", "aa1#aaaa"],
+    ["no lowercase", "AA1#AAAA"],
+    ["no number", "Aaa#aaaa"],
+    ["no special character", "Aa1aaaaa"],
+    ["an unlisted special character only", "Aa1_aaaa"],
+    ["empty", ""],
+    ["not a string", 12345678],
+  ])("rejects a password with %s", (_label, password) => {
+    expectFail(registerBodyValidator, register(password), "password");
+    expectFail(passwordResetValidator, { password, token: TOKEN });
+  });
+});
+
+describe("loginBodyValidator", () => {
+  it("accepts an email and an 8+ character password", () => {
+    expectPass(loginBodyValidator, { email: "a@b.co", password: "whatever" });
+  });
+
+  it("does not apply the strength rules, so old passwords still log in", () => {
+    expectPass(loginBodyValidator, { email: "a@b.co", password: "alllowercase" });
+  });
+
+  it.each([
+    ["an invalid email", { email: "nope", password: "whatever" }, "email"],
+    ["a missing email", { password: "whatever" }, "email"],
+    ["a short password", { email: "a@b.co", password: "short" }, "password"],
+    ["a missing password", { email: "a@b.co" }, "password"],
+    ["a non-string email", { email: ["a@b.co"], password: "whatever" }, "email"],
+  ])("rejects %s", (_label, body, path) => {
+    expectFail(loginBodyValidator, body, path);
+  });
+
+  it.each([undefined, null, "string body"])("rejects a %j body", (body) => {
+    expectFail(loginBodyValidator, body);
+  });
+});
+
+describe("registerBodyValidator", () => {
+  const valid = {
+    email: "a@b.co",
+    username: "player",
+    password: STRONG_PASSWORD,
+    tosAcknowledged: true,
+  };
+
+  it("accepts a valid body", () => {
+    expectPass(registerBodyValidator, valid);
+  });
+
+  it("accepts tosAcknowledged: false (the service rejects it)", () => {
+    expectPass(registerBodyValidator, { ...valid, tosAcknowledged: false });
+  });
+
+  it.each([
+    ["an invalid email", { email: "nope" }, "email"],
+    ["a short username", { username: "abc" }, "username"],
+    ["a string tosAcknowledged", { tosAcknowledged: "true" }, "tosAcknowledged"],
+    ["a missing tosAcknowledged", { tosAcknowledged: undefined }, "tosAcknowledged"],
+  ])("rejects %s", (_label, override, path) => {
+    expectFail(registerBodyValidator, { ...valid, ...override }, path);
+  });
+
+  it("exposes a schema matching the validator", () => {
+    expect(registerBodySchema.safeParse(valid).success).toBe(true);
+  });
+});
+
+describe("mobileLoginBodyValidator", () => {
+  it("accepts an email and password", () => {
+    expectPass(mobileLoginBodyValidator, { email: "a@b.co", password: "pass" });
+  });
+
+  it("replaces req.body with the parsed data, dropping unknown fields", () => {
+    const { req } = expectPass(mobileLoginBodyValidator, {
       email: "a@b.co",
-      password: "12345678",
+      password: "pass",
+      grantType: "password",
+      role: "admin",
     });
-    expect(thrown).toBeUndefined();
-    expect(next).toHaveBeenCalledWith();
+    expect(req.body).toEqual({ email: "a@b.co", password: "pass" });
   });
 
   it.each([
-    ["invalid email", { email: "nope", password: "12345678" }],
-    ["short password", { email: "a@b.co", password: "1234567" }],
-    ["missing password", { email: "a@b.co" }],
-    ["missing email", { password: "12345678" }],
-    ["non-string password", { email: "a@b.co", password: 12345678 }],
-  ])("throws a ZodError for %s", (_label, body) => {
-    const { next, thrown } = run(loginBodyValidator, body);
-    expect(thrown).toBeInstanceOf(ZodError);
-    expect(next).not.toHaveBeenCalled();
-  });
-
-  it("throws when the body is missing", () => {
-    expect(run(loginBodyValidator, undefined).thrown).toBeInstanceOf(ZodError);
-  });
-
-  it("is exported for reuse", () => {
-    expect(
-      loginBodySchema.safeParse({ email: "a@b.co", password: "x".repeat(8) })
-        .success,
-    ).toBe(true);
+    ["a refresh token body", { refreshToken: "rt" }],
+    ["a short password", { email: "a@b.co", password: "abc" }],
+    ["a short email", { email: "a@b", password: "pass" }],
+    ["a missing password", { email: "a@b.co" }],
+    ["a non-string email", { email: ["a@b.co"], password: "pass" }],
+    ["no body", undefined],
+  ])("rejects %s", (_label, body) => {
+    const { req } = expectFail(mobileLoginBodyValidator, body);
+    expect(req.body).toEqual(body);
   });
 });
 
-describe("registerBodySchema / registerBodyValidator", () => {
-  it("passes a valid body", () => {
-    const { next, thrown } = run(registerBodyValidator, validRegister);
-    expect(thrown).toBeUndefined();
-    expect(next).toHaveBeenCalledWith();
+describe("mobileRefreshBodyValidator", () => {
+  it("accepts a refresh token", () => {
+    expectPass(mobileRefreshBodyValidator, { refreshToken: "rt" });
   });
 
-  it("accepts tosAcknowledged=false at the schema level", () => {
-    expect(
-      registerBodySchema.safeParse({ ...validRegister, tosAcknowledged: false })
-        .success,
-    ).toBe(true);
-  });
-
-  it.each(["#", "?", "!", "@", "$", " ", "%", "^", "&", "*", "-"])(
-    "accepts the special character %j",
-    (char) => {
-      const password = `Abcdef1${char}`;
-      expect(
-        registerBodySchema.safeParse({ ...validRegister, password }).success,
-      ).toBe(true);
-    },
-  );
-
-  it.each(invalidPasswords)("rejects a password %s", (_label, password) => {
-    const { thrown } = run(registerBodyValidator, {
-      ...validRegister,
-      password,
-    });
-    expect(thrown).toBeInstanceOf(ZodError);
-    expect((thrown as ZodError).issues[0].message).toMatch(
-      /^Password must contain/,
-    );
-  });
-
-  it.each([
-    ["invalid email", { email: "x" }],
-    ["short username", { username: "abc" }],
-    ["missing tos", { tosAcknowledged: undefined }],
-    ["string tos", { tosAcknowledged: "true" }],
-  ])("rejects %s", (_label, override) => {
-    const { thrown, next } = run(registerBodyValidator, {
-      ...validRegister,
-      ...override,
-    });
-    expect(thrown).toBeInstanceOf(ZodError);
-    expect(next).not.toHaveBeenCalled();
-  });
-});
-
-describe("tokenBodyValidator", () => {
-  it("accepts a password grant and strips unknown fields", () => {
-    const { req, next } = run(tokenBodyValidator, {
-      grantType: "password",
-      email: "a@b.c",
-      password: "abcd",
-      extra: "drop me",
-    });
-    expect(next).toHaveBeenCalledWith();
-    expect(req.body).toEqual({
-      grantType: "password",
-      email: "a@b.c",
-      password: "abcd",
-    });
-  });
-
-  it("accepts a refresh token grant", () => {
-    const { req, next } = run(tokenBodyValidator, {
+  it("replaces req.body with the parsed data, dropping unknown fields", () => {
+    const { req } = expectPass(mobileRefreshBodyValidator, {
+      refreshToken: "rt",
       grantType: "refreshToken",
-      refreshToken: "t",
+      email: "a@b.co",
     });
-    expect(next).toHaveBeenCalledWith();
-    expect(req.body).toEqual({ grantType: "refreshToken", refreshToken: "t" });
+    expect(req.body).toEqual({ refreshToken: "rt" });
   });
 
   it.each([
-    ["missing grant type", { email: "a@b.c", password: "abcd" }],
-    ["unknown grant type", { grantType: "magic" }],
-    ["short email", { grantType: "password", email: "a@b", password: "abcd" }],
-    [
-      "short password",
-      { grantType: "password", email: "a@b.c", password: "abc" },
-    ],
-    ["empty refresh token", { grantType: "refreshToken", refreshToken: "" }],
-    ["refresh grant without token", { grantType: "refreshToken" }],
-    ["undefined body", undefined],
-  ])("forwards a ZodError for %s", (_label, body) => {
-    const { req, next, thrown } = run(tokenBodyValidator, body);
-    expect(thrown).toBeUndefined();
-    expect(next).toHaveBeenCalledTimes(1);
-    expect(next.mock.calls[0][0]).toBeInstanceOf(ZodError);
-    expect(req.body).toBe(body);
+    ["a login body", { email: "a@b.co", password: "pass" }],
+    ["an empty token", { refreshToken: "" }],
+    ["a non-string token", { refreshToken: 5 }],
+    ["no body", undefined],
+  ])("rejects %s", (_label, body) => {
+    const { req } = expectFail(mobileRefreshBodyValidator, body);
+    expect(req.body).toEqual(body);
   });
 });
 
 describe("resetRequestValidator", () => {
-  it("passes a valid email", () => {
-    const { next } = run(resetRequestValidator, { email: "a@b.co" });
-    expect(next).toHaveBeenCalledWith();
+  it("accepts a valid email", () => {
+    expectPass(resetRequestValidator, { email: "a@b.co" });
   });
 
   it.each([
-    ["invalid email", { email: "nope" }],
-    ["missing email", {}],
-    ["undefined body", undefined],
-  ])("forwards a ZodError for %s", (_label, body) => {
-    const { next } = run(resetRequestValidator, body);
-    expect(next.mock.calls[0][0]).toBeInstanceOf(ZodError);
+    ["an invalid email", { email: "nope" }],
+    ["a missing email", {}],
+    ["no body", undefined],
+  ])("rejects %s", (_label, body) => {
+    expectFail(resetRequestValidator, body);
   });
 });
 
 describe("passwordResetValidator", () => {
-  it("passes a strong password and uuid token", () => {
-    const { next } = run(passwordResetValidator, {
-      password: VALID_PASSWORD,
-      token: RESET_TOKEN,
-    });
+  it("accepts a strong password and a uuid token", () => {
+    expectPass(passwordResetValidator, { password: STRONG_PASSWORD, token: TOKEN });
+  });
+
+  it.each([
+    ["a non-uuid token", { password: STRONG_PASSWORD, token: "abc" }],
+    ["a missing token", { password: STRONG_PASSWORD }],
+    ["a missing password", { token: TOKEN }],
+    ["no body", undefined],
+  ])("rejects %s", (_label, body) => {
+    expectFail(passwordResetValidator, body);
+  });
+
+  it("reports the password error before checking the token", () => {
+    const { error } = expectFail(passwordResetValidator, { password: "weak", token: "abc" });
+    expect((error as z.ZodError).issues[0]!.message).toMatch(/Password must contain/);
+  });
+});
+
+describe("validateEmailTokenValidator", () => {
+  const runQuery = (query: Record<string, unknown>) => run(validateEmailTokenValidator, undefined, query);
+
+  it("accepts a uuid token in the query string", () => {
+    const { error, next } = runQuery({ token: TOKEN });
+    expect(error).toBeUndefined();
     expect(next).toHaveBeenCalledWith();
   });
 
-  it.each(invalidPasswords)(
-    "forwards a ZodError for a password %s",
-    (_label, password) => {
-      const { next } = run(passwordResetValidator, {
-        password,
-        token: RESET_TOKEN,
-      });
-      expect(next).toHaveBeenCalledTimes(1);
-      expect(next.mock.calls[0][0]).toBeInstanceOf(ZodError);
-    },
-  );
-
   it.each([
-    ["non-uuid token", "abc"],
-    ["missing token", undefined],
-  ])("forwards a ZodError for a %s", (_label, token) => {
-    const { next } = run(passwordResetValidator, {
-      password: VALID_PASSWORD,
-      token,
-    });
-    expect(next).toHaveBeenCalledTimes(1);
-    const err = next.mock.calls[0][0] as ZodError;
-    expect(err).toBeInstanceOf(ZodError);
-    expect(err.issues[0].message).not.toMatch(/^Password/);
-  });
-
-  it("forwards a ZodError for an undefined body", () => {
-    const { next } = run(passwordResetValidator, undefined);
-    expect(next.mock.calls[0][0]).toBeInstanceOf(ZodError);
+    ["a missing token", {}],
+    ["an empty token", { token: "" }],
+    ["a non-uuid token", { token: "abc" }],
+    ["a repeated token", { token: [TOKEN, TOKEN] }],
+  ])("rejects %s", (_label, query) => {
+    const { error, next } = runQuery(query);
+    expect(error).toBeInstanceOf(z.ZodError);
+    expect(next.mock.calls.filter((c) => c.length === 0)).toHaveLength(0);
   });
 });

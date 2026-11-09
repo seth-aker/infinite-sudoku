@@ -3,7 +3,7 @@ import { CookieOptions, Request, Response } from "express";
 const FIFTEEN_MINUTES = 1000 * 60 * 15;
 const THIRTY_DAYS = 1000 * 60 * 60 * 24 * 30;
 
-const REFRESH_PATH = "/api/auth/web/refresh";
+const REFRESH_PATH = "/api/auth/web";
 
 const ACCESS_TOKEN_COOKIE: CookieOptions = {
   httpOnly: true,

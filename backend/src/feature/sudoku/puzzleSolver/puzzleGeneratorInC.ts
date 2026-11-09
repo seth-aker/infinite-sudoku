@@ -65,10 +65,10 @@ export function generatePuzzles(number: number, options: PuzzleOptions) {
 }
 worker({ generatePuzzles });
 
-function processPuzzle(puzzleString: string): CreatePuzzle {
+function processPuzzle(puzzleString: string): CreatePuzzle | undefined {
   const [cellValues, solvedCells, difficultyScoreStr, difficultyRatingNum] =
     puzzleString.split(":");
-  const difficultyScore = Number.parseInt(difficultyScoreStr);
+  const difficultyScore = Number.parseInt(difficultyScoreStr ?? "0");
   let difficultyRating: DifficultyRating;
   switch (difficultyRatingNum) {
     case "0":
@@ -87,7 +87,9 @@ function processPuzzle(puzzleString: string): CreatePuzzle {
       difficultyRating = "impossible";
       break;
   }
-
+  if(!cellValues || !solvedCells ||  !difficultyScoreStr || !difficultyRatingNum) {
+    return undefined;
+  }
   return {
     cells: cellValues,
     solvedCells,

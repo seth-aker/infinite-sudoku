@@ -1,16 +1,15 @@
-import { Router, type Request } from "express";
+import { NextFunction, Response, Router, type Request } from "express";
 import { AuthenticationService } from "../../service/authenticationService";
-import { authLimiter, resetPasswordRateLimiter } from "../../middleware/rateLimiter";
-import { requireLoggedin } from "../../middleware/authentication";
-import { clearAuthCookies } from "../../utils/cookies";
+import { passwordGrantLimiter, refreshGrantLimiter, resetPasswordRateLimiter } from "../../middleware/rateLimiter";
 import {
+  passwordResetValidator,
   registerBodyValidator,
-  tokenBodyValidator,
+  mobileLoginBodyValidator,
+  mobileRefreshBodyValidator,
 } from "../../middleware/validation";
 import { DatabaseError } from "@/core/errors/databaseError";
 import { AuthenticationError } from "../../errors/authenticationError";
 import { ErrorType } from "@/core/errors/errorTypes";
-import { BadRequestError } from "@/core/errors/badRequestError";
 import { TokenPasswordBody, TokenRefreshBody, ResetPasswordBody } from "../types";
 
 
@@ -19,9 +18,9 @@ export function MobileAuthRouter(authService: AuthenticationService) {
 
   router.post(
     "/login",
-    authLimiter(),
-    tokenBodyValidator,
-    async (req: Request<{}, {}, TokenPasswordBody>, res) => {
+    passwordGrantLimiter,
+    mobileLoginBodyValidator,
+    async (req: Request<{}, {}, TokenPasswordBody>, res: Response) => {
       const user = await authService.verify(req.body.email, req.body.password);
 
       const { accessToken, refreshToken } = await authService.getNewTokenSet(
@@ -33,23 +32,20 @@ export function MobileAuthRouter(authService: AuthenticationService) {
     },
   );
 
-  router.post("/logout", authLimiter(), requireLoggedin, async (req, res) => {
-    const refreshToken = req.body.refreshToken;
+  router.post("/logout", async (req, res) => {
+    const refreshToken = req.body?.refreshToken;
 
-    if (refreshToken) {
+    if (refreshToken && typeof refreshToken === 'string') {
       await authService.clearRefreshToken(refreshToken);
     }
-
-    clearAuthCookies(res);
-
     res.sendStatus(204);
   });
 
   router.post(
     "/register",
-    authLimiter(),
+    passwordGrantLimiter,
     registerBodyValidator,
-    async (req, res, _next) => {
+    async (req: Request, res: Response, _next: NextFunction) => {
       const result = await authService.registerUser(req.body);
       if (!result.userId) {
         throw new DatabaseError("An error occured registering the user");
@@ -72,8 +68,8 @@ export function MobileAuthRouter(authService: AuthenticationService) {
 
   router.post(
     "/refresh",
-    authLimiter(),
-    tokenBodyValidator,
+    refreshGrantLimiter,
+    mobileRefreshBodyValidator,
     async (req: Request<{}, {}, TokenRefreshBody>, res, _next) => {
       const refreshToken = req.body.refreshToken;
       if (!refreshToken) {
@@ -90,14 +86,11 @@ export function MobileAuthRouter(authService: AuthenticationService) {
 
   router.post(
     "/resetPassword",
-    authLimiter(),
     resetPasswordRateLimiter,
-    async (req: Request<{},{}, ResetPasswordBody>, res, _next) => {
+    passwordResetValidator,
+    async (req: Request<{}, {}, ResetPasswordBody>, res, _next) => {
       const resetToken = req.body.token;
       const password = req.body.password;
-      if(!resetToken || !password) {
-        throw new BadRequestError("Missing required field in request body", 400, { type: ErrorType.MALFORMED_BODY });
-      }
       await authService.resetPassword(resetToken, password);
       return res.sendStatus(200);
     }

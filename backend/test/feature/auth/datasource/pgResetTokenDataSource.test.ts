@@ -1,98 +1,105 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { PgResetTokenDataSource } from "@/feature/auth/datasource/pgResetTokenDataSource";
+import { DatabaseError } from "@/core/errors/databaseError";
 import { logger } from "@/core/logging/logger";
-import { createSqlMock, result, type SqlMock } from "#test/helpers/sql";
-import { RESET_TOKEN, USER_ID } from "#test/helpers/fixtures";
+import { PgResetTokenDataSource } from "@/feature/auth/datasource/pgResetTokenDataSource";
+import { fakeSql } from "#test/helpers/sql";
 
-const FIFTEEN_MINUTES = 15 * 60 * 1000;
+const USER_ID = "3f0c7a4e-1b2d-4c5e-8f9a-0b1c2d3e4f5a";
+const TOKEN = "9a8b7c6d-5e4f-4a3b-9c2d-1e0f9a8b7c6d";
+const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
 
 describe("PgResetTokenDataSource", () => {
-  let db: SqlMock;
+  let db: ReturnType<typeof fakeSql>;
   let source: PgResetTokenDataSource;
 
   beforeEach(() => {
     vi.useFakeTimers();
+    db = fakeSql();
     PgResetTokenDataSource.instance = null;
-    db = createSqlMock();
     source = PgResetTokenDataSource.create(db.sql);
   });
 
   afterEach(() => {
-    vi.clearAllTimers();
+    source.close();
     vi.useRealTimers();
   });
 
-  it("is a singleton", () => {
-    expect(PgResetTokenDataSource.create(createSqlMock().sql)).toBe(source);
-  });
-
-  describe("stale token sweep", () => {
-    it("deletes tokens older than 15 minutes every 15 minutes", async () => {
-      await vi.advanceTimersByTimeAsync(FIFTEEN_MINUTES);
-      expect(db.calls).toHaveLength(1);
-      expect(db.calls[0].query).toBe(
-        "DELETE FROM reset_tokens WHERE created_at + INTERVAL '15 minutes' < now()",
-      );
-    });
-
-    it("logs sweep failures", async () => {
-      const err = new Error("db down");
-      db.enqueue(err);
-      await vi.advanceTimersByTimeAsync(FIFTEEN_MINUTES);
-      expect(logger.error).toHaveBeenCalledWith(
-        { err },
-        "refresh token sweep failed",
-      );
-    });
+  it("returns the same instance on later create calls", () => {
+    expect(PgResetTokenDataSource.create(fakeSql().sql)).toBe(source);
   });
 
   describe("createResetToken", () => {
     it("inserts a token for the user and returns it", async () => {
-      db.enqueue(result([{ reset_token: RESET_TOKEN }]));
-      await expect(source.createResetToken(USER_ID)).resolves.toBe(RESET_TOKEN);
-      expect(db.calls[0].query).toContain("INSERT INTO reset_tokens");
-      expect(db.calls[0].values).toEqual([USER_ID]);
+      db.returns([{ reset_token: TOKEN }]);
+      await expect(source.createResetToken(USER_ID)).resolves.toBe(TOKEN);
+      expect(db.queries[0]!.values).toEqual([USER_ID]);
     });
 
-    it("propagates database errors", async () => {
-      db.enqueue(new Error("fk violation"));
-      await expect(source.createResetToken(USER_ID)).rejects.toThrow(
-        "fk violation",
-      );
+    it("throws a DatabaseError when no row comes back", async () => {
+      db.returns([]);
+      await expect(source.createResetToken(USER_ID)).rejects.toBeInstanceOf(DatabaseError);
     });
   });
 
   describe("consumeToken", () => {
-    it("marks an unused token as used and returns it", async () => {
-      const createdAt = new Date();
-      db.enqueue(
-        result([
-          { user_id: USER_ID, reset_token: RESET_TOKEN, created_at: createdAt },
-        ]),
-      );
-      await expect(source.consumeToken(RESET_TOKEN)).resolves.toEqual({
+    it("returns the consumed token with camelCase fields", async () => {
+      const createdAt = new Date("2026-06-01T12:00:00Z");
+      db.returns([{ reset_token: TOKEN, user_id: USER_ID, created_at: createdAt }]);
+      await expect(source.consumeToken(TOKEN)).resolves.toEqual({
+        token: TOKEN,
         userId: USER_ID,
-        token: RESET_TOKEN,
         createdAt,
       });
-      expect(db.calls[0].query).toContain("SET status = 'USED'");
-      expect(db.calls[0].query).toContain("status = 'UNUSED'");
-      expect(db.calls[0].values).toEqual([RESET_TOKEN]);
+      expect(db.queries[0]!.values).toEqual([TOKEN]);
     });
 
-    it("returns undefined when no unused token matches", async () => {
-      db.enqueue(result([]));
-      await expect(source.consumeToken(RESET_TOKEN)).resolves.toBeUndefined();
+    it("only consumes unused tokens", async () => {
+      await source.consumeToken(TOKEN);
+      expect(db.queries[0]!.text).toMatch(/SET status = 'USED'/);
+      expect(db.queries[0]!.text).toMatch(/AND status = 'UNUSED'/);
     });
 
-    it("returns undefined when more than one row is affected", async () => {
-      const row = {
-        user_id: USER_ID,
-        reset_token: RESET_TOKEN,
-        created_at: new Date(),
-      };
-      db.enqueue(result([row, row]));
-      await expect(source.consumeToken(RESET_TOKEN)).resolves.toBeUndefined();
+    it("returns undefined for an unknown or already used token", async () => {
+      db.returns([]);
+      await expect(source.consumeToken(TOKEN)).resolves.toBeUndefined();
+    });
+
+    it("returns undefined if more than one row matches", async () => {
+      const row = { reset_token: TOKEN, user_id: USER_ID, created_at: new Date() };
+      db.returns([row, row]);
+      await expect(source.consumeToken(TOKEN)).resolves.toBeUndefined();
+    });
+  });
+
+  describe("expired token sweep", () => {
+    it("deletes tokens older than 15 minutes every 15 minutes", async () => {
+      await vi.advanceTimersByTimeAsync(FIFTEEN_MINUTES_MS);
+      expect(db.queries).toHaveLength(1);
+      expect(db.queries[0]!.text).toMatch(
+        /DELETE FROM reset_tokens WHERE created_at \+ INTERVAL '15 minutes' < now\(\)/,
+      );
+      await vi.advanceTimersByTimeAsync(FIFTEEN_MINUTES_MS);
+      expect(db.queries).toHaveLength(2);
+    });
+
+    it("logs and keeps running when a sweep fails", async () => {
+      const err = new Error("db down");
+      db.fails(err);
+      await vi.advanceTimersByTimeAsync(FIFTEEN_MINUTES_MS);
+      expect(logger.error).toHaveBeenCalledWith({ err }, "reset token sweep failed");
+      await vi.advanceTimersByTimeAsync(FIFTEEN_MINUTES_MS);
+      expect(db.queries).toHaveLength(2);
+    });
+
+    it("stops after close()", async () => {
+      source.close();
+      await vi.advanceTimersByTimeAsync(FIFTEEN_MINUTES_MS * 2);
+      expect(db.queries).toHaveLength(0);
+    });
+
+    it("does not keep the process alive", () => {
+      const timer = (source as unknown as { timer: NodeJS.Timeout }).timer;
+      expect(timer.hasRef()).toBe(false);
     });
   });
 });

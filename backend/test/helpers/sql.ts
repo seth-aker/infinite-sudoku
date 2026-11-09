@@ -1,63 +1,45 @@
 import { vi, type Mock } from "vitest";
 import type { Sql } from "postgres";
 
-export interface SqlCall {
-  query: string;
+export interface RecordedQuery {
+  /** The query text with each parameter replaced by `$`. */
+  text: string;
   values: unknown[];
 }
 
-export type QueryResult<T = unknown> = T[] & { count: number };
+type QueuedResult = { rows: unknown[]; count?: number } | Error;
 
-export function result<T>(rows: T[] = [], count = rows.length): QueryResult<T> {
-  return Object.assign([...rows], { count });
-}
-
-export interface SqlMock {
-  sql: Sql;
-  tag: Mock;
-  begin: Mock;
-  calls: SqlCall[];
-  executedCalls: SqlCall[];
-  enqueue: (...values: unknown[]) => void;
-}
-
-export function createSqlMock(): SqlMock {
-  const calls: SqlCall[] = [];
-  const executedCalls: SqlCall[] = [];
-  const queue: unknown[] = [];
-
-  const dequeue = (call: SqlCall) => {
-    executedCalls.push(call);
-    const next = queue.length > 0 ? queue.shift() : result();
-    return next instanceof Error ? Promise.reject(next) : Promise.resolve(next);
-  };
+/**
+ * A stand-in for the postgres.js `sql` tagged template, for unit testing the
+ * logic around queries rather than the SQL itself.
+ *
+ * Queue a result per query with `returns(rows)` / `fails(err)`; queries with
+ * nothing queued resolve to no rows. Results are arrays with a `count`, like
+ * postgres.js. `begin(cb)` runs `cb` with the same fake.
+ */
+export function fakeSql() {
+  const queue: QueuedResult[] = [];
+  const queries: RecordedQuery[] = [];
 
   const tag = vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => {
-    const call: SqlCall = {
-      query: strings.join("$").replace(/\s+/g, " ").trim(),
-      values,
-    };
-    calls.push(call);
-    let pending: Promise<unknown> | undefined;
-    const run = () => (pending ??= dequeue(call));
-    return {
-      call,
-      then: (onFulfilled?: never, onRejected?: never) =>
-        run().then(onFulfilled, onRejected),
-      catch: (onRejected?: never) => run().catch(onRejected),
-      execute: () => run(),
-    };
-  });
-
-  const begin = vi.fn(async (cb: (sql: unknown) => unknown) => cb(tag));
-  Object.assign(tag, { begin });
+    queries.push({ text: strings.join("$").replace(/\s+/g, " ").trim(), values });
+    const next = queue.shift() ?? { rows: [] };
+    if (next instanceof Error) return Promise.reject(next);
+    return Promise.resolve(Object.assign([...next.rows], { count: next.count ?? next.rows.length }));
+  }) as Mock & { begin: Mock };
+  tag.begin = vi.fn(async (cb: (sql: unknown) => unknown) => cb(tag));
 
   return {
     sql: tag as unknown as Sql,
     tag,
-    begin,
-    calls,
-    executedCalls,
-    enqueue: (...values: unknown[]) => queue.push(...values),
+    queries,
+    returns(rows: unknown[], count?: number) {
+      queue.push({ rows, count });
+      return this;
+    },
+    fails(err: Error) {
+      queue.push(err);
+      return this;
+    },
   };
 }

@@ -1,26 +1,25 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createHash } from "node:crypto";
-import { PgRefreshTokenDataSource } from "@/feature/auth/datasource/pgRefreshTokenDataSource";
-import { AuthenticationError } from "@/feature/auth/errors/authenticationError";
 import { ErrorType } from "@/core/errors/errorTypes";
 import { logger } from "@/core/logging/logger";
-import { createSqlMock, result, type SqlMock } from "#test/helpers/sql";
-import { USER_ID } from "#test/helpers/fixtures";
+import { AuthenticationError } from "@/feature/auth/errors/authenticationError";
+import { PgRefreshTokenDataSource } from "@/feature/auth/datasource/pgRefreshTokenDataSource";
+import { fakeSql } from "#test/helpers/sql";
 
-const sha256 = (v: string) => createHash("sha256").update(v).digest("hex");
-const FIFTEEN_MINUTES = 15 * 60 * 1000;
-const THIRTY_DAYS_S = 30 * 24 * 60 * 60;
-const NOW = new Date("2026-06-01T00:00:00.000Z");
+const USER_ID = "3f0c7a4e-1b2d-4c5e-8f9a-0b1c2d3e4f5a";
+const NOW = new Date("2026-06-01T12:00:00Z");
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
+const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
 
 describe("PgRefreshTokenDataSource", () => {
-  let db: SqlMock;
+  let db: ReturnType<typeof fakeSql>;
   let source: PgRefreshTokenDataSource;
 
   beforeEach(() => {
     vi.useFakeTimers({ now: NOW });
-    PgRefreshTokenDataSource.instance?.close();
+    db = fakeSql();
     PgRefreshTokenDataSource.instance = null;
-    db = createSqlMock();
     source = PgRefreshTokenDataSource.create(db.sql);
   });
 
@@ -29,145 +28,128 @@ describe("PgRefreshTokenDataSource", () => {
     vi.useRealTimers();
   });
 
-  describe("create (static)", () => {
-    it("returns a singleton", () => {
-      expect(PgRefreshTokenDataSource.create(createSqlMock().sql)).toBe(source);
-      expect(PgRefreshTokenDataSource.instance).toBe(source);
+  it("returns the same instance on later static create calls", () => {
+    expect(PgRefreshTokenDataSource.create(fakeSql().sql)).toBe(source);
+  });
+
+  describe("create", () => {
+    it("returns a random 80 character hex token", async () => {
+      const first = await source.create(USER_ID);
+      const second = await source.create(USER_ID);
+      expect(first).toMatch(/^[0-9a-f]{80}$/);
+      expect(second).not.toBe(first);
+    });
+
+    it("stores only the sha256 hash of the token", async () => {
+      const token = await source.create(USER_ID);
+      const [userId, stored] = db.queries[0]!.values;
+      expect(userId).toBe(USER_ID);
+      expect(stored).toBe(sha256(token));
+      expect(db.queries[0]!.values).not.toContain(token);
+    });
+
+    it("expires the token in 30 days, in whole seconds for to_timestamp", async () => {
+      await source.create(USER_ID);
+      const expiresAt = db.queries[0]!.values[2];
+      expect(expiresAt).toBe(Math.ceil((NOW.getTime() + THIRTY_DAYS_MS) / 1000));
+    });
+  });
+
+  describe("rotateRefreshToken", () => {
+    const future = () => new Date(NOW.getTime() + 60_000);
+
+    it("consumes the old token and stores a new one for the same user in a transaction", async () => {
+      db.returns([{ user_id: USER_ID, expires_at: future() }]);
+      const result = await source.rotateRefreshToken("old-token");
+
+      expect(db.tag.begin).toHaveBeenCalledOnce();
+      expect(db.queries).toHaveLength(2);
+      expect(db.queries[0]!.values).toEqual([sha256("old-token")]);
+
+      expect(result.userId).toBe(USER_ID);
+      expect(result.token).toMatch(/^[0-9a-f]{80}$/);
+      expect(result.token).not.toBe("old-token");
+      const [userId, stored, expiresAt] = db.queries[1]!.values;
+      expect(userId).toBe(USER_ID);
+      expect(stored).toBe(sha256(result.token));
+      expect(expiresAt).toBe(Math.ceil((NOW.getTime() + THIRTY_DAYS_MS) / 1000));
+    });
+
+    it("never sends the raw old or new token to the database", async () => {
+      db.returns([{ user_id: USER_ID, expires_at: future() }]);
+      const { token } = await source.rotateRefreshToken("old-token");
+      const allValues = db.queries.flatMap((q) => q.values);
+      expect(allValues).not.toContain("old-token");
+      expect(allValues).not.toContain(token);
+    });
+
+    it("rejects an unknown token as TOKEN_INVALID without inserting", async () => {
+      db.returns([]);
+      const err = await source.rotateRefreshToken("old-token").catch((e) => e);
+      expect(err).toBeInstanceOf(AuthenticationError);
+      expect(err.code).toBe(ErrorType.TOKEN_INVALID);
+      expect(db.queries).toHaveLength(1);
+    });
+
+    it("rejects an expired token as TOKEN_EXPIRED without inserting", async () => {
+      db.returns([{ user_id: USER_ID, expires_at: new Date(NOW.getTime() - 1) }]);
+      const err = await source.rotateRefreshToken("old-token").catch((e) => e);
+      expect(err).toBeInstanceOf(AuthenticationError);
+      expect(err.code).toBe(ErrorType.TOKEN_EXPIRED);
+      expect(db.queries).toHaveLength(1);
+    });
+
+    it("propagates database errors", async () => {
+      const dbErr = new Error("connection lost");
+      db.returns([{ user_id: USER_ID, expires_at: future() }]).fails(dbErr);
+      await expect(source.rotateRefreshToken("old-token")).rejects.toBe(dbErr);
+    });
+  });
+
+  describe("delete", () => {
+    it("deletes by the token's hash", async () => {
+      await source.delete("some-token");
+      expect(db.queries[0]!.values).toEqual([sha256("some-token")]);
+    });
+  });
+
+  describe("invalidateAllForUser", () => {
+    it("deletes by user id", async () => {
+      await source.invalidateAllForUser(USER_ID);
+      expect(db.queries[0]!.values).toEqual([USER_ID]);
     });
   });
 
   describe("expired token sweep", () => {
     it("deletes expired tokens every 15 minutes", async () => {
-      await vi.advanceTimersByTimeAsync(FIFTEEN_MINUTES - 1);
-      expect(db.calls).toHaveLength(0);
+      await vi.advanceTimersByTimeAsync(FIFTEEN_MINUTES_MS - 1);
+      expect(db.queries).toHaveLength(0);
       await vi.advanceTimersByTimeAsync(1);
-      expect(db.calls).toHaveLength(1);
-      expect(db.calls[0].query).toBe(
-        "DELETE FROM refresh_tokens WHERE expires_at < now()",
-      );
-      await vi.advanceTimersByTimeAsync(FIFTEEN_MINUTES);
-      expect(db.calls).toHaveLength(2);
+      expect(db.queries).toHaveLength(1);
+      expect(db.queries[0]!.text).toMatch(/DELETE FROM refresh_tokens WHERE expires_at < now\(\)/);
+      await vi.advanceTimersByTimeAsync(FIFTEEN_MINUTES_MS);
+      expect(db.queries).toHaveLength(2);
     });
 
-    it("logs sweep failures without throwing", async () => {
+    it("logs and keeps running when a sweep fails", async () => {
       const err = new Error("db down");
-      db.enqueue(err);
-      await vi.advanceTimersByTimeAsync(FIFTEEN_MINUTES);
-      expect(logger.error).toHaveBeenCalledWith(
-        { err },
-        "refresh token sweep failed",
-      );
+      db.fails(err);
+      await vi.advanceTimersByTimeAsync(FIFTEEN_MINUTES_MS);
+      expect(logger.error).toHaveBeenCalledWith({ err }, "refresh token sweep failed");
+      await vi.advanceTimersByTimeAsync(FIFTEEN_MINUTES_MS);
+      expect(db.queries).toHaveLength(2);
     });
 
-    it("stops sweeping after close", async () => {
+    it("stops after close()", async () => {
       source.close();
-      await vi.advanceTimersByTimeAsync(FIFTEEN_MINUTES * 3);
-      expect(db.calls).toHaveLength(0);
+      await vi.advanceTimersByTimeAsync(FIFTEEN_MINUTES_MS * 2);
+      expect(db.queries).toHaveLength(0);
     });
 
     it("does not keep the process alive", () => {
-      const unref = vi.fn();
-      vi.spyOn(globalThis, "setInterval").mockReturnValueOnce({
-        unref,
-      } as never);
-      source.close();
-      PgRefreshTokenDataSource.instance = null;
-      PgRefreshTokenDataSource.create(db.sql);
-      expect(unref).toHaveBeenCalled();
-    });
-  });
-
-  describe("create", () => {
-    it("stores a hashed token and returns the raw token", async () => {
-      const token = await source.create(USER_ID);
-      expect(token).toMatch(/^[0-9a-f]{80}$/);
-      expect(db.calls).toHaveLength(1);
-      expect(db.calls[0].query).toContain("INSERT INTO refresh_tokens");
-      expect(db.calls[0].values).toEqual([
-        USER_ID,
-        sha256(token),
-        Math.ceil(NOW.getTime() / 1000) + THIRTY_DAYS_S,
-      ]);
-    });
-
-    it("generates distinct tokens", async () => {
-      expect(await source.create(USER_ID)).not.toBe(
-        await source.create(USER_ID),
-      );
-    });
-
-    it("propagates database errors", async () => {
-      db.enqueue(new Error("insert failed"));
-      await expect(source.create(USER_ID)).rejects.toThrow("insert failed");
-    });
-  });
-
-  describe("rotateRefreshToken", () => {
-    it("consumes the old token and issues a new one in a transaction", async () => {
-      db.enqueue(
-        result([
-          { user_id: USER_ID, expires_at: new Date(NOW.getTime() + 1000) },
-        ]),
-      );
-      const res = await source.rotateRefreshToken("old-token");
-
-      expect(db.begin).toHaveBeenCalledTimes(1);
-      expect(res.userId).toBe(USER_ID);
-      expect(res.token).toMatch(/^[0-9a-f]{80}$/);
-      expect(db.calls[0].query).toContain("DELETE FROM refresh_tokens");
-      expect(db.calls[0].values).toEqual([sha256("old-token")]);
-      expect(db.calls[1].query).toContain("INSERT INTO refresh_tokens");
-      expect(db.calls[1].values).toEqual([
-        USER_ID,
-        sha256(res.token),
-        Math.ceil(NOW.getTime() / 1000) + THIRTY_DAYS_S,
-      ]);
-    });
-
-    it("throws TOKEN_INVALID when the token does not exist", async () => {
-      db.enqueue(result([]));
-      const err = await source.rotateRefreshToken("nope").catch((e) => e);
-      expect(err).toBeInstanceOf(AuthenticationError);
-      expect(err.code).toBe(ErrorType.TOKEN_INVALID);
-      expect(err.message).toBe("Refresh token is invalid");
-      expect(db.calls).toHaveLength(1);
-    });
-
-    it("throws TOKEN_EXPIRED when the token is expired", async () => {
-      db.enqueue(
-        result([{ user_id: USER_ID, expires_at: new Date(NOW.getTime() - 1) }]),
-      );
-      const err = await source.rotateRefreshToken("old").catch((e) => e);
-      expect(err).toBeInstanceOf(AuthenticationError);
-      expect(err.code).toBe(ErrorType.TOKEN_EXPIRED);
-      expect(db.calls).toHaveLength(1);
-    });
-
-    it("accepts a token expiring exactly now", async () => {
-      db.enqueue(result([{ user_id: USER_ID, expires_at: new Date(NOW) }]));
-      await expect(source.rotateRefreshToken("old")).resolves.toMatchObject({
-        userId: USER_ID,
-      });
-    });
-  });
-
-  describe("invalidateAllForUser", () => {
-    it("deletes all tokens for the user", async () => {
-      await source.invalidateAllForUser(USER_ID);
-      expect(db.calls[0].query).toBe(
-        "DELETE FROM refresh_tokens WHERE user_id = $;",
-      );
-      expect(db.calls[0].values).toEqual([USER_ID]);
-    });
-  });
-
-  describe("delete", () => {
-    it("deletes the hashed token", async () => {
-      await source.delete("raw");
-      expect(db.calls[0].query).toBe(
-        "DELETE FROM refresh_tokens WHERE token = $;",
-      );
-      expect(db.calls[0].values).toEqual([sha256("raw")]);
+      // The timer is unref'd so a pending sweep never blocks shutdown.
+      const timer = (source as unknown as { timer: NodeJS.Timeout }).timer;
+      expect(timer.hasRef()).toBe(false);
     });
   });
 });

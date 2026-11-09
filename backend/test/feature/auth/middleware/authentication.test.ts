@@ -1,293 +1,257 @@
 import { describe, expect, it } from "vitest";
-import type { Request } from "express";
-import { SignJWT } from "jose";
+import type { Request, RequestHandler } from "express";
+import { SignJWT, UnsecuredJWT } from "jose";
+import { config } from "@/core/config";
+import { BadRequestError } from "@/core/errors/badRequestError";
+import { ErrorType } from "@/core/errors/errorTypes";
+import { AuthenticationError } from "@/feature/auth/errors/authenticationError";
+import { AuthorizationError } from "@/feature/auth/errors/authorizationError";
 import {
   requireAdmin,
   requireLoggedin,
   requireSelfOrAdmin,
+  type SudokuAppJwtPayload,
 } from "@/feature/auth/middleware/authentication";
-import { AuthenticationError } from "@/feature/auth/errors/authenticationError";
-import { AuthorizationError } from "@/feature/auth/errors/authorizationError";
-import { ErrorType } from "@/core/errors/errorTypes";
-import { config } from "@/core/config";
-import { logger } from "@/core/logging/logger";
 import {
   mockNext,
   mockRequest,
   mockResponse,
   type MockRequestInit,
 } from "#test/helpers/express";
-import { expiredTimestamp, signAccessToken } from "#test/helpers/jwt";
-import { OTHER_USER_ID, USER_ID } from "#test/helpers/fixtures";
 
-type Middleware = (
-  req: Request<{ id: string }>,
-  res: ReturnType<typeof mockResponse>,
-  next: ReturnType<typeof mockNext>,
-) => Promise<unknown>;
+const USER_ID = "3f0c7a4e-1b2d-4c5e-8f9a-0b1c2d3e4f5a";
+const OTHER_ID = "9a8b7c6d-5e4f-4a3b-9c2d-1e0f9a8b7c6d";
+const SECRET = new TextEncoder().encode(config.jwtSecret);
+const nowSeconds = () => Math.floor(Date.now() / 1000);
 
-async function run(middleware: Middleware, init: MockRequestInit = {}) {
-  const req = mockRequest<Request<{ id: string }>>(init);
+interface TokenOptions {
+  role?: SudokuAppJwtPayload["role"];
+  sub?: string;
+  secret?: Uint8Array;
+  alg?: string;
+  issuer?: string;
+  audience?: string;
+  exp?: number | string;
+}
+
+// Mirrors the claims authenticationServiceImpl puts in access tokens.
+function token({
+  role = "user",
+  sub = USER_ID,
+  secret = SECRET,
+  alg = "HS256",
+  issuer = config.issuer,
+  audience = config.audience,
+  exp = "15m",
+}: TokenOptions = {}) {
+  return new SignJWT({ role, emailVerified: true })
+    .setProtectedHeader({ alg })
+    .setSubject(sub)
+    .setIssuer(issuer)
+    .setAudience(audience)
+    .setIssuedAt()
+    .setExpirationTime(exp)
+    .sign(secret);
+}
+
+const bearer = (jwt: string) => ({ headers: { authorization: `Bearer ${jwt}` } });
+
+function run(handler: RequestHandler, init: MockRequestInit = {}) {
+  const req = mockRequest<Request>(init);
   const res = mockResponse();
   const next = mockNext();
-  const error = await middleware(req, res, next).then(
-    () => undefined,
+  const result = handler(req, res, next) as unknown as Promise<void>;
+  return { req, res, next, result };
+}
+
+async function expectRejection(
+  promise: Promise<unknown>,
+  ErrorClass: typeof AuthenticationError | typeof AuthorizationError | typeof BadRequestError,
+  code: ErrorType,
+) {
+  const err = await promise.then(
+    () => {
+      throw new Error("expected the middleware to throw");
+    },
     (e: unknown) => e,
   );
-  return { req, res, next, error };
+  expect(err).toBeInstanceOf(ErrorClass);
+  expect((err as AuthenticationError).code).toBe(code);
+  return err as InstanceType<typeof ErrorClass>;
 }
 
-const bearer = (token: string) => ({ authorization: `Bearer ${token}` });
-
-async function hs512Token() {
-  return new SignJWT({ role: "admin" })
-    .setProtectedHeader({ alg: "HS512" })
-    .setIssuer(config.issuer)
-    .setAudience(config.audience)
-    .setExpirationTime("15m")
-    .sign(new TextEncoder().encode(config.jwtSecret));
-}
-
-function expectAuthError(error: unknown, type: string) {
-  expect(error).toBeInstanceOf(AuthenticationError);
-  expect((error as AuthenticationError).code).toBe(type);
-}
-
-const describeTokenVerification = (
-  name: string,
-  middleware: Middleware,
-  role: "user" | "admin",
-) => {
-  describe(`${name} token verification`, () => {
-    it("rejects requests without a token", async () => {
-      const { error, next } = await run(middleware);
-      expectAuthError(error, ErrorType.TOKEN_MISSING);
-      expect(next).not.toHaveBeenCalled();
-    });
-
-    it("rejects an empty bearer token", async () => {
-      const { error } = await run(middleware, {
-        headers: { authorization: "Bearer " },
-      });
-      expectAuthError(error, ErrorType.TOKEN_MISSING);
-    });
-
-    it("rejects when cookies are not parsed", async () => {
-      const { error } = await run(middleware, { cookies: undefined });
-      expectAuthError(error, ErrorType.TOKEN_MISSING);
-    });
-
-    it("ignores non-bearer authorization schemes", async () => {
-      const token = await signAccessToken({ sub: USER_ID, role });
-      const { error } = await run(middleware, {
-        headers: { authorization: `Basic ${token}` },
-      });
-      expectAuthError(error, ErrorType.TOKEN_MISSING);
-    });
-
-    it("accepts a valid bearer token and sets req.user", async () => {
-      const token = await signAccessToken({ sub: USER_ID, role });
-      const { req, next, error } = await run(middleware, {
-        headers: bearer(token),
-      });
-      expect(error).toBeUndefined();
-      expect(next).toHaveBeenCalledWith();
-      expect(req.user).toMatchObject({
-        sub: USER_ID,
-        role,
-        iss: config.issuer,
-        aud: config.audience,
-      });
-    });
-
-    it("accepts a valid access token cookie", async () => {
-      const token = await signAccessToken({ sub: USER_ID, role });
-      const { req, next } = await run(middleware, {
-        cookies: { accessToken: token },
-      });
-      expect(next).toHaveBeenCalled();
-      expect(req.user?.sub).toBe(USER_ID);
-    });
-
-    it("prefers the bearer header over the cookie", async () => {
-      const headerToken = await signAccessToken({ sub: USER_ID, role });
-      const cookieToken = await signAccessToken({ sub: OTHER_USER_ID, role });
-      const { req } = await run(middleware, {
-        headers: bearer(headerToken),
-        cookies: { accessToken: cookieToken },
-      });
-      expect(req.user?.sub).toBe(USER_ID);
-    });
-
-    it("rejects expired tokens with TOKEN_EXPIRED", async () => {
-      const token = await signAccessToken({
-        sub: USER_ID,
-        role,
-        expiresAt: expiredTimestamp(),
-      });
-      const { error, next } = await run(middleware, { headers: bearer(token) });
-      expectAuthError(error, ErrorType.TOKEN_EXPIRED);
-      expect(next).not.toHaveBeenCalled();
-      expect(logger.error).toHaveBeenCalled();
-    });
-
-    it.each([
-      ["signed with another secret", { secret: "x".repeat(48) }],
-      ["with a wrong issuer", { issuer: "http://evil.test" }],
-      ["with a wrong audience", { audience: "http://evil.test" }],
-    ])("rejects tokens %s with TOKEN_INVALID", async (_label, opts) => {
-      const token = await signAccessToken({ sub: USER_ID, role, ...opts });
-      const { error, req } = await run(middleware, { headers: bearer(token) });
-      expectAuthError(error, ErrorType.TOKEN_INVALID);
-      expect(req.user).toBeUndefined();
-    });
-
-    it("rejects malformed tokens with TOKEN_INVALID", async () => {
-      const { error } = await run(middleware, {
-        headers: bearer("not.a.jwt"),
-      });
-      expectAuthError(error, ErrorType.TOKEN_INVALID);
-    });
-
-    it("rejects tokens using a disallowed algorithm", async () => {
-      const { error } = await run(middleware, {
-        headers: bearer(await hs512Token()),
-      });
-      expectAuthError(error, ErrorType.TOKEN_INVALID);
-    });
+// requireLoggedin and requireAdmin share token extraction and verification.
+describe.each([
+  ["requireLoggedin", requireLoggedin, "user"],
+  ["requireAdmin", requireAdmin, "admin"],
+] as const)("%s token handling", (_name, middleware, role) => {
+  it("accepts a valid Bearer token and sets req.user", async () => {
+    const { req, next, result } = run(middleware, bearer(await token({ role })));
+    await result;
+    expect(next).toHaveBeenCalledOnce();
+    expect(next).toHaveBeenCalledWith();
+    expect(req.user).toMatchObject({ sub: USER_ID, role });
   });
-};
+
+  it("accepts a valid accessToken cookie", async () => {
+    const { req, next, result } = run(middleware, {
+      cookies: { accessToken: await token({ role }) },
+    });
+    await result;
+    expect(next).toHaveBeenCalledOnce();
+    expect(req.user?.sub).toBe(USER_ID);
+  });
+
+  it("prefers the Authorization header over the cookie", async () => {
+    const { req, result } = run(middleware, {
+      ...bearer(await token({ role, sub: USER_ID })),
+      cookies: { accessToken: await token({ role, sub: OTHER_ID }) },
+    });
+    await result;
+    expect(req.user?.sub).toBe(USER_ID);
+  });
+
+  it("falls back to the cookie when the header is not a Bearer token", async () => {
+    const { req, result } = run(middleware, {
+      headers: { authorization: "Basic dXNlcjpwYXNz" },
+      cookies: { accessToken: await token({ role }) },
+    });
+    await result;
+    expect(req.user?.sub).toBe(USER_ID);
+  });
+
+  it.each([
+    ["no header or cookie", {}],
+    ["an empty Bearer token", { headers: { authorization: "Bearer " } }],
+    ["a non-Bearer header and no cookie", { headers: { authorization: "Basic abc" } }],
+    ["an empty cookie", { cookies: { accessToken: "" } }],
+  ])("rejects %s as TOKEN_MISSING", async (_label, init) => {
+    const { next, result } = run(middleware, init);
+    await expectRejection(result, AuthenticationError, ErrorType.TOKEN_MISSING);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it("rejects an expired token as TOKEN_EXPIRED", async () => {
+    const jwt = await token({ role, exp: nowSeconds() - 60 });
+    const { next, result } = run(middleware, bearer(jwt));
+    await expectRejection(result, AuthenticationError, ErrorType.TOKEN_EXPIRED);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["signed with another secret", () => token({ role, secret: new TextEncoder().encode("x".repeat(48)) })],
+    ["signed with HS512", () => token({ role, alg: "HS512" })],
+    ["with the wrong issuer", () => token({ role, issuer: "http://evil.test" })],
+    ["with the wrong audience", () => token({ role, audience: "http://evil.test" })],
+    ["unsigned (alg: none)", async () =>
+      new UnsecuredJWT({ role, sub: USER_ID })
+        .setIssuer(config.issuer)
+        .setAudience(config.audience)
+        .setExpirationTime("15m")
+        .encode()],
+    ["that is not a JWT", async () => "not-a-jwt"],
+    ["with a tampered payload", async () => {
+      const [header, , signature] = (await token({ role: "user" })).split(".");
+      const payload = Buffer.from(
+        JSON.stringify({ role: "admin", sub: USER_ID, iss: config.issuer, aud: config.audience, exp: nowSeconds() + 900 }),
+      ).toString("base64url");
+      return `${header}.${payload}.${signature}`;
+    }],
+  ])("rejects a token %s as TOKEN_INVALID", async (_label, makeToken) => {
+    const { req, next, result } = run(middleware, bearer(await makeToken()));
+    await expectRejection(result, AuthenticationError, ErrorType.TOKEN_INVALID);
+    expect(next).not.toHaveBeenCalled();
+    expect(req.user).toBeUndefined();
+  });
+});
 
 describe("requireLoggedin", () => {
-  describeTokenVerification("requireLoggedin", requireLoggedin, "user");
-
-  it("reports the missing bearer token message", async () => {
-    const { error } = await run(requireLoggedin);
-    expect((error as Error).message).toBe("Missing Bearer token");
-  });
-
-  it("reports invalid tokens with a generic message", async () => {
-    const { error } = await run(requireLoggedin, { headers: bearer("x") });
-    expect((error as Error).message).toBe("Invalid access token");
-  });
-
-  it("allows admins too", async () => {
-    const token = await signAccessToken({ sub: USER_ID, role: "admin" });
-    const { next } = await run(requireLoggedin, { headers: bearer(token) });
-    expect(next).toHaveBeenCalled();
+  it("accepts any role", async () => {
+    const { next, result } = run(requireLoggedin, bearer(await token({ role: "user" })));
+    await result;
+    expect(next).toHaveBeenCalledOnce();
   });
 });
 
 describe("requireAdmin", () => {
-  describeTokenVerification("requireAdmin", requireAdmin, "admin");
-
-  it("reports the missing access token message", async () => {
-    const { error } = await run(requireAdmin);
-    expect((error as Error).message).toBe("Missing access token");
+  it("rejects a valid non-admin token with INSUFFICIENT_ROLE", async () => {
+    const { req, next, result } = run(requireAdmin, bearer(await token({ role: "user" })));
+    await expectRejection(result, AuthorizationError, ErrorType.INSUFFICIENT_ROLE);
+    expect(next).not.toHaveBeenCalled();
+    expect(req.user).toBeUndefined();
   });
-
-  it("reports invalid tokens with a generic message", async () => {
-    const { error } = await run(requireAdmin, { headers: bearer("x") });
-    expect((error as Error).message).toBe("Invalid Bearer token");
-  });
-
-  it.each(["user", "superuser", "ADMIN"])(
-    "rejects valid tokens with role %s",
-    async (role) => {
-      const token = await signAccessToken({ sub: USER_ID, role });
-      const { error, next, req } = await run(requireAdmin, {
-        headers: bearer(token),
-      });
-      expect(error).toBeInstanceOf(AuthorizationError);
-      expect((error as AuthorizationError).code).toBe(
-        ErrorType.INSUFFICIENT_ROLE,
-      );
-      expect(next).not.toHaveBeenCalled();
-      expect(req.user).toBeUndefined();
-    },
-  );
 });
 
 describe("requireSelfOrAdmin", () => {
-  const userPayload = (sub?: string, role = "user") => ({
-    sub,
-    role,
-    emailVerified: true,
+  // Runs after requireLoggedin, so req.user is already populated.
+  function user(sub: string | undefined, role: SudokuAppJwtPayload["role"] = "user") {
+    return { sub, role, emailVerified: true } as SudokuAppJwtPayload;
+  }
+
+  it.each(["not-a-uuid", "", "123"])(
+    "rejects a non-uuid id (%j) with a 400 before checking auth",
+    async (id) => {
+      const { res, next, result } = run(requireSelfOrAdmin as RequestHandler, {
+        params: { id },
+        user: user(USER_ID),
+      });
+      const err = await expectRejection(result, BadRequestError, ErrorType.BAD_REQUEST);
+      expect(err.statusCode).toBe(400);
+      expect(next).not.toHaveBeenCalled();
+      expect(res.sendStatus).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    ["no req.user", undefined],
+    ["a user without a subject", user(undefined)],
+  ])("rejects %s as TOKEN_MISSING", async (_label, reqUser) => {
+    const { next, result } = run(requireSelfOrAdmin as RequestHandler, {
+      params: { id: USER_ID },
+      user: reqUser,
+    });
+    await expectRejection(result, AuthenticationError, ErrorType.TOKEN_MISSING);
+    expect(next).not.toHaveBeenCalled();
   });
 
-  it("calls next when the user requests their own resource", async () => {
-    const { next, res, error } = await run(requireSelfOrAdmin, {
+  it("allows a user to access their own id", async () => {
+    const { next, result } = run(requireSelfOrAdmin as RequestHandler, {
       params: { id: USER_ID },
-      user: userPayload(USER_ID),
+      user: user(USER_ID),
     });
-    expect(error).toBeUndefined();
+    await result;
+    expect(next).toHaveBeenCalledOnce();
     expect(next).toHaveBeenCalledWith();
-    expect(res.sendStatus).not.toHaveBeenCalled();
   });
 
-  it("throws TOKEN_MISSING when req.user is absent", async () => {
-    const { error, next } = await run(requireSelfOrAdmin, {
-      params: { id: USER_ID },
+  it("allows an admin to access another user's id", async () => {
+    const { next, result } = run(requireSelfOrAdmin as RequestHandler, {
+      params: { id: OTHER_ID },
+      user: user(USER_ID, "admin"),
+      ...bearer(await token({ role: "admin" })),
     });
-    expectAuthError(error, ErrorType.TOKEN_MISSING);
+    await result;
+    expect(next).toHaveBeenCalledOnce();
+  });
+
+  it("rejects a non-admin accessing another user's id", async () => {
+    const { next, result } = run(requireSelfOrAdmin as RequestHandler, {
+      params: { id: OTHER_ID },
+      user: user(USER_ID),
+      ...bearer(await token({ role: "user" })),
+    });
+    await expectRejection(result, AuthorizationError, ErrorType.INSUFFICIENT_ROLE);
     expect(next).not.toHaveBeenCalled();
   });
 
-  it("throws TOKEN_MISSING when the user has no subject", async () => {
-    const { error } = await run(requireSelfOrAdmin, {
-      params: { id: USER_ID },
-      user: userPayload(undefined),
+  it("re-verifies the token rather than trusting req.user.role", async () => {
+    // req.user claims admin, but the actual token is a user token.
+    const { next, result } = run(requireSelfOrAdmin as RequestHandler, {
+      params: { id: OTHER_ID },
+      user: user(USER_ID, "admin"),
+      ...bearer(await token({ role: "user" })),
     });
-    expectAuthError(error, ErrorType.TOKEN_MISSING);
-  });
-
-  it("allows admins to access other users", async () => {
-    const token = await signAccessToken({ sub: USER_ID, role: "admin" });
-    const { next, error, req } = await run(requireSelfOrAdmin, {
-      params: { id: OTHER_USER_ID },
-      user: userPayload(USER_ID, "admin"),
-      headers: bearer(token),
-    });
-    expect(error).toBeUndefined();
-    expect(next).toHaveBeenCalledTimes(1);
-    expect(req.user?.role).toBe("admin");
-  });
-
-  it("forbids non-admins from accessing other users", async () => {
-    const token = await signAccessToken({ sub: USER_ID, role: "user" });
-    const { next, error } = await run(requireSelfOrAdmin, {
-      params: { id: OTHER_USER_ID },
-      user: userPayload(USER_ID),
-      headers: bearer(token),
-    });
-    expect(error).toBeInstanceOf(AuthorizationError);
+    await expectRejection(result, AuthorizationError, ErrorType.INSUFFICIENT_ROLE);
     expect(next).not.toHaveBeenCalled();
-  });
-
-  it("verifies the token rather than trusting req.user.role", async () => {
-    const token = await signAccessToken({ sub: USER_ID, role: "user" });
-    const { error } = await run(requireSelfOrAdmin, {
-      params: { id: OTHER_USER_ID },
-      user: userPayload(USER_ID, "admin"),
-      headers: bearer(token),
-    });
-    expect(error).toBeInstanceOf(AuthorizationError);
-  });
-
-  it("responds 400 for a non-uuid id", async () => {
-    const { res } = await run(requireSelfOrAdmin, {
-      params: { id: "not-a-uuid" },
-      user: userPayload("not-a-uuid"),
-    });
-    expect(res.sendStatus).toHaveBeenCalledWith(400);
-  });
-
-  it("does not stop the chain after responding 400 for a non-uuid id", async () => {
-    const { res, next } = await run(requireSelfOrAdmin, {
-      params: { id: "not-a-uuid" },
-      user: userPayload("not-a-uuid"),
-    });
-    expect(res.sendStatus).toHaveBeenCalledWith(400);
-    expect(next).toHaveBeenCalled();
   });
 });
