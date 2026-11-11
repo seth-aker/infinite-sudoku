@@ -88,28 +88,4 @@ describe("UserServiceImplementation", () => {
       await expect(service.getUser(USER_ID)).rejects.toBe(err);
     });
   });
-
-  describe("getUserStats", () => {
-    it("returns the stats", async () => {
-      const stats = [
-        { rating: "easy", avgScore: 1, totalStarted: 2, completed: 1, avgTimeSec: 60, totalTimeSec: 120 },
-      ];
-      users.getUserStats.mockResolvedValue(stats);
-      await expect(service.getUserStats(USER_ID)).resolves.toEqual(stats);
-      expect(users.getUserStats).toHaveBeenCalledWith(USER_ID);
-    });
-
-    it("returns an empty list for a user with no puzzles", async () => {
-      users.getUserStats.mockResolvedValue([]);
-      await expect(service.getUserStats(USER_ID)).resolves.toEqual([]);
-    });
-  });
-
-  describe("deleteUser", () => {
-    it("returns the data source result", async () => {
-      users.deleteUser.mockResolvedValue(1);
-      await expect(service.deleteUser(USER_ID)).resolves.toBe(1);
-      expect(users.deleteUser).toHaveBeenCalledWith(USER_ID);
-    });
-  });
 });

@@ -210,7 +210,7 @@ export class PgSudokuDataSource implements SudokuDataSource {
           p.cells as "originalCells",
           p.difficulty_rating as rating,
           p.difficulty_score as score,
-          up.actions,
+          up.actions
         FROM user_puzzles AS up
           JOIN puzzles AS p ON p.puzzle_id = up.puzzle_id
         WHERE 

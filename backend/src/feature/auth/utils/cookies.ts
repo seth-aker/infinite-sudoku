@@ -1,4 +1,4 @@
-import { CookieOptions, Request, Response } from "express";
+import { CookieOptions, Response } from "express";
 
 const FIFTEEN_MINUTES = 1000 * 60 * 15;
 const THIRTY_DAYS = 1000 * 60 * 60 * 24 * 30;
@@ -26,11 +26,6 @@ export function setAuthCookies(
 ) {
   res.cookie("accessToken", accessToken, ACCESS_TOKEN_COOKIE);
   res.cookie("refreshToken", refreshToken, REFRESH_TOKEN_COOKIE);
-}
-export function getAuthCookies(req: Request): { accessToken: string | undefined, refreshToken: string | undefined} {
-  const accessToken = req.cookies.accessToken
-  const refreshToken = req.cookies.refreshToken;
-  return { accessToken, refreshToken };
 }
 export function clearAuthCookies(res: Response) {
   res.clearCookie("accessToken", ACCESS_TOKEN_COOKIE);

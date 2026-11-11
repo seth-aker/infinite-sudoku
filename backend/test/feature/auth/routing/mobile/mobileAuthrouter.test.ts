@@ -19,16 +19,12 @@ import {
   type FakeAuthService,
 } from "#test/helpers/auth";
 import type { TestServer } from "#test/helpers/http";
+import { expectLimiterApplied } from "#test/helpers/rateLimiter";
 
 // See webAuthRouter.test.ts: limiters pass through and are only checked for wiring.
-vi.mock("@/feature/auth/middleware/rateLimiter", () => {
-  const pass = () => vi.fn((_req: unknown, _res: unknown, next: () => void) => next());
-  return {
-    passwordGrantLimiter: [pass()],
-    refreshGrantLimiter: pass(),
-    resetPasswordRateLimiter: pass(),
-    tokenRequestRateLimiter: [pass()],
-  };
+vi.mock("@/feature/auth/middleware/rateLimiter", async (importOriginal) => {
+  const { passThroughLimiters } = await import("#test/helpers/rateLimiter");
+  return passThroughLimiters(await importOriginal());
 });
 
 const BASE = "/api/auth/mobile";
@@ -93,7 +89,7 @@ describe("MobileAuthRouter", () => {
 
     it("applies the password grant limiter", async () => {
       await server.post(`${BASE}/login`, body);
-      expect(passwordGrantLimiter[0]).toHaveBeenCalledOnce();
+      expectLimiterApplied(passwordGrantLimiter);
     });
   });
 
@@ -150,7 +146,7 @@ describe("MobileAuthRouter", () => {
 
     it("applies the password grant limiter", async () => {
       await server.post(`${BASE}/register`, body);
-      expect(passwordGrantLimiter[0]).toHaveBeenCalledOnce();
+      expectLimiterApplied(passwordGrantLimiter);
     });
   });
 
@@ -190,7 +186,7 @@ describe("MobileAuthRouter", () => {
 
     it("applies the refresh grant limiter", async () => {
       await server.post(`${BASE}/refresh`, body);
-      expect(refreshGrantLimiter).toHaveBeenCalledOnce();
+      expectLimiterApplied(refreshGrantLimiter);
     });
   });
 
@@ -215,7 +211,7 @@ describe("MobileAuthRouter", () => {
 
     it("applies the reset password limiter", async () => {
       await server.post(`${BASE}/resetPassword`, body);
-      expect(resetPasswordRateLimiter).toHaveBeenCalledOnce();
+      expectLimiterApplied(resetPasswordRateLimiter);
     });
   });
 });

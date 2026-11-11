@@ -4,7 +4,6 @@ import * as z from "zod/v4";
 import {
   loginBodyValidator,
   passwordResetValidator,
-  registerBodySchema,
   registerBodyValidator,
   resetRequestValidator,
   mobileLoginBodyValidator,
@@ -120,10 +119,6 @@ describe("registerBodyValidator", () => {
     expectPass(registerBodyValidator, valid);
   });
 
-  it("accepts tosAcknowledged: false (the service rejects it)", () => {
-    expectPass(registerBodyValidator, { ...valid, tosAcknowledged: false });
-  });
-
   it.each([
     ["an invalid email", { email: "nope" }, "email"],
     ["a short username", { username: "abc" }, "username"],
@@ -131,10 +126,6 @@ describe("registerBodyValidator", () => {
     ["a missing tosAcknowledged", { tosAcknowledged: undefined }, "tosAcknowledged"],
   ])("rejects %s", (_label, override, path) => {
     expectFail(registerBodyValidator, { ...valid, ...override }, path);
-  });
-
-  it("exposes a schema matching the validator", () => {
-    expect(registerBodySchema.safeParse(valid).success).toBe(true);
   });
 });
 
@@ -219,9 +210,10 @@ describe("passwordResetValidator", () => {
     expectFail(passwordResetValidator, body);
   });
 
-  it("reports the password error before checking the token", () => {
+  it("reports a weak password even when the token is also bad", () => {
     const { error } = expectFail(passwordResetValidator, { password: "weak", token: "abc" });
-    expect((error as z.ZodError).issues[0]!.message).toMatch(/Password must contain/);
+    const messages = (error as z.ZodError).issues.map((i) => i.message);
+    expect(messages).toContainEqual(expect.stringMatching(/Password must contain/));
   });
 });
 

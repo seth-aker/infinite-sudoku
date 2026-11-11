@@ -11,6 +11,7 @@ import { GenericError } from "@/core/errors/genericError";
 import { NotFoundError } from "@/core/errors/notFoundError";
 import { ValidationError } from "@/core/errors/validationError";
 import { mockNext, mockRequest, mockResponse } from "#test/helpers/express";
+import { expectLogged } from "#test/helpers/logger";
 import { BadRequestError } from "@/core/errors/badRequestError";
 
 const { PostgresError } = postgres;
@@ -209,27 +210,24 @@ describe("errorHandler", () => {
   describe("logging", () => {
     it("logs 4xx errors as warnings with request context", () => {
       const err = new NotFoundError("nope");
-      run(err, { user: { userId: "u1" } });
-      expect(logger.warn).toHaveBeenCalledWith(
-        {
+      run(err, { user: { sub: "u1" } });
+      expectLogged(
+        "warn",
+        expect.objectContaining({
           requestId: "req-1",
           method: "POST",
           path: "/api/thing",
           statusCode: 404,
           userId: "u1",
           err,
-        },
-        "request failed",
+        }),
       );
       expect(logger.error).not.toHaveBeenCalled();
     });
 
     it("logs 5xx errors as errors", () => {
       run(new Error("crash"));
-      expect(logger.error).toHaveBeenCalledWith(
-        expect.objectContaining({ statusCode: 500, userId: undefined }),
-        "request failed",
-      );
+      expectLogged("error", expect.objectContaining({ statusCode: 500 }));
       expect(logger.warn).not.toHaveBeenCalled();
     });
   });

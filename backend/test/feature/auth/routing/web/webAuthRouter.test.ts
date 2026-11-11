@@ -20,18 +20,15 @@ import {
   type FakeAuthService,
 } from "#test/helpers/auth";
 import type { TestServer } from "#test/helpers/http";
+import { expectLimiterApplied } from "#test/helpers/rateLimiter";
 
 // The limiters are covered in rateLimiter.test.ts. Here they pass through, so
 // their shared in-memory counts can't leak between tests, and we only check
-// that each route applies the right one.
-vi.mock("@/feature/auth/middleware/rateLimiter", () => {
-  const pass = () => vi.fn((_req: unknown, _res: unknown, next: () => void) => next());
-  return {
-    passwordGrantLimiter: [pass()],
-    refreshGrantLimiter: pass(),
-    resetPasswordRateLimiter: pass(),
-    tokenRequestRateLimiter: [pass()],
-  };
+// that each route applies the right one. rateLimitWiring.test.ts checks the
+// real limiters on the real routes.
+vi.mock("@/feature/auth/middleware/rateLimiter", async (importOriginal) => {
+  const { passThroughLimiters } = await import("#test/helpers/rateLimiter");
+  return passThroughLimiters(await importOriginal());
 });
 
 const BASE = "/api/auth/web";
@@ -96,7 +93,7 @@ describe("WebAuthRouter", () => {
 
     it("applies the password grant limiter", async () => {
       await server.post(`${BASE}/login`, body);
-      expect(passwordGrantLimiter[0]).toHaveBeenCalledOnce();
+      expectLimiterApplied(passwordGrantLimiter);
     });
   });
 
@@ -175,7 +172,7 @@ describe("WebAuthRouter", () => {
 
     it("applies the password grant limiter", async () => {
       await server.post(`${BASE}/register`, body);
-      expect(passwordGrantLimiter[0]).toHaveBeenCalledOnce();
+      expectLimiterApplied(passwordGrantLimiter);
     });
   });
 
@@ -214,7 +211,7 @@ describe("WebAuthRouter", () => {
 
     it("applies the refresh grant limiter", async () => {
       await refresh("refreshToken=old-refresh");
-      expect(refreshGrantLimiter).toHaveBeenCalledOnce();
+      expectLimiterApplied(refreshGrantLimiter);
     });
   });
 
@@ -251,7 +248,7 @@ describe("WebAuthRouter", () => {
 
     it("applies the reset password limiter", async () => {
       await server.post(`${BASE}/resetPassword`, body);
-      expect(resetPasswordRateLimiter).toHaveBeenCalledOnce();
+      expectLimiterApplied(resetPasswordRateLimiter);
     });
   });
 });

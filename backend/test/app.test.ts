@@ -4,6 +4,16 @@ import { SignJWT } from "jose";
 import { createApp } from "@/app";
 import { config } from "@/core/config";
 import { startServer, type TestServer } from "#test/helpers/http";
+import { expectLogged } from "#test/helpers/logger";
+
+const accessToken = () =>
+  new SignJWT({ role: "user", emailVerified: true })
+    .setProtectedHeader({ alg: "HS256" })
+    .setSubject("user-1")
+    .setIssuer(config.issuer)
+    .setAudience(config.audience)
+    .setExpirationTime("15m")
+    .sign(new TextEncoder().encode(config.jwtSecret));
 
 function testRouter() {
   const router = Router();
@@ -82,15 +92,6 @@ describe("createApp", () => {
     });
 
     describe("authentication", () => {
-      const accessToken = () =>
-        new SignJWT({ role: "user", emailVerified: true })
-          .setProtectedHeader({ alg: "HS256" })
-          .setSubject("user-1")
-          .setIssuer(config.issuer)
-          .setAudience(config.audience)
-          .setExpirationTime("15m")
-          .sign(new TextEncoder().encode(config.jwtSecret));
-
       it("sets req.user on every route when a valid token is sent", async () => {
         await start();
         const res = await server.get("/api/test/whoami", {
@@ -145,6 +146,16 @@ describe("createApp", () => {
         error: "internal_error",
         requestId: "req-500",
       });
+    });
+
+    it("logs the authenticated user's id when a route fails", async () => {
+      // Goes through the real authenticate middleware, so the log reads
+      // whatever shape req.user actually has rather than a hand-built one.
+      await start();
+      await server.get("/api/test/fail", {
+        authorization: `Bearer ${await accessToken()}`,
+      });
+      expectLogged("error", expect.objectContaining({ userId: "user-1" }));
     });
 
     // The request id must be set before express.json() can reject the request.

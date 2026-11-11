@@ -1,5 +1,5 @@
 import { vi, type Mock } from "vitest";
-import type { RequestHandler, Router } from "express";
+import type { Router } from "express";
 import { createApp } from "@/app";
 import { config } from "@/core/config";
 import type { AuthenticationService } from "@/feature/auth/service/authenticationService";
@@ -53,11 +53,6 @@ export function startAuthServer(router: Router, path = "/auth"): Promise<TestSer
     routers: [{ path, router }],
   });
   return startServer(app);
-}
-
-/** Pass-through stand-in for a rate limiter, so tests can check it was applied. */
-export function passThroughLimiter(): RequestHandler & Mock {
-  return vi.fn((_req, _res, next) => next()) as unknown as RequestHandler & Mock;
 }
 
 /** Parses Set-Cookie headers into name -> { value, expired }. */

@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createHash } from "node:crypto";
 import { ErrorType } from "@/core/errors/errorTypes";
-import { logger } from "@/core/logging/logger";
 import { AuthenticationError } from "@/feature/auth/errors/authenticationError";
 import { PgRefreshTokenDataSource } from "@/feature/auth/datasource/pgRefreshTokenDataSource";
 import { fakeSql } from "#test/helpers/sql";
+import { expectLogged } from "#test/helpers/logger";
 
 const USER_ID = "3f0c7a4e-1b2d-4c5e-8f9a-0b1c2d3e4f5a";
 const NOW = new Date("2026-06-01T12:00:00Z");
@@ -135,7 +135,7 @@ describe("PgRefreshTokenDataSource", () => {
       const err = new Error("db down");
       db.fails(err);
       await vi.advanceTimersByTimeAsync(FIFTEEN_MINUTES_MS);
-      expect(logger.error).toHaveBeenCalledWith({ err }, "refresh token sweep failed");
+      expectLogged("error", expect.objectContaining({ err }));
       await vi.advanceTimersByTimeAsync(FIFTEEN_MINUTES_MS);
       expect(db.queries).toHaveLength(2);
     });
@@ -147,9 +147,13 @@ describe("PgRefreshTokenDataSource", () => {
     });
 
     it("does not keep the process alive", () => {
-      // The timer is unref'd so a pending sweep never blocks shutdown.
-      const timer = (source as unknown as { timer: NodeJS.Timeout }).timer;
+      // The sweep timer is unref'd so it never blocks shutdown.
+      const setIntervalSpy = vi.spyOn(globalThis, "setInterval");
+      PgRefreshTokenDataSource.instance = null;
+      const fresh = PgRefreshTokenDataSource.create(fakeSql().sql);
+      const timer = setIntervalSpy.mock.results[0]!.value as NodeJS.Timeout;
       expect(timer.hasRef()).toBe(false);
+      fresh.close();
     });
   });
 });

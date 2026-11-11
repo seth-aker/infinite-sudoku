@@ -64,7 +64,7 @@ describe("PgValidateTokenDataSource", () => {
       expect(db.queries).toHaveLength(1);
     });
 
-    it("accepts a token just inside the 15 minute window", async () => {
+    it("accepts a token just inside the 24 hour window", async () => {
       db.returns([{ user_id: USER_ID, created_at: createdAgo(TWENTY_FOUR_HOURS_MS - 1_000) }])
         .returns([], 1)
         .returns([], 1);
@@ -72,7 +72,7 @@ describe("PgValidateTokenDataSource", () => {
     });
 
     it.each([
-      ["older than 15 minutes", { created_at: createdAgo(TWENTY_FOUR_HOURS_MS + 1_000) }],
+      ["older than 24 hours", { created_at: createdAgo(TWENTY_FOUR_HOURS_MS + 1_000) }],
       ["without a created_at", { created_at: null }],
     ])("rejects a token %s as TOKEN_EXPIRED without verifying", async (_label, row) => {
       db.returns([{ user_id: USER_ID, ...row }]);

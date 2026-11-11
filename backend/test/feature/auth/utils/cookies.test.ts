@@ -3,10 +3,8 @@ import express from "express";
 import cookieParser from "cookie-parser";
 import {
   clearAuthCookies,
-  getAuthCookies,
   setAuthCookies,
 } from "@/feature/auth/utils/cookies";
-import { mockRequest } from "#test/helpers/express";
 import { startServer, type TestServer } from "#test/helpers/http";
 
 const FIFTEEN_MINUTES_S = 15 * 60;
@@ -129,22 +127,6 @@ describe("auth cookies", () => {
           samesite: "Lax",
         });
       }
-    });
-  });
-});
-
-describe("getAuthCookies", () => {
-  it("returns both tokens from the parsed cookies", () => {
-    const req = mockRequest({
-      cookies: { accessToken: "a", refreshToken: "r", other: "x" },
-    });
-    expect(getAuthCookies(req)).toEqual({ accessToken: "a", refreshToken: "r" });
-  });
-
-  it("returns undefined for missing tokens", () => {
-    expect(getAuthCookies(mockRequest())).toEqual({
-      accessToken: undefined,
-      refreshToken: undefined,
     });
   });
 });

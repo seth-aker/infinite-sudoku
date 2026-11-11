@@ -39,7 +39,7 @@ export class PgUserDataSource implements UserDataSource {
       )
       RETURNING user_id;
     `;
-    if(!res) {
+    if (!res) {
       throw new DatabaseError("INSERT INTO users returned no row")
     }
     return res.user_id;
@@ -55,7 +55,7 @@ export class PgUserDataSource implements UserDataSource {
         u.image_url,
         u.created_at,
         u.updated_at
-      FROM 
+      FROM
         users as u
       WHERE 
         u.user_id = ${userId} 

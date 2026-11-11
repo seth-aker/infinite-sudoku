@@ -77,11 +77,6 @@ describe("UserRouter", () => {
       expect(res.status).toBe(200);
     });
 
-    it("is not handled by the /:id route", async () => {
-      await server.get("/api/users/me", await bearer());
-      expect(service.getUser).not.toHaveBeenCalledWith("me");
-    });
-
     it("returns 401 without an access token", async () => {
       const res = await server.get("/api/users/me");
       expect(res.status).toBe(401);

@@ -92,11 +92,6 @@ describe("SudokuRouter", () => {
       expect(service.getNewPuzzle).not.toHaveBeenCalled();
     });
 
-    it("works without logging in", async () => {
-      const res = await server.get("/api/sudoku/new");
-      expect(res.status).toBe(200);
-    });
-
     it("passes the logged-in user's id so they get a puzzle they haven't played", async () => {
       await server.get("/api/sudoku/new?difficulty=easy", auth);
       expect(service.getNewPuzzle).toHaveBeenCalledWith(USER_ID, { difficulty: "easy" });

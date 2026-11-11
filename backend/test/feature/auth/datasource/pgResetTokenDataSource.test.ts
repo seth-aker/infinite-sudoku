@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DatabaseError } from "@/core/errors/databaseError";
-import { logger } from "@/core/logging/logger";
 import { PgResetTokenDataSource } from "@/feature/auth/datasource/pgResetTokenDataSource";
 import { fakeSql } from "#test/helpers/sql";
+import { expectLogged } from "#test/helpers/logger";
 
 const USER_ID = "3f0c7a4e-1b2d-4c5e-8f9a-0b1c2d3e4f5a";
 const TOKEN = "9a8b7c6d-5e4f-4a3b-9c2d-1e0f9a8b7c6d";
@@ -86,7 +86,7 @@ describe("PgResetTokenDataSource", () => {
       const err = new Error("db down");
       db.fails(err);
       await vi.advanceTimersByTimeAsync(FIFTEEN_MINUTES_MS);
-      expect(logger.error).toHaveBeenCalledWith({ err }, "reset token sweep failed");
+      expectLogged("error", expect.objectContaining({ err }));
       await vi.advanceTimersByTimeAsync(FIFTEEN_MINUTES_MS);
       expect(db.queries).toHaveLength(2);
     });
@@ -98,8 +98,13 @@ describe("PgResetTokenDataSource", () => {
     });
 
     it("does not keep the process alive", () => {
-      const timer = (source as unknown as { timer: NodeJS.Timeout }).timer;
+      // The sweep timer is unref'd so it never blocks shutdown.
+      const setIntervalSpy = vi.spyOn(globalThis, "setInterval");
+      PgResetTokenDataSource.instance = null;
+      const fresh = PgResetTokenDataSource.create(fakeSql().sql);
+      const timer = setIntervalSpy.mock.results[0]!.value as NodeJS.Timeout;
       expect(timer.hasRef()).toBe(false);
+      fresh.close();
     });
   });
 });

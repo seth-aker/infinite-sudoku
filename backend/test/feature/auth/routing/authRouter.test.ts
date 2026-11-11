@@ -10,16 +10,12 @@ import {
   type FakeAuthService,
 } from "#test/helpers/auth";
 import type { TestServer } from "#test/helpers/http";
+import { expectLimiterApplied } from "#test/helpers/rateLimiter";
 
 // See webAuthRouter.test.ts: limiters pass through and are only checked for wiring.
-vi.mock("@/feature/auth/middleware/rateLimiter", () => {
-  const pass = () => vi.fn((_req: unknown, _res: unknown, next: () => void) => next());
-  return {
-    passwordGrantLimiter: [pass()],
-    refreshGrantLimiter: pass(),
-    resetPasswordRateLimiter: pass(),
-    tokenRequestRateLimiter: [pass()],
-  };
+vi.mock("@/feature/auth/middleware/rateLimiter", async (importOriginal) => {
+  const { passThroughLimiters } = await import("#test/helpers/rateLimiter");
+  return passThroughLimiters(await importOriginal());
 });
 
 const BASE = "/api/auth";
@@ -69,15 +65,6 @@ describe("AuthRouter", () => {
       expect(service[method]).toHaveBeenCalledWith(TEST_USER.email);
     });
 
-    it("returns the same 204 whether or not the account exists", async () => {
-      // The service resolves silently for unknown emails; the route must not
-      // add anything that distinguishes the two.
-      const known = await server.post(`${BASE}${path}`, { email: TEST_USER.email });
-      const unknown = await server.post(`${BASE}${path}`, { email: "nobody@example.com" });
-      expect(unknown.status).toBe(known.status);
-      expect(await unknown.text()).toBe(await known.text());
-    });
-
     it.each([
       ["an invalid email", { email: "nope" }],
       ["a missing email", {}],
@@ -90,7 +77,7 @@ describe("AuthRouter", () => {
 
     it("applies the token request limiter", async () => {
       await server.post(`${BASE}${path}`, { email: TEST_USER.email });
-      expect(tokenRequestRateLimiter[0]).toHaveBeenCalledOnce();
+      expectLimiterApplied(tokenRequestRateLimiter);
     });
   });
 

@@ -20,7 +20,7 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, next) => {
       method: req.method,
       path: req.originalUrl,
       statusCode: e.statusCode,
-      userId: req.user?.userId,
+      userId: req.user?.sub,
       err: e,
     },
     "request failed",

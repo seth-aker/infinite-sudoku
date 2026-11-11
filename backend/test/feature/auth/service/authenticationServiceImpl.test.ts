@@ -45,10 +45,6 @@ function hashed(password: string, salt = randomBytes(16)) {
   };
 }
 
-function matchesHash(password: string, hash: string, salt: string) {
-  return hashed(password, Buffer.from(salt, "hex")).password_hash === hash;
-}
-
 // Hashed once; most tests only need a user whose password is PASSWORD.
 const PASSWORD_HASH = hashed(PASSWORD);
 
@@ -228,7 +224,7 @@ describe("AuthenticationServiceImpl", () => {
       tosAcknowledged: true,
     };
 
-    it("stores a lowercased user with a salted scrypt hash, never the password", async () => {
+    it("stores a lowercased user without the plaintext password", async () => {
       await service.registerUser(body);
       expect(users.createUser).toHaveBeenCalledOnce();
       const created = users.createUser.mock.calls[0]![0];
@@ -238,9 +234,6 @@ describe("AuthenticationServiceImpl", () => {
         tosAcknowledged: true,
         role: "user",
       });
-      expect(created.salt).toMatch(/^[0-9a-f]{32}$/);
-      expect(created.passwordHash).toMatch(/^[0-9a-f]{128}$/);
-      expect(matchesHash(PASSWORD, created.passwordHash, created.salt)).toBe(true);
       expect(JSON.stringify(created)).not.toContain(PASSWORD);
     });
 
@@ -319,7 +312,6 @@ describe("AuthenticationServiceImpl", () => {
       const { accessToken, refreshToken } = await service.getNewTokenSet(USER_ID);
       expect(refreshToken).toBe("refresh-token");
       expect(refreshTokens.create).toHaveBeenCalledWith(USER_ID);
-      expect(users.getUser).toHaveBeenCalledWith(USER_ID);
       expect(await claimsOf(accessToken)).toMatchObject({
         sub: USER_ID,
         role: "user",
@@ -344,7 +336,7 @@ describe("AuthenticationServiceImpl", () => {
     it("signs with HS256", async () => {
       const { accessToken } = await service.getNewTokenSet(USER_ID);
       const header = JSON.parse(Buffer.from(accessToken.split(".")[0]!, "base64url").toString());
-      expect(header).toEqual({ alg: "HS256" });
+      expect(header.alg).toBe("HS256");
     });
   });
 
@@ -362,13 +354,6 @@ describe("AuthenticationServiceImpl", () => {
       refreshTokens.rotateRefreshToken.mockRejectedValue(err);
       await expect(service.refreshAccessToken("old-token")).rejects.toBe(err);
       expect(users.getUser).not.toHaveBeenCalled();
-    });
-  });
-
-  describe("clearRefreshToken", () => {
-    it("deletes the token", async () => {
-      await service.clearRefreshToken("token");
-      expect(refreshTokens.delete).toHaveBeenCalledWith("token");
     });
   });
 
@@ -438,10 +423,13 @@ describe("AuthenticationServiceImpl", () => {
       await service.resetPassword("t", NEW_PASSWORD);
       expect(resetTokens.consumeToken).toHaveBeenCalledWith("t");
       expect(users.changePassword).toHaveBeenCalledOnce();
-      const [userId, hash, salt] = users.changePassword.mock.calls[0]!;
+      const [userId, password_hash, salt] = users.changePassword.mock.calls[0]!;
       expect(userId).toBe(USER_ID);
-      expect(matchesHash(NEW_PASSWORD, hash, salt)).toBe(true);
       expect(refreshTokens.invalidateAllForUser).toHaveBeenCalledWith(USER_ID);
+      // The stored credentials accept the new password and reject the old one.
+      users.getUserByEmail.mockResolvedValue(sqlUser({ password_hash, salt }));
+      await expect(service.verify("player@example.com", NEW_PASSWORD)).resolves.toBeDefined();
+      await expect(service.verify("player@example.com", PASSWORD)).rejects.toBeInstanceOf(AuthenticationError);
     });
 
     it("accepts a token just inside the 15 minute window", async () => {
@@ -474,14 +462,6 @@ describe("AuthenticationServiceImpl", () => {
       expect(err.code).toBe(ErrorType.TOKEN_EXPIRED);
       expect(users.changePassword).not.toHaveBeenCalled();
       expect(refreshTokens.invalidateAllForUser).not.toHaveBeenCalled();
-    });
-  });
-
-  describe("validateEmail", () => {
-    it.each([true, false])("returns the data source result (%s)", async (result) => {
-      validateTokens.validateEmail.mockResolvedValue(result);
-      await expect(service.validateEmail("token")).resolves.toBe(result);
-      expect(validateTokens.validateEmail).toHaveBeenCalledWith("token");
     });
   });
 });

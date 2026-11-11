@@ -5,6 +5,7 @@ import { config } from "@/core/config";
 import { logger } from "@/core/logging/logger";
 import { HealthRouter } from "@/feature/health/routing/healthRouter";
 import { startServer, type TestServer } from "#test/helpers/http";
+import { expectLogged } from "#test/helpers/logger";
 
 const TIMEOUT_MS = 20;
 
@@ -58,7 +59,7 @@ describe("HealthRouter", () => {
     sql.mockImplementationOnce(() => query(Promise.reject(err)));
     const res = await server.get("/api/_health");
     expect(res.status).toBe(503);
-    expect(logger.warn).toHaveBeenCalledWith({ err }, "health check failed");
+    expectLogged("warn", expect.objectContaining({ err }));
     expect(logger.error).not.toHaveBeenCalled();
   });
 
@@ -69,9 +70,9 @@ describe("HealthRouter", () => {
     const res = await server.get("/api/_health");
     expect(res.status).toBe(503);
     expect(hung.cancel).toHaveBeenCalledOnce();
-    expect(logger.warn).toHaveBeenCalledWith(
-      { err: expect.objectContaining({ message: expect.stringContaining("timed out") }) },
-      "health check failed",
+    expectLogged(
+      "warn",
+      expect.objectContaining({ err: expect.objectContaining({ message: expect.stringContaining("timed out") }) }),
     );
   });
 

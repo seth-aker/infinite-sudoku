@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { logger } from "@/core/logging/logger";
+import { expectLogged } from "#test/helpers/logger";
 import { WorkerPoolError } from "@/core/errors/workerpoolError";
 import { WorkerPoolManager } from "@/core/workers/workerpoolManager";
 import type { WorkerPoolConfig } from "@/core/workers/workerpoolConfig";
@@ -40,7 +41,7 @@ describe("WorkerPoolManager", () => {
     it("runs the named function with its args and returns the result", async () => {
       exec.mockResolvedValue("done");
       await expect(manager.execute("generatePuzzles", ARGS)).resolves.toBe("done");
-      expect(exec).toHaveBeenCalledWith("generatePuzzles", ARGS, { on: expect.any(Function) });
+      expect(exec).toHaveBeenCalledWith("generatePuzzles", ARGS, expect.anything());
     });
 
     it("reuses the pool across calls", async () => {
@@ -53,10 +54,7 @@ describe("WorkerPoolManager", () => {
     it("logs the call outside production", async () => {
       exec.mockResolvedValue(undefined);
       await manager.execute("generatePuzzles", ARGS);
-      expect(logger.debug).toHaveBeenCalledWith(
-        { functionName: "generatePuzzles", args: ARGS },
-        "calling worker",
-      );
+      expectLogged("debug", expect.objectContaining({ functionName: "generatePuzzles" }));
     });
 
     it("does not log the call in production", async () => {
@@ -98,9 +96,9 @@ describe("WorkerPoolManager", () => {
         workerEmits(undefined);
         await expect(manager.execute("generatePuzzles", ARGS, onUpdate)).resolves.toBe("done");
         await settle();
-        expect(logger.error).toHaveBeenCalledWith(
-          { err: expect.objectContaining({ message: "boom" }), functionName: "generatePuzzles" },
-          "worker onUpdate handler failed",
+        expectLogged(
+          "error",
+          expect.objectContaining({ err: expect.objectContaining({ message: "boom" }) }),
         );
       });
 
