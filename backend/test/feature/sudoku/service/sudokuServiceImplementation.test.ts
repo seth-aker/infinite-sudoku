@@ -1,283 +1,240 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { SudokuServiceImplementation } from "@/feature/sudoku/service/sudokuServiceImplementation";
-import { WorkerPoolManager } from "@/core/workers/workerpoolManager";
-import { config as workerConfig } from "@/core/workers/workerpoolConfig";
 import { DatabaseError } from "@/core/errors/databaseError";
-import { WorkerPoolError } from "@/core/errors/workerpoolError";
 import { NotFoundError } from "@/core/errors/notFoundError";
 import { logger } from "@/core/logging/logger";
-import type { CreatePuzzle } from "@/feature/sudoku/datasource/models/sudokuPuzzle";
+import type { SudokuDataSource } from "@/feature/sudoku/datasource/sudokuDataSource";
+import type { CreatePuzzle, UserPuzzleDto } from "@/feature/sudoku/datasource/models/sudokuPuzzle";
+import { SudokuServiceImplementation } from "@/feature/sudoku/service/sudokuServiceImplementation";
 import type { SudokuService } from "@/feature/sudoku/service/sudokuService";
-import { mockSudokuDataSource } from "#test/helpers/mocks";
-import {
-  buildSqlPuzzle,
-  buildUserPuzzle,
-  CELLS,
-  PUZZLE_ID,
-  SOLVED_CELLS,
-  USER_ID,
-} from "#test/helpers/fixtures";
+import type { WorkerPoolManager } from "@/core/workers/workerpoolManager";
 
-const pool = vi.hoisted(() => ({
-  configure: vi.fn(),
-  execute: vi.fn(),
-}));
+// Stands in for the WorkerPoolManager, which spawns worker threads running
+// the C puzzle generator, so tests control when "generated" puzzles arrive.
+const pool = { execute: vi.fn() };
 
-vi.mock("@/core/workers/workerpoolManager", () => ({
-  WorkerPoolManager: vi.fn(function (this: typeof pool) {
-    this.configure = pool.configure;
-    this.execute = pool.execute;
-  }),
-}));
+const USER_ID = "3f0c7a4e-1b2d-4c5e-8f9a-0b1c2d3e4f5a";
+const PUZZLE_ID = "9a8b7c6d-5e4f-4a3b-9c2d-1e0f9a8b7c6d";
+const PUZZLE = { puzzleId: PUZZLE_ID, cells: "0".repeat(81), rating: "easy" as const, score: 10 };
+const SOLVED = "1".repeat(81);
+const GENERATED: CreatePuzzle = { cells: "0".repeat(81), rating: "easy", score: 5, solvedCells: SOLVED };
+const EASY = { difficulty: "easy" as const };
 
-type OnUpdate = (p: CreatePuzzle) => Promise<void>;
-
-const puzzle = {
-  puzzleId: PUZZLE_ID,
-  cells: CELLS,
-  score: 42,
-  rating: "easy" as const,
-};
-const generated: CreatePuzzle = {
-  cells: CELLS,
-  solvedCells: SOLVED_CELLS,
-  score: 1,
-  rating: "easy",
-};
+const withCount = (totalCount: number) => ({ metadata: { totalCount }, puzzle: PUZZLE });
+const noMorePuzzles = () => new DatabaseError("No more puzzles");
 
 describe("SudokuServiceImplementation", () => {
-  let ds: ReturnType<typeof mockSudokuDataSource>;
+  const data = {
+    getNewPuzzle: vi.fn(),
+    getPuzzleById: vi.fn(),
+    getPuzzles: vi.fn(),
+    createPuzzles: vi.fn(),
+    getUserPuzzle: vi.fn(),
+    updateUserPuzzle: vi.fn(),
+    deletePuzzle: vi.fn(),
+  };
   let service: SudokuService;
 
   beforeEach(() => {
+    // Some tests queue one-off results (mockResolvedValueOnce) that a test may
+    // not consume; reset so they can't leak into the next test.
+    vi.resetAllMocks();
     SudokuServiceImplementation.instance = null;
-    ds = mockSudokuDataSource();
-    service = SudokuServiceImplementation.create(ds);
+    service = SudokuServiceImplementation.create(
+      data as unknown as SudokuDataSource,
+      pool as unknown as WorkerPoolManager,
+    );
+    data.getNewPuzzle.mockResolvedValue(withCount(5_000));
+    data.createPuzzles.mockResolvedValue(1);
     pool.execute.mockResolvedValue(undefined);
   });
 
-  describe("create", () => {
-    it("configures a worker pool with the puzzle generator config", () => {
-      expect(WorkerPoolManager).toHaveBeenCalledTimes(1);
-      expect(pool.configure).toHaveBeenCalledWith(workerConfig);
-    });
-
-    it("returns a singleton", () => {
-      expect(SudokuServiceImplementation.create(mockSudokuDataSource())).toBe(
-        service,
-      );
-      expect(WorkerPoolManager).toHaveBeenCalledTimes(1);
-    });
+  it("returns the same instance on later create calls", () => {
+    expect(
+      SudokuServiceImplementation.create({} as SudokuDataSource, {} as WorkerPoolManager),
+    ).toBe(service);
   });
 
   describe("getNewPuzzle", () => {
-    const options = { difficulty: "easy" as const };
+    it("returns a puzzle for the user and difficulty", async () => {
+      await expect(service.getNewPuzzle(USER_ID, EASY)).resolves.toEqual(PUZZLE);
+      expect(data.getNewPuzzle).toHaveBeenCalledWith(USER_ID, EASY);
+    });
 
-    it("returns the puzzle without generating more when stock is high", async () => {
-      ds.getNewPuzzle.mockResolvedValue({
-        metadata: { totalCount: 1000 },
-        puzzle,
-      });
-      await expect(service.getNewPuzzle(USER_ID, options)).resolves.toEqual(
-        puzzle,
+    it("works for anonymous users", async () => {
+      await service.getNewPuzzle(undefined, EASY);
+      expect(data.getNewPuzzle).toHaveBeenCalledWith(undefined, EASY);
+    });
+
+    it("rejects the impossible difficulty without querying", async () => {
+      await expect(service.getNewPuzzle(USER_ID, { difficulty: "impossible" as never })).rejects.toThrow(
+        "Cannot get difficulty of impossible",
       );
-      expect(ds.getNewPuzzle).toHaveBeenCalledWith(USER_ID, options);
+      expect(data.getNewPuzzle).not.toHaveBeenCalled();
+    });
+
+    it("does not generate puzzles while 1000 or more remain", async () => {
+      data.getNewPuzzle.mockResolvedValue(withCount(1_000));
+      await service.getNewPuzzle(USER_ID, EASY);
       expect(pool.execute).not.toHaveBeenCalled();
     });
 
-    it("generates more puzzles in the background when stock is low", async () => {
-      ds.getNewPuzzle.mockResolvedValue({
-        metadata: { totalCount: 999 },
-        puzzle,
+    describe("when fewer than 1000 puzzles remain", () => {
+      beforeEach(() => {
+        data.getNewPuzzle.mockResolvedValue(withCount(999));
       });
-      pool.execute.mockReturnValue(new Promise(() => {}));
-      await expect(service.getNewPuzzle(undefined, options)).resolves.toEqual(
-        puzzle,
-      );
-      expect(pool.execute).toHaveBeenCalledWith(
-        "generatePuzzles",
-        [100, options],
-        expect.any(Function),
-      );
+
+      it("starts generating 100 more of the same difficulty", async () => {
+        await service.getNewPuzzle(USER_ID, EASY);
+        expect(pool.execute).toHaveBeenCalledWith("generatePuzzles", [100, EASY], expect.any(Function));
+      });
+
+      it("responds without waiting for generation to finish", async () => {
+        pool.execute.mockReturnValue(new Promise(() => {}));
+        await expect(service.getNewPuzzle(USER_ID, EASY)).resolves.toEqual(PUZZLE);
+      });
+
+      it("saves each generated puzzle as it arrives", async () => {
+        await service.getNewPuzzle(USER_ID, EASY);
+        const onPuzzle = pool.execute.mock.calls[0]![2] as (p: CreatePuzzle) => Promise<void>;
+        await onPuzzle(GENERATED);
+        expect(data.createPuzzles).toHaveBeenCalledWith([GENERATED]);
+        expect(logger.error).not.toHaveBeenCalled();
+      });
+
+      it("logs a failed background generation instead of crashing the request or process", async () => {
+        const err = new Error("worker crashed");
+        pool.execute.mockRejectedValue(err);
+        await expect(service.getNewPuzzle(USER_ID, EASY)).resolves.toEqual(PUZZLE);
+        // Let the detached rejection settle; an unhandled one would fail the run.
+        await new Promise((resolve) => setImmediate(resolve));
+        expect(logger.error).toHaveBeenCalledWith({ err }, "background puzzle generation failed");
+      });
+
+      it("logs when a generated puzzle fails to save", async () => {
+        data.createPuzzles.mockResolvedValue(0);
+        await service.getNewPuzzle(USER_ID, EASY);
+        const onPuzzle = pool.execute.mock.calls[0]![2] as (p: CreatePuzzle) => Promise<void>;
+        await onPuzzle(GENERATED);
+        expect(logger.error).toHaveBeenCalledWith("Failed to generate a puzzle");
+      });
+    });
+
+    describe("when there are no puzzles left", () => {
+      beforeEach(() => {
+        data.getNewPuzzle.mockRejectedValueOnce(noMorePuzzles()).mockResolvedValueOnce(withCount(100));
+        pool.execute.mockImplementation(async (_name, _args, onPuzzle: (p: CreatePuzzle) => Promise<void>) => {
+          await onPuzzle(GENERATED);
+        });
+      });
+
+      it("generates a single puzzle, waits, then retries", async () => {
+        await expect(service.getNewPuzzle(USER_ID, EASY)).resolves.toEqual(PUZZLE);
+        expect(pool.execute).toHaveBeenCalledWith("generatePuzzles", [1, EASY], expect.any(Function));
+        expect(data.createPuzzles).toHaveBeenCalledWith([GENERATED]);
+        expect(data.getNewPuzzle).toHaveBeenCalledTimes(2);
+        expect(data.getNewPuzzle).toHaveBeenLastCalledWith(USER_ID, EASY);
+      });
+
+      it("logs when a generated puzzle fails to save", async () => {
+        data.createPuzzles.mockResolvedValue(0);
+        await service.getNewPuzzle(USER_ID, EASY);
+        expect(logger.error).toHaveBeenCalledWith("Failed to generate a puzzle");
+      });
+
+      it("propagates a generator failure without retrying", async () => {
+        // The user is waiting on this generation, so the real cause should
+        // reach the error handler rather than a misleading "No more puzzles".
+        const err = new Error("worker crashed");
+        pool.execute.mockRejectedValue(err);
+        await expect(service.getNewPuzzle(USER_ID, EASY)).rejects.toBe(err);
+        expect(data.getNewPuzzle).toHaveBeenCalledOnce();
+      });
     });
 
     it.each([
-      ["background", 999, undefined],
-      ["fallback", 0, new DatabaseError("No more puzzles")],
-    ])(
-      "stores puzzles emitted by the generator (%s)",
-      async (_label, totalCount, firstError) => {
-        if (firstError) ds.getNewPuzzle.mockRejectedValueOnce(firstError);
-        ds.getNewPuzzle.mockResolvedValue({
-          metadata: { totalCount },
-          puzzle,
-        });
-        ds.createPuzzles.mockResolvedValue(1);
-        await service.getNewPuzzle(undefined, options);
-
-        const onUpdate = pool.execute.mock.calls[0][2] as OnUpdate;
-        await onUpdate(generated);
-        expect(ds.createPuzzles).toHaveBeenCalledWith([generated]);
-        expect(logger.error).not.toHaveBeenCalled();
-
-        ds.createPuzzles.mockResolvedValue(0);
-        await onUpdate(generated);
-        expect(logger.error).toHaveBeenCalledWith(
-          "Failed to generate a puzzle",
-        );
-      },
-    );
-
-    it("rejects the impossible difficulty without querying", async () => {
-      await expect(
-        service.getNewPuzzle(USER_ID, { difficulty: "impossible" }),
-      ).rejects.toThrow("Cannot get difficulty of impossible");
-      expect(ds.getNewPuzzle).not.toHaveBeenCalled();
+      ["another DatabaseError", new DatabaseError("connection lost")],
+      ["a non-database error", new Error("No more puzzles")],
+      ["a NotFoundError", new NotFoundError("nope")],
+    ])("rethrows %s without generating", async (_label, err) => {
+      data.getNewPuzzle.mockRejectedValue(err);
+      await expect(service.getNewPuzzle(USER_ID, EASY)).rejects.toBe(err);
       expect(pool.execute).not.toHaveBeenCalled();
-    });
-
-    it("generates puzzles and retries when none are left", async () => {
-      ds.getNewPuzzle
-        .mockRejectedValueOnce(new DatabaseError("No more puzzles"))
-        .mockResolvedValueOnce({ metadata: { totalCount: 100 }, puzzle });
-
-      await expect(service.getNewPuzzle(USER_ID, options)).resolves.toEqual(
-        puzzle,
-      );
-      expect(pool.execute).toHaveBeenCalledTimes(1);
-      expect(pool.execute).toHaveBeenCalledWith(
-        "generatePuzzles",
-        [100, options],
-        expect.any(Function),
-      );
-      expect(ds.getNewPuzzle).toHaveBeenCalledTimes(2);
-    });
-
-    it("waits for generation to finish before retrying", async () => {
-      const order: string[] = [];
-      ds.getNewPuzzle
-        .mockRejectedValueOnce(new DatabaseError("No more puzzles"))
-        .mockImplementationOnce(async () => {
-          order.push("retry");
-          return { metadata: { totalCount: 100 }, puzzle };
-        });
-      pool.execute.mockImplementationOnce(async () => {
-        order.push("generate");
-      });
-      await service.getNewPuzzle(USER_ID, options);
-      expect(order).toEqual(["generate", "retry"]);
-    });
-
-    it("propagates generator failures during the fallback", async () => {
-      ds.getNewPuzzle.mockRejectedValueOnce(
-        new DatabaseError("No more puzzles"),
-      );
-      pool.execute.mockRejectedValueOnce(new WorkerPoolError("crashed"));
-      await expect(service.getNewPuzzle(USER_ID, options)).rejects.toThrow(
-        WorkerPoolError,
-      );
-      expect(ds.getNewPuzzle).toHaveBeenCalledTimes(1);
-    });
-
-    it("propagates a second 'No more puzzles' failure", async () => {
-      ds.getNewPuzzle.mockRejectedValue(new DatabaseError("No more puzzles"));
-      await expect(service.getNewPuzzle(USER_ID, options)).rejects.toThrow(
-        "No more puzzles",
-      );
-      expect(pool.execute).toHaveBeenCalledTimes(1);
-    });
-
-    it("rethrows other database errors", async () => {
-      const err = new DatabaseError("connection lost");
-      ds.getNewPuzzle.mockRejectedValue(err);
-      await expect(service.getNewPuzzle(USER_ID, options)).rejects.toBe(err);
-      expect(pool.execute).not.toHaveBeenCalled();
-    });
-
-    it("rethrows non-database errors mentioning no more puzzles", async () => {
-      const err = new Error("No more puzzles");
-      ds.getNewPuzzle.mockRejectedValue(err);
-      await expect(service.getNewPuzzle(USER_ID, options)).rejects.toBe(err);
-      expect(pool.execute).not.toHaveBeenCalled();
-    });
-  });
-
-  describe("delegation", () => {
-    it("getPuzzles", async () => {
-      const arr = {
-        metadata: { totalCount: 0, page: 1, limit: 5 },
-        puzzles: [],
-      };
-      ds.getPuzzles.mockResolvedValue(arr);
-      await expect(
-        service.getPuzzles({ difficulty: "easy" }, 1, 5),
-      ).resolves.toBe(arr);
-      expect(ds.getPuzzles).toHaveBeenCalledWith({ difficulty: "easy" }, 1, 5);
-    });
-
-    it("createPuzzles", async () => {
-      ds.createPuzzles.mockResolvedValue(1);
-      await expect(service.createPuzzles([generated])).resolves.toBe(1);
-      expect(ds.createPuzzles).toHaveBeenCalledWith([generated]);
-    });
-
-    it("getUserPuzzle", async () => {
-      const up = buildUserPuzzle();
-      ds.getUserPuzzle.mockResolvedValue(up);
-      await expect(service.getUserPuzzle(USER_ID, PUZZLE_ID)).resolves.toBe(up);
-      expect(ds.getUserPuzzle).toHaveBeenCalledWith(USER_ID, PUZZLE_ID);
-    });
-
-    it("getUserPuzzle propagates not found", async () => {
-      ds.getUserPuzzle.mockRejectedValue(new NotFoundError("x"));
-      await expect(
-        service.getUserPuzzle(USER_ID, PUZZLE_ID),
-      ).rejects.toBeInstanceOf(NotFoundError);
-    });
-
-    it("deletePuzzle", async () => {
-      ds.deletePuzzle.mockResolvedValue(1);
-      await expect(service.deletePuzzle(PUZZLE_ID)).resolves.toBe(1);
-      expect(ds.deletePuzzle).toHaveBeenCalledWith(PUZZLE_ID);
     });
   });
 
   describe("updateUserPuzzle", () => {
+    const progress = (overrides: Partial<UserPuzzleDto> = {}): UserPuzzleDto => ({
+      puzzleId: PUZZLE_ID,
+      isCompleted: false,
+      cells: "0".repeat(81),
+      candidates: Array(81).fill("").join(":"),
+      time: 60,
+      actions: [],
+      ...overrides,
+    });
+
     beforeEach(() => {
-      ds.updateUserPuzzle.mockResolvedValue(1);
+      data.updateUserPuzzle.mockResolvedValue(1);
+      data.getPuzzleById.mockResolvedValue({ puzzle_id: PUZZLE_ID, solved_cells: SOLVED });
     });
 
     it("saves in-progress puzzles without checking the solution", async () => {
-      const up = buildUserPuzzle({ isCompleted: false });
-      await expect(service.updateUserPuzzle(USER_ID, up)).resolves.toBe(1);
-      expect(ds.getPuzzleById).not.toHaveBeenCalled();
-      expect(ds.updateUserPuzzle).toHaveBeenCalledWith(USER_ID, up);
+      const puzzle = progress();
+      await expect(service.updateUserPuzzle(USER_ID, puzzle)).resolves.toBe(1);
+      expect(data.getPuzzleById).not.toHaveBeenCalled();
+      expect(data.updateUserPuzzle).toHaveBeenCalledWith(USER_ID, puzzle);
     });
 
-    it("marks the puzzle complete when the cells match the solution", async () => {
-      ds.getPuzzleById.mockResolvedValue(buildSqlPuzzle());
-      const up = buildUserPuzzle({ isCompleted: true, cells: SOLVED_CELLS });
-      await service.updateUserPuzzle(USER_ID, up);
-      expect(ds.getPuzzleById).toHaveBeenCalledWith(PUZZLE_ID);
-      expect(ds.updateUserPuzzle.mock.calls[0][1].isCompleted).toBe(true);
+    it("keeps a completion claim that matches the solution", async () => {
+      await service.updateUserPuzzle(USER_ID, progress({ isCompleted: true, cells: SOLVED }));
+      expect(data.getPuzzleById).toHaveBeenCalledWith(PUZZLE_ID);
+      expect(data.updateUserPuzzle).toHaveBeenCalledWith(
+        USER_ID,
+        expect.objectContaining({ isCompleted: true, cells: SOLVED }),
+      );
     });
 
-    it("clears a false completion claim", async () => {
-      ds.getPuzzleById.mockResolvedValue(buildSqlPuzzle());
-      const up = buildUserPuzzle({ isCompleted: true, cells: CELLS });
-      await service.updateUserPuzzle(USER_ID, up);
-      expect(ds.updateUserPuzzle.mock.calls[0][1].isCompleted).toBe(false);
+    it("downgrades a completion claim that does not match the solution", async () => {
+      await service.updateUserPuzzle(USER_ID, progress({ isCompleted: true, cells: "2".repeat(81) }));
+      expect(data.updateUserPuzzle).toHaveBeenCalledWith(
+        USER_ID,
+        expect.objectContaining({ isCompleted: false }),
+      );
     });
 
-    it("propagates errors when the puzzle does not exist", async () => {
-      ds.getPuzzleById.mockRejectedValue(new NotFoundError("nope"));
+    it("propagates a missing puzzle when verifying", async () => {
+      const err = new NotFoundError("no puzzle");
+      data.getPuzzleById.mockRejectedValue(err);
       await expect(
-        service.updateUserPuzzle(
-          USER_ID,
-          buildUserPuzzle({ isCompleted: true }),
-        ),
-      ).rejects.toBeInstanceOf(NotFoundError);
-      expect(ds.updateUserPuzzle).not.toHaveBeenCalled();
+        service.updateUserPuzzle(USER_ID, progress({ isCompleted: true, cells: SOLVED })),
+      ).rejects.toBe(err);
+      expect(data.updateUserPuzzle).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("pass-through methods", () => {
+    it("getUserPuzzle", async () => {
+      data.getUserPuzzle.mockResolvedValue({ puzzleId: PUZZLE_ID });
+      await expect(service.getUserPuzzle(USER_ID, PUZZLE_ID)).resolves.toEqual({ puzzleId: PUZZLE_ID });
+      expect(data.getUserPuzzle).toHaveBeenCalledWith(USER_ID, PUZZLE_ID);
+    });
+
+    it("getPuzzles", async () => {
+      const page = { metadata: { totalCount: 1, page: 2, limit: 10 }, puzzles: [PUZZLE] };
+      data.getPuzzles.mockResolvedValue(page);
+      await expect(service.getPuzzles(EASY, 2, 10)).resolves.toBe(page);
+      expect(data.getPuzzles).toHaveBeenCalledWith(EASY, 2, 10);
+    });
+
+    it("createPuzzles", async () => {
+      data.createPuzzles.mockResolvedValue(2);
+      await expect(service.createPuzzles([GENERATED, GENERATED])).resolves.toBe(2);
+    });
+
+    it("deletePuzzle", async () => {
+      data.deletePuzzle.mockResolvedValue(1);
+      await expect(service.deletePuzzle(PUZZLE_ID)).resolves.toBe(1);
+      expect(data.deletePuzzle).toHaveBeenCalledWith(PUZZLE_ID);
     });
   });
 });

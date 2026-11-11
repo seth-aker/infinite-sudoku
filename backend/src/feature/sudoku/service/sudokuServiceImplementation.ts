@@ -9,21 +9,21 @@ import {
 import { SudokuService } from "./sudokuService";
 import { WorkerPoolManager } from "@/core/workers/workerpoolManager";
 import { DatabaseError } from "@/core/errors/databaseError";
-import { config } from "@/core/workers/workerpoolConfig";
 import { logger } from "@/core/logging/logger";
+
 export class SudokuServiceImplementation implements SudokuService {
   private sudokuDataSource: SudokuDataSource;
   private workerpoolManager: WorkerPoolManager;
-  private constructor(dataSource: SudokuDataSource) {
+  private constructor(dataSource: SudokuDataSource, workerPoolManager: WorkerPoolManager) {
     this.sudokuDataSource = dataSource;
-    this.workerpoolManager = new WorkerPoolManager();
-    this.workerpoolManager.configure(config);
+    this.workerpoolManager = workerPoolManager;
   }
   static instance: SudokuService | null = null;
-  static create(dataSource: SudokuDataSource) {
+  static create(dataSource: SudokuDataSource, workerPoolManager: WorkerPoolManager) {
     if (SudokuServiceImplementation.instance === null) {
       SudokuServiceImplementation.instance = new SudokuServiceImplementation(
         dataSource,
+        workerPoolManager,
       );
     }
     return SudokuServiceImplementation.instance;
@@ -51,7 +51,9 @@ export class SudokuServiceImplementation implements SudokuService {
               logger.error("Failed to generate a puzzle");
             }
           },
-        );
+        ).catch((err) => {
+            logger.error({ err }, "background puzzle generation failed")
+          })
       }
       return response.puzzle;
     } catch (err) {
@@ -61,14 +63,14 @@ export class SudokuServiceImplementation implements SudokuService {
       ) {
         await this.workerpoolManager.execute(
           "generatePuzzles",
-          [100, options],
+          [1, options],
           async (newPuzzles: CreatePuzzle) => {
             const result = await this.createPuzzles([newPuzzles]);
             if (result != 1) {
               logger.error("Failed to generate a puzzle");
             }
           },
-        );
+        )
         const response = await this.sudokuDataSource.getNewPuzzle(
           requestedBy,
           options,

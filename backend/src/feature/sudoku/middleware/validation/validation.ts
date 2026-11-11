@@ -1,8 +1,6 @@
 import { NextFunction, Request, Response } from "express";
 import { ValidationError } from "../../../../core/errors/validationError.ts";
 import {
-  createPuzzleSchema,
-  deletePuzzleSchema,
   getPuzzleByIdSchema,
   getPuzzleSchema,
   updateUserPuzzleSchema,
@@ -31,17 +29,6 @@ export const getPuzzleByIdValidator = (
   }
   next();
 };
-export const createPuzzleValidator = (
-  req: Request,
-  _res: Response,
-  next: NextFunction,
-) => {
-  const validationResult = createPuzzleSchema.safeParse(req.body);
-  if (!validationResult.success) {
-    throw ValidationError.fromZod(validationResult.error);
-  }
-  next();
-};
 export const updatePuzzleValidator = (
   req: Request,
   _res: Response,
@@ -54,14 +41,3 @@ export const updatePuzzleValidator = (
   next();
 };
 
-export const deletePuzzleValidator = (
-  req: Request,
-  _res: Response,
-  next: NextFunction,
-) => {
-  const validationResult = deletePuzzleSchema.safeParse(req.params);
-  if (!validationResult.success) {
-    throw ValidationError.fromZod(validationResult.error);
-  }
-  next();
-};

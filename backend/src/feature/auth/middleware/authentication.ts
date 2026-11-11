@@ -1,10 +1,9 @@
 import { config } from "@/core/config";
-import { NextFunction, Request, Response } from "express";
+import { NextFunction, Request, RequestHandler, Response } from "express";
 import { JWTPayload, jwtVerify } from "jose";
 import { AuthenticationError } from "../errors/authenticationError";
 import { ErrorType } from "@/core/errors/errorTypes";
 import { AuthorizationError } from "../errors/authorizationError";
-import { CustomError } from "@/core/errors/customError";
 import { JWTExpired } from "jose/errors";
 import * as z from "zod/v4"
 import { BadRequestError } from "@/core/errors/badRequestError";
@@ -12,17 +11,12 @@ export interface SudokuAppJwtPayload extends JWTPayload {
   emailVerified: boolean,
   role: "user" | "admin";
 }
-export const requireLoggedin = async (
-  req: Request,
-  _res: Response,
-  next: NextFunction,
-) => {
-  const token: string | undefined = getToken(req);
-
+// Checks for access token and, if found, adds user data to the request object.
+// DOES NOT prevent access to a route.
+export const authenticate: RequestHandler = async (req, _res, next) => {
+  const token = getToken(req);
   if (!token) {
-    throw new AuthenticationError("Missing Bearer token", {
-      type: ErrorType.TOKEN_MISSING,
-    });
+    return next();
   }
   try {
     const secret = new TextEncoder().encode(config.jwtSecret);
@@ -33,60 +27,49 @@ export const requireLoggedin = async (
       algorithms: ["HS256"],
     });
     req.user = payload as SudokuAppJwtPayload;
-    next();
   } catch (err) {
-    throw new AuthenticationError("Invalid access token", {
-      type: err instanceof JWTExpired ? ErrorType.TOKEN_EXPIRED : ErrorType.TOKEN_INVALID,
-    });
+    req.authError = err instanceof JWTExpired ? ErrorType.TOKEN_EXPIRED : ErrorType.TOKEN_INVALID
   }
+  next();
+}
+export const requireLoggedin = async (
+  req: Request,
+  _res: Response,
+  next: NextFunction,
+) => {
+  if (!req.user) {
+    throw new AuthenticationError(req.authError ? "Invalid access token" : "Missing access token", { type: req.authError ?? ErrorType.TOKEN_MISSING })
+  }
+  next();
 };
 
 export const requireAdmin = async (
   req: Request,
   _res: Response,
   next: NextFunction,
-) => {
-  const token: string | undefined = getToken(req);
-
-  if (!token) {
-    throw new AuthenticationError("Missing access token", {
-      type: ErrorType.TOKEN_MISSING,
-    });
-  }
-  try {
-    const secret = new TextEncoder().encode(config.jwtSecret);
-
-    const { payload } = await jwtVerify(token, secret, {
-      issuer: config.issuer,
-      audience: config.audience,
-      algorithms: ["HS256"],
-    });
-    if ((payload as SudokuAppJwtPayload).role != "admin") {
+) =>
+  requireLoggedin(req, _res, () => {
+    if (req.user!.role != "admin") {
       throw new AuthorizationError("Admin access required", {
         type: ErrorType.INSUFFICIENT_ROLE,
       });
     }
-
-    req.user = payload as SudokuAppJwtPayload;
     next();
-  } catch (err) {
-    if (err instanceof CustomError) throw err;
-    throw new AuthenticationError("Invalid Bearer token", {
-      type: err instanceof JWTExpired ? ErrorType.TOKEN_EXPIRED : ErrorType.TOKEN_INVALID,
-    });
-  }
-};
-export async function requireSelfOrAdmin(req: Request<{ id: string }>, res: Response, next: NextFunction) {
+  });
+
+export async function requireSelfOrAdmin(req: Request<{ id: string }>, _res: Response, next: NextFunction) {
   const userId = req.params.id;
   if (!z.uuid().safeParse(userId).success) {
     throw new BadRequestError("Invalid user id")
   }
-  if (!req.user || !req.user.sub) {
+  if (!req.user || !req.user?.sub) {
     throw new AuthenticationError("Missing access token",
       { type: ErrorType.TOKEN_MISSING })
   }
-  if (req.user.sub !== userId) {
-    return requireAdmin(req, res, next);
+  if (req.user.sub !== userId && req.user.role !== 'admin') {
+    throw new AuthorizationError("Admin access required", {
+      type: ErrorType.INSUFFICIENT_ROLE,
+    });
   }
   return next();
 }

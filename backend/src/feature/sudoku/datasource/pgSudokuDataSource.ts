@@ -76,12 +76,12 @@ export class PgSudokuDataSource implements SudokuDataSource {
       }
       return puzzle;
     });
-    if (!res || res.total_count === 0) {
+    if (!res || Number(res.total_count) === 0) {
       throw new DatabaseError("No more puzzles");
     }
     const response: SudokuPuzzleResponse = {
       metadata: {
-        totalCount: res.total_count,
+        totalCount: Number(res.total_count),
       },
       puzzle: {
         puzzleId: res.puzzle_id,
@@ -115,44 +115,24 @@ export class PgSudokuDataSource implements SudokuDataSource {
   }
 
   async createPuzzles(puzzles: CreatePuzzle[]): Promise<number> {
-    const queries = puzzles.map((puzzle) => {
-      return this.client<({ puzzle_id: string } | undefined)[]>`
-        INSERT INTO puzzles (
-          cells,
-          solved_cells,
-          difficulty_score,
-          difficulty_rating
-        ) VALUES (
-          ${puzzle.cells},
-          ${puzzle.solvedCells},
-          ${puzzle.score ?? null},
-          ${puzzle.rating} 
-        ) RETURNING puzzle_id;
-      `;
-    });
-
-    const res = await Promise.all(queries);
-    return res.length;
+    if (puzzles.length === 0) {
+      return 0;
+    }
+    const rows = puzzles.map((puzzle) => ({
+      cells: puzzle.cells,
+      difficulty_score: puzzle.score ?? null,
+      difficulty_rating: puzzle.rating,
+      solved_cells: puzzle.solvedCells,
+    }));
+    const res = await this.client`
+      INSERT INTO puzzles ${this.client(rows)}`
+    return res.count;
   }
   async updateUserPuzzle(
     userId: string,
     puzzle: UserPuzzleDto,
   ): Promise<number> {
-    const res = await this.client`
-      UPDATE user_puzzles
-      SET
-        is_completed = ${puzzle.isCompleted},
-        cells = ${puzzle.cells},
-        candidates = ${puzzle.candidates},
-        "time" = ${puzzle.time},
-        actions = ${puzzle.actions}
-      WHERE 
-        user_id = ${userId} AND
-        puzzle_id = ${puzzle.puzzleId} AND
-        NOT is_completed
-      `
-    if(res.count < 1) {
-      const insertRes = await this.client`
+    const insertRes = await this.client`
         INSERT INTO user_puzzles (
           user_id,
           puzzle_id,
@@ -170,61 +150,67 @@ export class PgSudokuDataSource implements SudokuDataSource {
           ${puzzle.time},
           ${puzzle.actions},
           ${puzzle.isCompleted}
-        );`
-      return insertRes.count;
-    }
-    return res.count;
-    // if (puzzle.startedAt == null) {
-    //   const res = await this.client`
-    //       UPDATE user_puzzles
-    //       SET
-    //         is_completed = ${puzzle.isCompleted},
-    //         cells = ${puzzle.cells},
-    //         candidates = ${puzzle.candidates},
-    //         "time" = FLOOR(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - started_at)))::int,
-    //         started_at = NULL,
-    //         actions = ${puzzle.actions}
-    //       WHERE
-    //         user_id = ${userId} AND
-    //         puzzle_id = ${puzzle.puzzleId} AND
-    //         started_at IS NOT NULL AND
-    //         NOT is_completed;
-    //     `
-    //   return res.count;
-    // } else {
-    //   // puzzle resumed
-    //   const res = await this.client`
-    //     UPDATE user_puzzles
-    //     SET
-    //       is_completed = ${puzzle.isCompleted},
-    //       cells = ${puzzle.cells},
-    //       candidates = ${puzzle.candidates},
-    //       -- if started_at is already not null, don't update it.
-    //       started_at = COALESCE(started_at, CURRENT_TIMESTAMP),
-    //       actions = ${puzzle.actions}
-    //     WHERE
-    //       user_id = ${userId} AND
-    //       puzzle_id = ${puzzle.puzzleId}
-    //   `
-    //   return res.count;
-    // }
+        )
+        ON CONFLICT (user_id, puzzle_id) DO UPDATE
+        SET
+          is_completed = ${puzzle.isCompleted},
+          cells = ${puzzle.cells},
+          candidates = ${puzzle.candidates},
+          "time" = ${puzzle.time},
+          actions = ${puzzle.actions}
+        WHERE NOT user_puzzles.is_completed;
+`
+    return insertRes.count;
   }
+  // if (puzzle.startedAt == null) {
+  //   const res = await this.client`
+  //       UPDATE user_puzzles
+  //       SET
+  //         is_completed = ${puzzle.isCompleted},
+  //         cells = ${puzzle.cells},
+  //         candidates = ${puzzle.candidates},
+  //         "time" = FLOOR(EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - started_at)))::int,
+  //         started_at = NULL,
+  //         actions = ${puzzle.actions}
+  //       WHERE
+  //         user_id = ${userId} AND
+  //         puzzle_id = ${puzzle.puzzleId} AND
+  //         started_at IS NOT NULL AND
+  //         NOT is_completed;
+  //     `
+  //   return res.count;
+  // } else {
+  //   // puzzle resumed
+  //   const res = await this.client`
+  //     UPDATE user_puzzles
+  //     SET
+  //       is_completed = ${puzzle.isCompleted},
+  //       cells = ${puzzle.cells},
+  //       candidates = ${puzzle.candidates},
+  //       -- if started_at is already not null, don't update it.
+  //       started_at = COALESCE(started_at, CURRENT_TIMESTAMP),
+  //       actions = ${puzzle.actions}
+  //     WHERE
+  //       user_id = ${userId} AND
+  //       puzzle_id = ${puzzle.puzzleId}
+  //   `
+  //   return res.count;
+  // }
   async getUserPuzzle(
     userId: string,
     puzzleId: string,
   ): Promise<UserPuzzleDto> {
     const [res] = await this.client<(UserPuzzleDto | undefined)[]>`
         SELECT 
-          p.puzzle_id as puzzleId,
-          up.is_completed as isCompleted,
+          p.puzzle_id as "puzzleId",
+          up.is_completed as "isCompleted",
           up.cells,
           up.candidates,
           up.time,
-          p.cells as originalCells,
+          p.cells as "originalCells",
           p.difficulty_rating as rating,
           p.difficulty_score as score,
           up.actions,
-          up.started_at as startedAt
         FROM user_puzzles AS up
           JOIN puzzles AS p ON p.puzzle_id = up.puzzle_id
         WHERE 

@@ -8,6 +8,7 @@ import { startServer, type TestServer } from "./http";
 export const TEST_USER = {
   id: "3f0c7a4e-1b2d-4c5e-8f9a-0b1c2d3e4f5a",
   email: "player@example.com",
+  emailVerified: true,
   username: "player",
   role: "user" as const,
 };

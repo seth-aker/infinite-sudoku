@@ -49,6 +49,7 @@ describe("UserServiceImplementation", () => {
       await expect(service.getUser(USER_ID)).resolves.toEqual({
         id: USER_ID,
         email: "player@example.com",
+        emailVerified: true,
         username: "player",
         role: "user",
         imageUrl: "http://img.test/a.png",
@@ -63,8 +64,22 @@ describe("UserServiceImplementation", () => {
       );
       const dto = await service.getUser(USER_ID);
       expect(Object.keys(dto).sort()).toEqual(
-        ["currentPuzzleId", "email", "id", "imageUrl", "role", "username"],
+        ["currentPuzzleId", "email", "emailVerified", "id", "imageUrl", "role", "username"],
       );
+    });
+
+    it("reports an unverified email", async () => {
+      users.getUser.mockResolvedValue(sqlUser({ email_verified: false }));
+      expect((await service.getUser(USER_ID)).emailVerified).toBe(false);
+    });
+
+    it("omits null optional columns, matching the auth service's DTO", async () => {
+      users.getUser.mockResolvedValue(
+        sqlUser({ image_url: null as never, current_puzzle_id: null as never }),
+      );
+      const json = JSON.parse(JSON.stringify(await service.getUser(USER_ID)));
+      expect(json).not.toHaveProperty("imageUrl");
+      expect(json).not.toHaveProperty("currentPuzzleId");
     });
 
     it("propagates NotFoundError from the data source", async () => {
@@ -84,9 +99,9 @@ describe("UserServiceImplementation", () => {
       expect(users.getUserStats).toHaveBeenCalledWith(USER_ID);
     });
 
-    it("throws NotFoundError when the user has no stats", async () => {
+    it("returns an empty list for a user with no puzzles", async () => {
       users.getUserStats.mockResolvedValue([]);
-      await expect(service.getUserStats(USER_ID)).rejects.toBeInstanceOf(NotFoundError);
+      await expect(service.getUserStats(USER_ID)).resolves.toEqual([]);
     });
   });
 

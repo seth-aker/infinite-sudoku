@@ -102,6 +102,28 @@ describe("PgUserDataSource", () => {
       expect(db.queries[0]!.values).toEqual([USER_ID]);
     });
 
+    it("converts postgres numeric and bigint strings to numbers", async () => {
+      // postgres.js returns COUNT/SUM (bigint) and AVG (numeric) as strings.
+      db.returns([
+        {
+          rating: "easy",
+          avg_score: "12.5000000000000000",
+          total_started: "4",
+          completed: "3",
+          avg_time_sec: "300.2500000000000000",
+          total_time_sec: "1201",
+        },
+      ]);
+      await expect(source.getUserStats(USER_ID)).resolves.toEqual([
+        { rating: "easy", avgScore: 12.5, totalStarted: 4, completed: 3, avgTimeSec: 300.25, totalTimeSec: 1201 },
+      ]);
+    });
+
+    it("counts completed puzzles using the is_completed column", async () => {
+      await source.getUserStats(USER_ID);
+      expect(db.queries[0]!.text).toMatch(/FILTER \(WHERE up\.is_completed\)/);
+    });
+
     it("returns an empty list for a user with no puzzles", async () => {
       db.returns([]);
       await expect(source.getUserStats(USER_ID)).resolves.toEqual([]);

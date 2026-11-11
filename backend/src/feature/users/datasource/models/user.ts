@@ -28,6 +28,7 @@ export interface IUserDTO {
   username: string;
   role: "user" | "admin";
   email: string;
+  emailVerified: boolean;
   imageUrl?: string;
   currentPuzzleId?: string;
 }

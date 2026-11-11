@@ -98,8 +98,8 @@ export class PgRefreshTokenDataSource implements RefreshTokenDataSource {
   }
   public async invalidateAllForUser(userId: string) {
     await this.client`
-	DELETE FROM refresh_tokens
-	WHERE user_id = ${userId};
+      DELETE FROM refresh_tokens
+      WHERE user_id = ${userId};
       `;
   }
   public async delete(token: string) {

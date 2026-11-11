@@ -6,6 +6,8 @@ import { workerEmit, worker } from "workerpool";
 import { type DifficultyRating } from "../datasource/models/difficulty";
 import { config } from "../../../core/config";
 import { PuzzleGeneratorError } from "../errors/puzzleGeneratorError";
+import { createPuzzleSchema } from "../middleware/validation/schema/sudokuPuzzle";
+import { logger } from "@/core/logging/logger";
 export function generatePuzzles(number: number, options: PuzzleOptions) {
   const generatorPath = `${config.rootDir}/puzzle_generator_app`;
   let difficulty: string;
@@ -39,14 +41,29 @@ export function generatePuzzles(number: number, options: PuzzleOptions) {
       for (const line of lines) {
         if (line.trim().length > 0) {
           const puzzle = processPuzzle(line);
+          const res = createPuzzleSchema.safeParse(puzzle);
+          if (!res.success) {
+            logger.error(res.error);
+            continue
+          }
           workerEmit(puzzle);
         }
       }
     });
     generator.on("close", (code, signal) => {
       if (buffer.trim().length > 0) {
-        const puzzle = processPuzzle(buffer);
-        workerEmit(puzzle);
+        const lines = buffer.split("\n");
+        for (const line of lines) {
+          if (line.trim().length > 0) {
+            const puzzle = processPuzzle(line);
+            const res = createPuzzleSchema.safeParse(puzzle);
+            if (!res.success) {
+              logger.error(res.error);
+              continue
+            }
+            workerEmit(puzzle);
+          }
+        }
       }
       if (code === 0) {
         resolve();
@@ -87,7 +104,7 @@ function processPuzzle(puzzleString: string): CreatePuzzle | undefined {
       difficultyRating = "impossible";
       break;
   }
-  if(!cellValues || !solvedCells ||  !difficultyScoreStr || !difficultyRatingNum) {
+  if (!cellValues || !solvedCells || !difficultyScoreStr || !difficultyRatingNum) {
     return undefined;
   }
   return {

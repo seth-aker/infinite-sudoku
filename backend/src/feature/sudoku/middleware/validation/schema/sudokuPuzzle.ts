@@ -1,6 +1,5 @@
 import z from "zod/v4";
-import { objectIdSchema } from "../../../../../core/validation/objectId.ts";
-import { candidateStringSchema, cellSchema } from "./cell.ts";
+import { candidateStringSchema } from "./cell.ts";
 import { difficultySchema } from "./difficulty.ts";
 
 export const getPuzzleByIdSchema = z.object({
@@ -9,29 +8,25 @@ export const getPuzzleByIdSchema = z.object({
 export const getPuzzleSchema = z.optional(difficultySchema);
 
 export const createPuzzleSchema = z.object({
-  cells: z.array(
-    z.array(cellSchema, "Invalid cell array"),
-    "Invalid row array",
-  ),
-  difficulty: difficultySchema,
-});
+  cells: z.string().regex(/^\d{81}$/, "cells string must be 81 digits long"),
+  solvedCells: z.string().regex(/^\d{81}$/, "solvedCells string must be 81 digits long"),
+  rating: difficultySchema,
+  score: z.number().optional(),
+})
 export const updateUserPuzzleSchema = z.object({
   puzzleId: z.uuid(),
   cells: z
     .string()
-    .refine((val) => val.length === 81, {
-      message: "Error, cell string must be 81 numbers long",
+    .regex(/^[0-9]{81}$/, {
+      message: "Error, cell string must be 81 digits long",
     }),
   candidates: candidateStringSchema,
   isCompleted: z.boolean(),
-  actions: z.array(z.number()),
+  actions: z.array(z.int()),
   time: z
-    .number()
-    .refine((val) => val >= 0, {
+    .int()
+    .nonnegative({
       message: "Time cannot be a negative integer",
     }),
 });
 
-export const deletePuzzleSchema = z.object({
-  puzzleId: objectIdSchema,
-});

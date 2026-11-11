@@ -5,7 +5,6 @@ import { AuthenticationError } from "../errors/authenticationError";
 import { UserDataSource } from "@/feature/users/datasource/userDataSource";
 import { registerBodySchema } from "../middleware/validation";
 import z from "zod/v4";
-import { DatabaseError } from "@/core/errors/databaseError";
 import { config } from "@/core/config";
 import { SignJWT } from "jose";
 import { RefreshTokenDataSource } from "../datasource/refreshTokenDataSource";
@@ -96,6 +95,7 @@ export class AuthenticationServiceImpl implements AuthenticationService {
     return {
       id: res.user_id,
       email: res.email,
+      emailVerified: res.email_verified,
       username: res.username,
       role: res.role,
       imageUrl: res.image_url ?? undefined,

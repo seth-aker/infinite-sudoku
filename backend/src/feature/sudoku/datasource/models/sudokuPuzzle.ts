@@ -11,7 +11,6 @@ export interface SudokuPuzzle {
 
 export interface CreatePuzzle {
   cells: string;
-  candidates?: string;
   score?: number;
   rating: DifficultyRating;
   solvedCells: string;

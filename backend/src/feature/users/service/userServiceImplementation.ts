@@ -1,7 +1,6 @@
 import { UserService } from "./userService";
 import { UserDataSource } from "../datasource/userDataSource";
 import { ISqlUser, IUserDTO } from "../datasource/models/user";
-import { NotFoundError } from "@/core/errors/notFoundError";
 
 export class UserServiceImplementation implements UserService {
   private userDataSource: UserDataSource;
@@ -23,11 +22,7 @@ export class UserServiceImplementation implements UserService {
     return this.serializeUser(user);
   }
   async getUserStats(userId: string) {
-    const userStats = await this.userDataSource.getUserStats(userId);
-    if (userStats.length < 1) {
-      throw new NotFoundError("No user stats found");
-    }
-    return userStats;
+    return await this.userDataSource.getUserStats(userId);
   }
   async deleteUser(userId: string) {
     return await this.userDataSource.deleteUser(userId);
@@ -37,10 +32,11 @@ export class UserServiceImplementation implements UserService {
     const userDTO: IUserDTO = {
       id: sqlUser.user_id,
       email: sqlUser.email,
+      emailVerified: sqlUser.email_verified,
       username: sqlUser.username,
       role: sqlUser.role,
-      imageUrl: sqlUser.image_url,
-      currentPuzzleId: sqlUser.current_puzzle_id,
+      imageUrl: sqlUser.image_url ?? undefined,
+      currentPuzzleId: sqlUser.current_puzzle_id ?? undefined,
     };
     return userDTO;
   }

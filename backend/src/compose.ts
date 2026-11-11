@@ -14,7 +14,7 @@ import { UserRouter } from "./feature/users/routing/userRouter";
 import { HealthRouter } from "./feature/health/routing/healthRouter";
 import { Sql } from "postgres";
 import { createEmailer } from "./core/email/createEmailer";
-
+import { WorkerPoolManager } from "./core/workers/workerpoolManager";
 export async function composeRouters(sql: Sql, config: AppConfig) {
   const routers = [] as AppRouter[]
 
@@ -34,9 +34,9 @@ export async function composeRouters(sql: Sql, config: AppConfig) {
   );
   const authRouter = new AuthRouter(authService).setup();
 
-
   const sudokuDataSource = PgSudokuDataSource.create(sql);
-  const sudokuService = SudokuServiceImplementation.create(sudokuDataSource);
+  const workPoolManager = new WorkerPoolManager(config.workerPoolConfig)
+  const sudokuService = SudokuServiceImplementation.create(sudokuDataSource, workPoolManager);
   const sudokuRouter = new SudokuRouter(sudokuService).setup();
 
   const userService = UserServiceImplementation.create(userDataSource);

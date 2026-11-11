@@ -91,7 +91,7 @@ export class PgUserDataSource implements UserDataSource {
         p.difficulty_rating AS rating,
         AVG(p.difficulty_score) AS avg_score,
         COUNT(up.puzzle_id) as total_started,
-        COUNT(up.completed_at) AS completed,
+        COUNT(*) FILTER (WHERE up.is_completed) AS completed,
         AVG(up.time) AS avg_time_sec,
         SUM(up.time) AS total_time_sec
       FROM user_puzzles AS up
@@ -101,11 +101,11 @@ export class PgUserDataSource implements UserDataSource {
     `;
     const userStats: IDifficultyStats[] = res.map((eachRow) => ({
       rating: eachRow.rating,
-      avgScore: eachRow.avg_score,
-      totalStarted: eachRow.total_started,
-      completed: eachRow.completed,
-      avgTimeSec: eachRow.avg_time_sec,
-      totalTimeSec: eachRow.total_time_sec,
+      avgScore: Number(eachRow.avg_score),
+      totalStarted: Number(eachRow.total_started),
+      completed: Number(eachRow.completed),
+      avgTimeSec: Number(eachRow.avg_time_sec),
+      totalTimeSec: Number(eachRow.total_time_sec),
     }));
     return userStats;
   }
@@ -126,8 +126,8 @@ export class PgUserDataSource implements UserDataSource {
       SET deleted_at = CURRENT_TIMESTAMP
       WHERE user_id = ${userId}
     `;
-    if (res.length) {
-      return res.length;
+    if (res.count) {
+      return res.count;
     } else {
       throw new DatabaseError("Failed to delete user");
     }

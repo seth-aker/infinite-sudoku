@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { Router } from "express";
+import { SignJWT } from "jose";
 import { createApp } from "@/app";
 import { config } from "@/core/config";
 import { startServer, type TestServer } from "#test/helpers/http";
@@ -17,6 +18,9 @@ function testRouter() {
   });
   router.get("/param/:id", (req, res) => {
     res.json({ id: req.params.id });
+  });
+  router.get("/whoami", (req, res) => {
+    res.json({ sub: req.user?.sub ?? null, authError: req.authError ?? null });
   });
   router.get("/fail", () => {
     throw new Error("route exploded");
@@ -74,6 +78,47 @@ describe("createApp", () => {
       expect(await res.json()).toEqual({
         body: { a: 1 },
         cookies: { accessToken: "tok" },
+      });
+    });
+
+    describe("authentication", () => {
+      const accessToken = () =>
+        new SignJWT({ role: "user", emailVerified: true })
+          .setProtectedHeader({ alg: "HS256" })
+          .setSubject("user-1")
+          .setIssuer(config.issuer)
+          .setAudience(config.audience)
+          .setExpirationTime("15m")
+          .sign(new TextEncoder().encode(config.jwtSecret));
+
+      it("sets req.user on every route when a valid token is sent", async () => {
+        await start();
+        const res = await server.get("/api/test/whoami", {
+          authorization: `Bearer ${await accessToken()}`,
+        });
+        expect(await res.json()).toEqual({ sub: "user-1", authError: null });
+      });
+
+      it("reads the token from the accessToken cookie", async () => {
+        await start();
+        const res = await server.get("/api/test/whoami", {
+          cookie: `accessToken=${await accessToken()}`,
+        });
+        expect((await res.json()).sub).toBe("user-1");
+      });
+
+      it("lets anonymous requests through", async () => {
+        await start();
+        const res = await server.get("/api/test/whoami");
+        expect(res.status).toBe(200);
+        expect(await res.json()).toEqual({ sub: null, authError: null });
+      });
+
+      it("does not block routes when the token is bad, so stale cookies can still log in", async () => {
+        await start();
+        const res = await server.get("/api/test/whoami", { cookie: "accessToken=garbage" });
+        expect(res.status).toBe(200);
+        expect(await res.json()).toEqual({ sub: null, authError: "token_invalid" });
       });
     });
   });

@@ -142,6 +142,7 @@ describe("AuthenticationServiceImpl", () => {
       await expect(service.verify("player@example.com", PASSWORD)).resolves.toEqual({
         id: USER_ID,
         email: "player@example.com",
+        emailVerified: true,
         username: "player",
         role: "user",
         imageUrl: "http://img.test/a.png",

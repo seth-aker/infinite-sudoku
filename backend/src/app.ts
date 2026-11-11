@@ -9,6 +9,7 @@ import { notFoundHandler } from "./core/middleware/notfoundHandler";
 import { requestIdSetter } from "./core/middleware/requestIdSetter";
 import { configureRouting } from "./core/routing";
 import { HEALTH_CHECK_PATH } from "./feature/health/routing/healthRouter";
+import { authenticate } from "./feature/auth/middleware/authentication";
 export interface AppRouter {
   path: string,
   router: Router
@@ -51,6 +52,7 @@ export function createApp({ config, routers }: AppDeps) {
   }
 
   app.use(cookieParser());
+  app.use(authenticate);
   configureRouting(app, routers);
 
   // notFoundHandler and error handler should always be registered last.
