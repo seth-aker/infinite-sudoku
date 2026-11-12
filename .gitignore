@@ -35,4 +35,5 @@ playwright-report/
 
 backend/.env
 
-db-init/**
+# Database backups (contain user data)
+backups/

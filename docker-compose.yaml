@@ -25,9 +25,37 @@ services:
       timeout: 5s
       retries: 5
       start_period: 5s
-    networks: 
+    networks:
       - backend_net
-    
+
+  db-migrate:
+    image: postgres:18-alpine
+    container_name: sudoku_db_migrate
+    entrypoint: ["sh", "/db/migrate.sh"]
+    environment:
+      PGHOST: postgres-db
+      PGUSER: ${DB_USER}
+      PGPASSWORD: ${DB_PASSWORD}
+      PGDATABASE: ${DB_NAME}
+      # Fail fast instead of queueing behind live queries and stalling traffic.
+      PGOPTIONS: "-c lock_timeout=10s"
+    volumes:
+      - ./backend/db:/db:ro
+      - ./backups:/backups
+    # Run as the host user that owns ./backups so dumps are readable on the host.
+    user: "${BACKUP_UID:-1000}:${BACKUP_GID:-1000}"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: "no"
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+    networks:
+      - backend_net
+
   backend-api:
     container_name: sudoku_backend
     build:
@@ -53,9 +81,11 @@ services:
         read_only: false
     tmpfs:
       - /tmp:size=64m
-    depends_on: 
+    depends_on:
       postgres-db:
         condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
     restart: unless-stopped
     env_file:
       - ./backend/.env.production
