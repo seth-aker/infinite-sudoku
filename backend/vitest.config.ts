@@ -9,7 +9,25 @@ export default defineConfig({
     }
   },
   test: {
-    include: ['test/**/*.test.ts'],
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: "unit",
+          include: ["test/unit/**/*.test.ts"],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: "integration",
+          include: ["test/integration/**/*.test.ts"],
+          globalSetup: ["./test/integration/setup.ts"],
+          fileParallelism: false,
+          hookTimeout: 60_000,
+        },
+      },
+    ],
     exclude: [...configDefaults.exclude],
     root: fileURLToPath(new URL('./', import.meta.url)),
     setupFiles: ['./test/setup.ts'],

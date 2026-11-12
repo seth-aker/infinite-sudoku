@@ -15,6 +15,7 @@ import { HealthRouter } from "./feature/health/routing/healthRouter";
 import { Sql } from "postgres";
 import { createEmailer } from "./core/email/createEmailer";
 import { WorkerPoolManager } from "./core/workers/workerpoolManager";
+import prexit from "prexit";
 export async function composeRouters(sql: Sql, config: AppConfig) {
   const routers = [] as AppRouter[]
 
@@ -48,6 +49,11 @@ export async function composeRouters(sql: Sql, config: AppConfig) {
   routers.push({ path: "/users", router: userRouter });
   routers.push({ path: "/", router: healthRouter });
 
+  prexit(() => {
+    refreshTokenDataSource.close();
+    resetTokenDataSource.close();
+    validateTokenSource.close();
+  })
   return routers;
 }
 

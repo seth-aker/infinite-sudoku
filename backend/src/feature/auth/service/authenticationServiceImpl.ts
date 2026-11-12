@@ -110,8 +110,8 @@ export class AuthenticationServiceImpl implements AuthenticationService {
       });
     }
     const userId = await this.userDataSource.createUser({
-      email: user.email.toLowerCase(),
-      username: user.username.toLowerCase(),
+      email: user.email,
+      username: user.username,
       passwordHash,
       salt,
       tosAcknowledged: user.tosAcknowledged,

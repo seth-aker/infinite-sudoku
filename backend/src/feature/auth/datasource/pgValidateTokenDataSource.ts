@@ -4,13 +4,24 @@ import { NotFoundError } from "@/core/errors/notFoundError";
 import { DatabaseError } from "@/core/errors/databaseError";
 import { AuthenticationError } from "../errors/authenticationError";
 import { ErrorType } from "@/core/errors/errorTypes";
+import { logger } from "@/core/logging/logger";
 const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
 export class PgValidateTokenDataSource implements ValidateTokenDataSource {
   static instance: PgValidateTokenDataSource | null = null;
   private client: Sql;
-
+  private timer: NodeJS.Timeout
   private constructor(client: Sql) {
     this.client = client;
+    this.timer = setInterval(async () => {
+      try {
+        await this.client`
+	      DELETE FROM validate_tokens WHERE created_at + INTERVAL '24 hours' < now()
+	  `;
+      } catch (err) {
+        logger.error({ err }, "validate token sweep failed");
+      }
+    }, TWENTY_FOUR_HOURS_MS);
+    this.timer.unref();
   }
   static create(client: Sql) {
     if (!PgValidateTokenDataSource.instance) {
@@ -18,7 +29,9 @@ export class PgValidateTokenDataSource implements ValidateTokenDataSource {
     }
     return PgValidateTokenDataSource.instance;
   }
-
+  public close() {
+    clearInterval(this.timer);
+  }
   async createValidateToken(userId: string) {
     const [res] = await this.client<{ token: string }[]>`
       INSERT INTO validate_tokens 
@@ -36,9 +49,10 @@ export class PgValidateTokenDataSource implements ValidateTokenDataSource {
   async validateEmail(token: string) {
     const updateRes = await this.client.begin(async sql => {
       const [res] = await sql<{ user_id: string, created_at: Date }[]>`
-        SELECT user_id, created_at
-        FROM validate_tokens
-        WHERE token = ${token}`
+        SELECT vt.user_id, vt.created_at
+        FROM validate_tokens AS vt
+        JOIN users AS u ON vt.user_id = u.user_id
+        WHERE vt.token = ${token} AND u.deleted_at IS NULL;`
       if (!res?.user_id) {
         throw new NotFoundError('Account not found');
       }

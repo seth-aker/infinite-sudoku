@@ -1,3 +1,4 @@
+import { emailSchema } from "@/core/validation/email";
 import { NextFunction, Request, Response } from "express";
 import * as z from "zod/v4";
 
@@ -12,20 +13,20 @@ const passwordSchema = z
   );
 
 const mobileLoginBodySchema = z.object({
-  email: z.string().min(4),
-  password: z.string().min(4),
+  email: emailSchema,
+  password: z.string().min(1),
 });
 const mobileRefreshBodySchema = z.object({
-  refreshToken: z.string().min(1),
+  refreshToken: z.string().trim().min(1),
 });
 const loginBodySchema = z.object({
-  email: z.email(),
-  password: z.string().min(8),
+  email: emailSchema,
+  password: z.string().min(1),
 });
 
 export const registerBodySchema = z.object({
-  email: z.email(),
-  username: z.string().min(4),
+  email: emailSchema,
+  username: z.string().trim().min(4),
   password: passwordSchema,
   tosAcknowledged: z.boolean(),
 });
@@ -39,6 +40,7 @@ export const loginBodyValidator = (
   if (!validationResult.success) {
     throw validationResult.error;
   }
+  req.body = validationResult.data;
   next();
 };
 
@@ -51,6 +53,7 @@ export const registerBodyValidator = (
   if (!validationResult.success) {
     throw validationResult.error;
   }
+  req.body = validationResult.data;
   next();
 };
 
@@ -81,10 +84,11 @@ export const resetRequestValidator = (
   _res: Response,
   next: NextFunction,
 ) => {
-  const result = z.email().safeParse(req.body?.email);
+  const result = emailSchema.safeParse(req.body?.email);
   if (!result.success) {
     return next(result.error);
   }
+  req.body.email = result.data;
   next();
 };
 export const passwordResetValidator = (
@@ -96,6 +100,10 @@ export const passwordResetValidator = (
   if (!pwResult.success) return next(pwResult.error);
   const tokenResult = z.uuid().safeParse(req.body?.token);
   if (!tokenResult.success) return next(tokenResult.error);
+  req.body = {
+    password: pwResult.data,
+    token: tokenResult.data,
+  }
   next();
 };
 

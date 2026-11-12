@@ -224,13 +224,14 @@ describe("AuthenticationServiceImpl", () => {
       tosAcknowledged: true,
     };
 
-    it("stores a lowercased user without the plaintext password", async () => {
+    it("stores the email and username as entered, without the plaintext password", async () => {
+      // Case is kept; the database compares emails and usernames case-insensitively.
       await service.registerUser(body);
       expect(users.createUser).toHaveBeenCalledOnce();
       const created = users.createUser.mock.calls[0]![0];
       expect(created).toMatchObject({
-        email: "new@example.com",
-        username: "newplayer",
+        email: "New@Example.com",
+        username: "NewPlayer",
         tosAcknowledged: true,
         role: "user",
       });

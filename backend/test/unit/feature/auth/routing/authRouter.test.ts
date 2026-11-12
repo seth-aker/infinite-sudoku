@@ -65,6 +65,11 @@ describe("AuthRouter", () => {
       expect(service[method]).toHaveBeenCalledWith(TEST_USER.email);
     });
 
+    it("passes the trimmed email to the service", async () => {
+      await server.post(`${BASE}${path}`, { email: `  ${TEST_USER.email}\n` });
+      expect(service[method]).toHaveBeenCalledWith(TEST_USER.email);
+    });
+
     it.each([
       ["an invalid email", { email: "nope" }],
       ["a missing email", {}],

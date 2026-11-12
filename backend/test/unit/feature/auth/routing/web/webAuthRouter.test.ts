@@ -65,6 +65,11 @@ describe("WebAuthRouter", () => {
       expect(cookies.refreshToken?.value).toBe("new-refresh");
     });
 
+    it("checks credentials with the trimmed email", async () => {
+      await server.post(`${BASE}/login`, { ...body, email: `  ${TEST_USER.email} ` });
+      expect(service.verify).toHaveBeenCalledWith(TEST_USER.email, STRONG_PASSWORD);
+    });
+
     it("keeps the tokens out of the response body", async () => {
       const res = await server.post(`${BASE}/login`, body);
       const text = await res.text();
@@ -151,6 +156,15 @@ describe("WebAuthRouter", () => {
       const cookies = setCookies(res);
       expect(cookies.accessToken?.value).toBe("new-access");
       expect(cookies.refreshToken?.value).toBe("new-refresh");
+    });
+
+    it("registers the trimmed email and username", async () => {
+      await server.post(`${BASE}/register`, {
+        ...body,
+        email: ` ${TEST_USER.email}  `,
+        username: ` ${TEST_USER.username} `,
+      });
+      expect(service.registerUser).toHaveBeenCalledWith(body);
     });
 
     it("rejects a weak password before registering", async () => {

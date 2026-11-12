@@ -130,7 +130,7 @@ describe("config", () => {
       // A path written for one machine (or starting with "~", which Node
       // doesn't expand) fails this anywhere else, e.g. in CI.
       const generator = fileURLToPath(
-        new URL("../../../src/feature/sudoku/puzzleSolver/puzzleGeneratorInC.ts", import.meta.url),
+        new URL("../../../../src/feature/sudoku/puzzleSolver/puzzleGeneratorInC.ts", import.meta.url),
       );
       const config = await loadConfig(unset(["WORKER_PATH"]));
       expect(existsSync(generator)).toBe(true);

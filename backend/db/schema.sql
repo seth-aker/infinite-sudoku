@@ -21,6 +21,7 @@ SET search_path = public;
 --
 -- Name: trigger_set_timestamp(); Type: FUNCTION
 --
+CREATE EXTENSION IF NOT EXISTS citext;
 
 CREATE OR REPLACE FUNCTION public.trigger_set_timestamp() RETURNS trigger
     LANGUAGE plpgsql
@@ -51,9 +52,9 @@ CREATE TABLE IF NOT EXISTS public.puzzles (
 
 CREATE TABLE IF NOT EXISTS public.users (
     user_id uuid DEFAULT gen_random_uuid() NOT NULL,
-    email text NOT NULL,
+    email citext NOT NULL,
     email_verified boolean DEFAULT false,
-    username text NOT NULL,
+    username citext NOT NULL,
     password_hash text NOT NULL,
     salt text NOT NULL,
     role text DEFAULT 'user'::text NOT NULL,

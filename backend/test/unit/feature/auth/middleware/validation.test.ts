@@ -84,8 +84,9 @@ describe("password rules (register and reset)", () => {
 });
 
 describe("loginBodyValidator", () => {
-  it("accepts an email and an 8+ character password", () => {
+  it("accepts an email and any non-empty password", () => {
     expectPass(loginBodyValidator, { email: "a@b.co", password: "whatever" });
+    expectPass(loginBodyValidator, { email: "a@b.co", password: "x" });
   });
 
   it("does not apply the strength rules, so old passwords still log in", () => {
@@ -95,7 +96,7 @@ describe("loginBodyValidator", () => {
   it.each([
     ["an invalid email", { email: "nope", password: "whatever" }, "email"],
     ["a missing email", { password: "whatever" }, "email"],
-    ["a short password", { email: "a@b.co", password: "short" }, "password"],
+    ["an empty password", { email: "a@b.co", password: "" }, "password"],
     ["a missing password", { email: "a@b.co" }, "password"],
     ["a non-string email", { email: ["a@b.co"], password: "whatever" }, "email"],
   ])("rejects %s", (_label, body, path) => {
@@ -129,27 +130,82 @@ describe("registerBodyValidator", () => {
   });
 });
 
+describe("email and username normalisation", () => {
+  const PADDED = "  Player@Example.com\t";
+  const TRIMMED = "Player@Example.com";
+
+  it.each([
+    ["loginBodyValidator", loginBodyValidator, { email: PADDED, password: STRONG_PASSWORD }],
+    [
+      "registerBodyValidator",
+      registerBodyValidator,
+      { email: PADDED, username: "player", password: STRONG_PASSWORD, tosAcknowledged: true },
+    ],
+    ["mobileLoginBodyValidator", mobileLoginBodyValidator, { email: PADDED, password: STRONG_PASSWORD }],
+    ["resetRequestValidator", resetRequestValidator, { email: PADDED }],
+  ] as const)("%s accepts surrounding whitespace and passes the trimmed email on", (_name, handler, body) => {
+    const { req } = expectPass(handler, body);
+    // Trimmed but not lowercased: the database compares emails case-insensitively.
+    expect(req.body.email).toBe(TRIMMED);
+  });
+
+  it.each([loginBodyValidator, registerBodyValidator, mobileLoginBodyValidator, resetRequestValidator])(
+    "still rejects whitespace inside the email (%#)",
+    (handler) => {
+      expectFail(handler, {
+        email: "play er@example.com",
+        username: "player",
+        password: STRONG_PASSWORD,
+        tosAcknowledged: true,
+      });
+    },
+  );
+
+  it("passes a trimmed username on", () => {
+    const { req } = expectPass(registerBodyValidator, {
+      email: "a@b.co",
+      username: "  Player ",
+      password: STRONG_PASSWORD,
+      tosAcknowledged: true,
+    });
+    expect(req.body.username).toBe("Player");
+  });
+
+  it("checks the username length after trimming", () => {
+    expectFail(
+      registerBodyValidator,
+      { email: "a@b.co", username: "  abc  ", password: STRONG_PASSWORD, tosAcknowledged: true },
+      "username",
+    );
+  });
+});
+
 describe("mobileLoginBodyValidator", () => {
-  it("accepts an email and password", () => {
-    expectPass(mobileLoginBodyValidator, { email: "a@b.co", password: "pass" });
+  it("accepts an email and any non-empty password", () => {
+    expectPass(mobileLoginBodyValidator, { email: "a@b.co", password: "whatever" });
+    expectPass(mobileLoginBodyValidator, { email: "a@b.co", password: "x" });
+  });
+
+  it("does not apply the strength rules, so old passwords still log in", () => {
+    expectPass(mobileLoginBodyValidator, { email: "a@b.co", password: "alllowercase" });
   });
 
   it("replaces req.body with the parsed data, dropping unknown fields", () => {
     const { req } = expectPass(mobileLoginBodyValidator, {
       email: "a@b.co",
-      password: "pass",
+      password: "whatever",
       grantType: "password",
       role: "admin",
     });
-    expect(req.body).toEqual({ email: "a@b.co", password: "pass" });
+    expect(req.body).toEqual({ email: "a@b.co", password: "whatever" });
   });
 
   it.each([
     ["a refresh token body", { refreshToken: "rt" }],
-    ["a short password", { email: "a@b.co", password: "abc" }],
-    ["a short email", { email: "a@b", password: "pass" }],
+    ["an empty password", { email: "a@b.co", password: "" }],
+    ["an invalid email", { email: "a@b", password: "whatever" }],
     ["a missing password", { email: "a@b.co" }],
-    ["a non-string email", { email: ["a@b.co"], password: "pass" }],
+    ["a non-string email", { email: ["a@b.co"], password: "whatever" }],
     ["no body", undefined],
   ])("rejects %s", (_label, body) => {
     const { req } = expectFail(mobileLoginBodyValidator, body);
