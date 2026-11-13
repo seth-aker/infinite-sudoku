@@ -59,7 +59,7 @@ export function deserializeCells(serialized: SerializedCells) {
     return {
       value,
       idx,
-      candidates: candidates ? candidates[idx] : [],
+      candidates: candidates?.[idx] ?? [],
     };
   });
   return cells;

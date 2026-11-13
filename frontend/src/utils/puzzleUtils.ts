@@ -47,7 +47,7 @@ export function getCol(cells: Cell[], colIdx: number) {
 export function getBlock(cells: Cell[], blockIdx: number) {
   const block: Cell[] = [];
   for (let i = 0; i < 9; i++) {
-    const rowOffset = Math.floor(blockIdx / 3) * 9;
+    const rowOffset = Math.floor(blockIdx / 3) * 27;
     const colOffset = (blockIdx % 3) * 3;
     const blockRowOffset = Math.floor(i / 3) * 9;
     const blockCol = i % 3;

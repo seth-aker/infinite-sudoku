@@ -133,11 +133,11 @@ export function useGameSession() {
       clock.reset();
       clock.start();
       saveLocal();
-      gameStore.loading = false;
       return result;
     } catch (err) {
-      gameStore.loading = false;
       return { success: false, error: `An unexpected error occured: ${err}`, status: 400 };
+    } finally {
+      gameStore.loading = false;
     }
   }
   async function resumeSavedPuzzle(
@@ -166,11 +166,11 @@ export function useGameSession() {
       gameStore.difficultyRating = body.difficultyRating;
       gameStore.difficultyScore = body.difficultyScore;
       saveLocal();
-      gameStore.loading = false;
       return result;
     } catch (err) {
-      gameStore.loading = false;
       return { success: false, error: `An unexpected error occured: ${err}`, status: 400 };
+    } finally {
+      gameStore.loading = false;
     }
   }
 

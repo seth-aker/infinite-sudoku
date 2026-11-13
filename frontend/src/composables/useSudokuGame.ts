@@ -28,7 +28,7 @@ export function useSudokuGame() {
     gameStore.usingPencil = !gameStore.usingPencil;
   }
   function placeValue(value: number, idx: number) {
-    if (value < 0 || value > 9 || idx < 0 || idx > 81) {
+    if (value < 0 || value > 9 || idx < 0 || idx > 80) {
       return;
     }
     if (gameStore.originalCells[idx].value !== 0) {
@@ -176,7 +176,7 @@ export function useSudokuGame() {
 
   function resetBoard() {
     clearLocal();
-    gameStore.cells = gameStore.originalCells.slice();
+    gameStore.cells = gameStore.originalCells.map(cloneCell);
     gameStore.selectedIdx = undefined;
     saveLocal();
   }

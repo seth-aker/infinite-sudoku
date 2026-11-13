@@ -1,151 +1,266 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import * as baseService from "@/services/baseService";
-const safeFetch = baseService.safeFetch;
-vi.mock("@/utils/jsonUtils", () => ({
-  safeParseJson: vi.fn().mockImplementation((returnValue) => returnValue)
-}));
-const input = "http://test.com"
-const mockFetch = vi.fn();
-function setFetchReturnValue(ok: boolean, status: number, isJson: boolean, text?: Object) {
-  mockFetch.mockReturnValue({
-    ok,
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { reauthenticate, safeFetch } from "@/services/baseService";
+
+const input = "http://test.com/resource";
+const REFRESH_URL = expect.stringContaining("/auth/web/refresh");
+const mockFetch = vi.fn<typeof fetch>();
+
+function jsonResponse(status: number, body: unknown = {}) {
+  return new Response(JSON.stringify(body), {
     status,
-    text: vi.fn().mockReturnValue(text ?? {}),
-    headers: {
-      get: vi.fn().mockReturnValue(isJson ? ['application/json'] : [])
-    }
-  })
+    headers: { "content-type": "application/json; charset=utf-8" },
+  });
 }
+
+function textResponse(status: number, body = "plain text") {
+  return new Response(body, {
+    status,
+    headers: { "content-type": "text/plain" },
+  });
+}
+
+function refreshCallCount() {
+  return mockFetch.mock.calls.filter(([url]) =>
+    String(url).includes("/auth/web/refresh"),
+  ).length;
+}
+
 describe("BaseService", () => {
   beforeEach(() => {
-    globalThis.fetch = mockFetch;
-  })
+    mockFetch.mockReset();
+    vi.stubGlobal("fetch", mockFetch);
+  });
   afterEach(() => {
-    vi.restoreAllMocks();
-  })
+    vi.unstubAllGlobals();
+  });
+
   describe("safeFetch", () => {
-    describe("returns success service result when response.ok is true", () => {
-      it("and content-type is application/json", async () => {
-        setFetchReturnValue(true, 200, true);
+    it("passes input and init through to fetch", async () => {
+      mockFetch.mockResolvedValue(jsonResponse(200));
+      const init: RequestInit = { method: "PUT", body: "payload" };
+
+      await safeFetch(input, init);
+
+      expect(mockFetch).toHaveBeenCalledExactlyOnceWith(input, init);
+    });
+
+    describe("when response.ok is true", () => {
+      it("returns the parsed body when content-type is application/json", async () => {
+        mockFetch.mockResolvedValue(jsonResponse(200, { id: 7, name: "puzzle" }));
+
         const result = await safeFetch(input);
 
         expect(result).toEqual({
           success: true,
-          body: {},
-          status: 200
-        })
-      })
-      it("and content-type is text", async () => {
-        setFetchReturnValue(true, 200, false);
-        const result = await safeFetch(input);
-
-        expect(result).toEqual({
-          success: true,
-          body: undefined,
-          status: 200
-        })
-      })
-    })
-    describe("returns failure service result when response.ok is false", () => {
-      it("and content-type is application/json", async () => {
-        setFetchReturnValue(false, 400, true, { message: "error" })
-        const result = await safeFetch(input);
-
-        expect(result).toEqual({
-          success: false,
-          error: "error",
-          status: 400
-        })
-      })
-      it("and content-type is text", async () => {
-        setFetchReturnValue(false, 400, false, { message: "error" })
-
-        const result = await safeFetch(input);
-        expect(result).toEqual({
-          success: false,
-          error: undefined,
-          status: 400,
-        })
-      })
-    })
-    describe("when response status is 401", () => {
-      it("resolves successfully when reauthenticate returns successfull", async () => {
-        const spy = vi.spyOn(baseService, 'reauthenticate')
-          .mockResolvedValue({ success: true, status: 200 });
-       mockFetch.mockReturnValueOnce({
-          status: 401
-        }).mockReturnValue({
-            ok: true,
-            status: 200,
-            text: () => "{}",
-            headers: {
-              get: vi.fn().mockReturnValue([])
-            }
-          })
-        const result = await safeFetch(input);
-
-        expect(result).toEqual({
-          success: true,
+          body: { id: 7, name: "puzzle" },
           status: 200,
-          body: undefined
-        })
+        });
+      });
 
-        expect(spy).toHaveBeenCalledOnce()
+      it("returns an undefined body when content-type is not JSON", async () => {
+        mockFetch.mockResolvedValue(textResponse(200));
 
-      })
+        const result = await safeFetch(input);
 
-    })
+        expect(result).toEqual({ success: true, body: undefined, status: 200 });
+      });
 
-  })
+      it("returns an undefined body when a JSON response is malformed", async () => {
+        mockFetch.mockResolvedValue(
+          new Response("{not json", {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        );
+
+        const result = await safeFetch(input);
+
+        expect(result).toEqual({ success: true, body: undefined, status: 200 });
+      });
+    });
+
+    describe("when response.ok is false", () => {
+      it("returns the body's message as the error when content-type is application/json", async () => {
+        mockFetch.mockResolvedValue(
+          jsonResponse(400, { error: "Bad Request", message: "invalid cell", requestId: "abc" }),
+        );
+
+        const result = await safeFetch(input);
+
+        expect(result).toEqual({ success: false, error: "invalid cell", status: 400 });
+      });
+
+      it("returns an undefined error when content-type is not JSON", async () => {
+        mockFetch.mockResolvedValue(textResponse(500, "Internal Server Error"));
+
+        const result = await safeFetch(input);
+
+        expect(result).toEqual({ success: false, error: undefined, status: 500 });
+      });
+    });
+
+    it("returns a 500 failure when fetch rejects", async () => {
+      mockFetch.mockRejectedValue(new TypeError("Failed to fetch"));
+
+      const result = await safeFetch(input);
+
+      expect(result).toEqual({
+        success: false,
+        error: "TypeError: Failed to fetch",
+        status: 500,
+      });
+    });
+
+    describe("when response status is 401", () => {
+      it("refreshes the session and retries the original request", async () => {
+        mockFetch
+          .mockResolvedValueOnce(jsonResponse(401))
+          .mockResolvedValueOnce(jsonResponse(200)) // refresh
+          .mockResolvedValueOnce(jsonResponse(200, { ok: true })); // retry
+        const init: RequestInit = { method: "GET" };
+
+        const result = await safeFetch(input, init);
+
+        expect(result).toEqual({ success: true, body: { ok: true }, status: 200 });
+        expect(mockFetch).toHaveBeenCalledTimes(3);
+        expect(mockFetch).toHaveBeenNthCalledWith(1, input, init);
+        expect(mockFetch).toHaveBeenNthCalledWith(
+          2,
+          REFRESH_URL,
+          expect.objectContaining({ method: "POST", credentials: "include" }),
+        );
+        expect(mockFetch).toHaveBeenNthCalledWith(3, input, init);
+      });
+
+      it("returns the refresh error when the refresh fails", async () => {
+        mockFetch
+          .mockResolvedValueOnce(jsonResponse(401))
+          .mockResolvedValueOnce(jsonResponse(403, { error: "refresh token revoked" }));
+
+        const result = await safeFetch(input);
+
+        expect(result).toEqual({
+          success: false,
+          error: "refresh token revoked",
+          status: 403,
+        });
+        expect(mockFetch).toHaveBeenCalledTimes(2);
+      });
+
+      it("falls back to a session-expired message when the refresh fails without an error", async () => {
+        mockFetch
+          .mockResolvedValueOnce(jsonResponse(401))
+          .mockResolvedValueOnce(textResponse(401));
+
+        const result = await safeFetch(input);
+
+        expect(result).toEqual({
+          success: false,
+          error: "Session expired, please log in again.",
+          status: 401,
+        });
+      });
+
+      it("does not refresh again when the retried request also returns 401", async () => {
+        mockFetch
+          .mockResolvedValueOnce(jsonResponse(401))
+          .mockResolvedValueOnce(jsonResponse(200)) // refresh
+          .mockResolvedValueOnce(jsonResponse(401, { message: "still unauthorized" }));
+
+        const result = await safeFetch(input);
+
+        expect(result).toEqual({
+          success: false,
+          error: "still unauthorized",
+          status: 401,
+        });
+        expect(mockFetch).toHaveBeenCalledTimes(3);
+        expect(refreshCallCount()).toBe(1);
+      });
+
+      it("shares a single refresh between concurrent 401 responses", async () => {
+        let resolveRefresh!: (res: Response) => void;
+        const refreshResponse = new Promise<Response>((resolve) => {
+          resolveRefresh = resolve;
+        });
+        const attempts = new Map<string, number>();
+        mockFetch.mockImplementation((url) => {
+          const key = String(url);
+          if (key.includes("/auth/web/refresh")) return refreshResponse;
+          const attempt = (attempts.get(key) ?? 0) + 1;
+          attempts.set(key, attempt);
+          return Promise.resolve(
+            attempt === 1 ? jsonResponse(401) : jsonResponse(200, { url: key }),
+          );
+        });
+
+        const pending = Promise.all([safeFetch("http://test.com/a"), safeFetch("http://test.com/b")]);
+        // Let both requests receive their 401 before the refresh resolves.
+        await vi.waitFor(() => expect(refreshCallCount()).toBe(1));
+        resolveRefresh(jsonResponse(200));
+        const [a, b] = await pending;
+
+        expect(a).toEqual({ success: true, body: { url: "http://test.com/a" }, status: 200 });
+        expect(b).toEqual({ success: true, body: { url: "http://test.com/b" }, status: 200 });
+        expect(refreshCallCount()).toBe(1);
+      });
+    });
+  });
 
   describe("reauthenticate", () => {
-    it("returns successfully when response.ok is true", async () => {
-      setFetchReturnValue(true, 200, true);
-      const result = await baseService.reauthenticate();
-      expect(result).toEqual({
-        success: true,
-        status: 200,
-      })
-    })
-    it("returns custom error message when response.ok is false and response has error message", async () => {
-      setFetchReturnValue(false, 403, true, { error: 'error' });
+    it("POSTs to the refresh endpoint with credentials", async () => {
+      mockFetch.mockResolvedValue(jsonResponse(200));
 
-      const result = await baseService.reauthenticate();
-      expect(result).toEqual({
-        success: false,
-        status: 403,
-        error: 'error'
-      })
-    })
-    it("returns undefined error message when response.ok is false and response does not have error message", async () => {
-      setFetchReturnValue(false, 401, true, { message: 'error' })
+      await reauthenticate();
 
-      const result = await baseService.reauthenticate();
-      expect(result).toEqual({
-        success: false,
-        status: 401,
-        error: undefined
-      })
-    })
-    it("returns undefined error message when response.ok is false and content-type is not application/json", async () => {
-      setFetchReturnValue(false, 401, false);
+      expect(mockFetch).toHaveBeenCalledExactlyOnceWith(REFRESH_URL, {
+        method: "POST",
+        credentials: "include",
+      });
+    });
 
-      const result = await baseService.reauthenticate();
-      expect(result).toEqual({
-        success: false,
-        status: 401,
-        error: undefined
-      })
-    })
-    it("catches errors and returns ServiceResult", async () => {
-      (globalThis.fetch as ReturnType<typeof vi.fn>).mockThrow(new Error("mock error"))
-      const result = await baseService.reauthenticate();
+    it("returns success when response.ok is true", async () => {
+      mockFetch.mockResolvedValue(jsonResponse(200));
+
+      const result = await reauthenticate();
+
+      expect(result).toEqual({ success: true, status: 200 });
+    });
+
+    it("returns the body's error field when the response is a JSON failure", async () => {
+      mockFetch.mockResolvedValue(jsonResponse(403, { error: "error" }));
+
+      const result = await reauthenticate();
+
+      expect(result).toEqual({ success: false, status: 403, error: "error" });
+    });
+
+    it("returns an undefined error when the JSON failure has no error field", async () => {
+      mockFetch.mockResolvedValue(jsonResponse(401, { message: "error" }));
+
+      const result = await reauthenticate();
+
+      expect(result).toEqual({ success: false, status: 401, error: undefined });
+    });
+
+    it("returns an undefined error when content-type is not JSON", async () => {
+      mockFetch.mockResolvedValue(textResponse(401));
+
+      const result = await reauthenticate();
+
+      expect(result).toEqual({ success: false, status: 401, error: undefined });
+    });
+
+    it("returns a 500 failure when fetch rejects", async () => {
+      mockFetch.mockRejectedValue(new Error("mock error"));
+
+      const result = await reauthenticate();
 
       expect(result).toEqual({
         success: false,
         error: "Error: mock error",
         status: 500,
-      })
-    })
-  })
-})
+      });
+    });
+  });
+});
