@@ -126,11 +126,6 @@ CREATE TABLE IF NOT EXISTS public.validate_tokens (
   created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS public.schema_migrations (
-  version    text PRIMARY KEY,
-  applied_at timestamptz NOT NULL DEFAULT now()
-);
-
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_expires ON public.refresh_tokens (expires_at);
 
 CREATE INDEX IF NOT EXISTS idx_reset_token_created_at ON public.reset_tokens (created_at);

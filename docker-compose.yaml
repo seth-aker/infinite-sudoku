@@ -1,15 +1,64 @@
-services: 
-  postgres-db: 
+services:
+  # use to create a /backups/migrations folder on the local machine to capture the backup output
+  backups-init:
+    image: alpine@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf
+    container_name: sudoku_backups_init
+    user: "0:0"
+    command: ["sh", "-c", "chmod 700 /backups && chown ${BACKUP_UID:-1000}:${BACKUP_GID:-1000} /backups"]
+    volumes:
+      - /backups/migrations:/backups
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    restart: "no"
+    network_mode: none
+
+  # runs the migration script
+  db-migrate:
+    image: postgres:18-alpine
+    container_name: sudoku_db_migrate
+    entrypoint: ["sh", "/db/migrate.sh"]
+    environment:
+      PGHOST: postgres-db
+      PGUSER: ${DB_USER}
+      PGPASSWORD: ${DB_PASSWORD}
+      PGDATABASE: ${DB_NAME}
+      # Fail fast instead of queueing behind live queries and stalling traffic.
+      PGOPTIONS: "-c lock_timeout=10s"
+    volumes:
+      - ./backend/db:/db:ro
+      - /backups/migrations:/backups
+    # Run as the host user that owns /backups/migrations so dumps are readable on the host.
+    user: "${BACKUP_UID:-1000}:${BACKUP_GID:-1000}"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: on-failure:5
+    depends_on:
+      backups-init:
+        condition: service_completed_successfully
+      postgres-db:
+        condition: service_healthy
+    networks:
+      - backend_net
+
+  postgres-db:
     image: postgres:18-alpine
     restart: unless-stopped
     container_name: sudoku_postgres
-    environment: 
+    environment:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME}
-    security_opt: 
+    security_opt:
       - no-new-privileges:true
-    cap_drop: 
+    cap_drop:
       - ALL
     cap_add:
       - CHOWN
@@ -28,39 +77,11 @@ services:
     networks:
       - backend_net
 
-  db-migrate:
-    image: postgres:18-alpine
-    container_name: sudoku_db_migrate
-    entrypoint: ["sh", "/db/migrate.sh"]
-    environment:
-      PGHOST: postgres-db
-      PGUSER: ${DB_USER}
-      PGPASSWORD: ${DB_PASSWORD}
-      PGDATABASE: ${DB_NAME}
-      # Fail fast instead of queueing behind live queries and stalling traffic.
-      PGOPTIONS: "-c lock_timeout=10s"
-    volumes:
-      - ./backend/db:/db:ro
-      - ./backups:/backups
-    # Run as the host user that owns ./backups so dumps are readable on the host.
-    user: "${BACKUP_UID:-1000}:${BACKUP_GID:-1000}"
-    read_only: true
-    cap_drop:
-      - ALL
-    security_opt:
-      - no-new-privileges:true
-    restart: "no"
-    depends_on:
-      postgres-db:
-        condition: service_healthy
-    networks:
-      - backend_net
-
   backend-api:
     container_name: sudoku_backend
     build:
       context: .
-      additional_contexts: 
+      additional_contexts:
         generator_src: https://github.com/seth-aker/cdoku.git
       target: backend
       dockerfile: Dockerfile
@@ -68,9 +89,9 @@ services:
       - DEPLOY_MODE=${DEPLOY_MODE}
     ports:
       - "127.0.0.1:3666:3666"
-    cap_drop: 
+    cap_drop:
       - ALL
-    security_opt: 
+    security_opt:
       - no-new-privileges:true
     read_only: true
     user: node:node
@@ -95,7 +116,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '2.0' 
+          cpus: '2.0'
           memory: 2G
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3666/api/_health"]
@@ -106,7 +127,7 @@ services:
 
   frontend-spa:
     container_name: sudoku_frontend
-    build: 
+    build:
       context: .
       target: frontend
       dockerfile: Dockerfile
@@ -114,9 +135,9 @@ services:
         - DEPLOY_MODE=${DEPLOY_MODE}
     ports:
       - "127.0.0.1:8081:8080"
-    cap_drop: 
+    cap_drop:
       - ALL
-    security_opt: 
+    security_opt:
       - no-new-privileges:true
     restart: unless-stopped
     depends_on:
@@ -131,6 +152,6 @@ networks:
   backend_net:
     driver: bridge
 
-volumes: 
+volumes:
   postgres_data:
   generator_logs:
