@@ -55,7 +55,7 @@ const gotoPuzzle = async (difficulty: DifficultyRating) => {
     </h1>
     <!-- Medium and wider menu -->
     <div class="hidden md:flex md:flex-row">
-      <NavigationMenu>
+      <NavigationMenu :viewport="false">
         <NavigationMenuList>
           <NavigationMenuItem>
             <NavigationMenuLink as-child>
@@ -110,15 +110,6 @@ const gotoPuzzle = async (difficulty: DifficultyRating) => {
                   variant="link"
                   @click="() => gotoPuzzle('hard')"
                   >Hard</Button
-                >
-              </NavigationMenuLink>
-              <NavigationMenuLink as-child>
-                <Button
-                  class="w-full items-start"
-                  variant="link"
-                  disabled
-                  @click="() => gotoPuzzle('impossible')"
-                  >Impossible (Comming Soon)</Button
                 >
               </NavigationMenuLink>
             </NavigationMenuContent>
@@ -199,14 +190,6 @@ const gotoPuzzle = async (difficulty: DifficultyRating) => {
                   variant="link"
                   disabled
                   >Hard (Comming Soon)</Button
-                >
-              </PopoverClose>
-              <PopoverClose as-child>
-                <Button
-                  @click="() => gotoPuzzle('impossible')"
-                  variant="link"
-                  disabled
-                  >Impossible (Comming Soon)</Button
                 >
               </PopoverClose>
             </AccordionContent>

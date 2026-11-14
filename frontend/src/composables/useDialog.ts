@@ -5,6 +5,7 @@ export interface DialogButton {
   variant?:
     "default" | "destructive" | "outline" | "secondary" | "ghost" | "link";
   onClick?: () => void | Promise<void>;
+  // defaults to false
   closeOnClick?: boolean;
 }
 export interface DialogOptions {

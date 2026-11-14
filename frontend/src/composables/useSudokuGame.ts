@@ -28,7 +28,7 @@ export function useSudokuGame() {
     gameStore.usingPencil = !gameStore.usingPencil;
   }
   function placeValue(value: number, idx: number) {
-    if (value < 0 || value > 9 || idx < 0 || idx > 80) {
+    if (value < 0 || value > 9 || idx < 0 || idx > 80 || gameStore.state === 'solved') {
       return;
     }
     if (gameStore.originalCells[idx].value !== 0) {
@@ -59,7 +59,7 @@ export function useSudokuGame() {
   }
 
   function clearCell(idx: number) {
-    if (gameStore.originalCells[idx].value !== 0) {
+    if (gameStore.originalCells[idx].value !== 0 || gameStore.state === 'solved') {
       return;
     }
     const prevCell = cloneCell(gameStore.cells[idx]);
@@ -77,7 +77,7 @@ export function useSudokuGame() {
   }
 
   function toggleCandidate(value: number, idx: number) {
-    if (gameStore.originalCells[idx].value !== 0) {
+    if (gameStore.originalCells[idx].value !== 0 || gameStore.state === 'solved') {
       return;
     }
     const prevCell = cloneCell(gameStore.cells[idx]);
@@ -96,6 +96,7 @@ export function useSudokuGame() {
   }
 
   function undo() {
+    if(gameStore.state === 'solved') return;
     let action = gameStore.history.pop();
     while (action && !action.isParent) {
       const prevCell = cloneCell(gameStore.cells[action.cell.idx]);
@@ -118,6 +119,7 @@ export function useSudokuGame() {
     saveLocal();
   }
   function redo() {
+    if(gameStore.state === 'solved') return;
     let action = gameStore.redoActions.pop();
     if (action) {
       const prevCell = cloneCell(gameStore.cells[action.cell.idx]);

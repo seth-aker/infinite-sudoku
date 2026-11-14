@@ -243,10 +243,12 @@ describe("useAuth", () => {
           expect(userStore.loading).toBe(false);
         });
 
-        it("keeps the clock paused while the dialog is open", async () => {
+        it("stops the clock without pausing the game while the dialog is open", async () => {
           await useAuth().login("a@b.com", "x");
 
-          expect(clock.pause).toHaveBeenCalled();
+          // halt, not pause: pausing would open the pause menu over this dialog.
+          expect(clock.halt).toHaveBeenCalledOnce();
+          expect(clock.pause).not.toHaveBeenCalled();
           expect(useDialog().isOpen.value).toBe(true);
           expect(clock.start).not.toHaveBeenCalled();
         });

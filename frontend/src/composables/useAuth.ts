@@ -56,7 +56,7 @@ export function useAuth() {
           userStore.currentPuzzleId &&
           userStore.currentPuzzleId !== gameStore.puzzleId
         ) {
-          clock.pause();
+          clock.halt();
           showDialog({
             title: "Resume or Overwrite?",
             message:

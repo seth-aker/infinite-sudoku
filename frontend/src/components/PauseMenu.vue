@@ -8,9 +8,10 @@ import DialogClose from "./ui/dialog/DialogClose.vue";
 import Button from "./ui/button/Button.vue";
 import { computed } from "vue";
 import DialogDescription from "./ui/dialog/DialogDescription.vue";
-import { useGameClock } from "@/composables/useGameClock";
 import { useGameStore } from "@/stores/gameStore";
-const clock = useGameClock();
+
+defineProps<{ open: boolean }>();
+const emit = defineEmits<{ resume: [] }>()
 const store = useGameStore();
 let progressPercent = computed(() => {
   let count = 0;
@@ -19,10 +20,7 @@ let progressPercent = computed(() => {
 });
 </script>
 <template>
-  <Dialog
-    :open="store.state === 'paused'"
-    @update:open="(isOpen) => (!isOpen ? clock.start() : undefined)"
-  >
+  <Dialog :open="open" @update:open="(isOpen) => !isOpen ? emit('resume') : undefined">
     <DialogContent>
       <DialogTitle>Game Paused</DialogTitle>
       <DialogDescription hidden>Pause Menu</DialogDescription>
@@ -37,7 +35,7 @@ let progressPercent = computed(() => {
 
       <DialogFooter>
         <DialogClose as-child>
-          <Button @click="() => clock.start()">Resume</Button>
+          <Button>Resume</Button>
         </DialogClose>
       </DialogFooter>
     </DialogContent>

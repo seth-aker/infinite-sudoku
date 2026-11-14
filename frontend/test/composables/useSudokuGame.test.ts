@@ -362,4 +362,49 @@ describe("useSudokuGame", () => {
       expect(store.redoActions).toEqual(redoActions);
     });
   });
+
+  describe("once the puzzle is solved", () => {
+    // Moves are made, then the game is marked solved; nothing may change after.
+    function solvedSetup() {
+      const ctx = setup();
+      ctx.game.placeValue(5, 40);
+      ctx.game.placeValue(6, 41);
+      ctx.game.undo(); // leaves something to redo
+      ctx.store.cells[42].candidates = [3];
+      ctx.store.state = "solved";
+      saveLocal.mockReset();
+      return {
+        ...ctx,
+        cells: ctx.store.cells.map(cloneCell),
+        history: [...ctx.store.history],
+        redoActions: [...ctx.store.redoActions],
+      };
+    }
+
+    it.each([
+      ["placeValue", (g: ReturnType<typeof useSudokuGame>) => g.placeValue(9, 50)],
+      ["clearCell", (g: ReturnType<typeof useSudokuGame>) => g.clearCell(40)],
+      ["toggleCandidate", (g: ReturnType<typeof useSudokuGame>) => g.toggleCandidate(3, 42)],
+      ["undo", (g: ReturnType<typeof useSudokuGame>) => g.undo()],
+      ["redo", (g: ReturnType<typeof useSudokuGame>) => g.redo()],
+    ])("%s changes nothing and does not save", (_, act) => {
+      const { store, game, cells, history, redoActions } = solvedSetup();
+
+      act(game);
+
+      expect(store.cells).toEqual(cells);
+      expect(store.history).toEqual(history);
+      expect(store.redoActions).toEqual(redoActions);
+      expect(saveLocal).not.toHaveBeenCalled();
+    });
+
+    it("clearCell in pencil mode leaves candidates alone", () => {
+      const { store, game, cells } = solvedSetup();
+      store.usingPencil = true;
+
+      game.clearCell(42);
+
+      expect(store.cells).toEqual(cells);
+    });
+  });
 });
