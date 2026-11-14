@@ -26,7 +26,13 @@ export function serializeAction(action: Action) {
   }, 0);
   const cellValue = action.cell.value || 0;
 
-  // bitmask, 7 bits for cell index, 4 bits for cell value, 9 bits for candiates
+  // binary representation looks like this
+  // #-#########-####-#######
+  // in order: 
+  //  isParentBit   - 1 bit
+  //  candidateMask - 9 bits
+  //  cellValue     - 4 bits
+  //  cellIdx       - 7 bits
   return (
     (isParentBit << 20) |
     (candidateMask << 11) |

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import { useGameStore, type Cell } from "@/stores/gameStore";
 import { createBlankCells } from "@/utils/puzzleUtils";
@@ -123,7 +123,136 @@ describe("gameStore", () => {
     });
   });
 
+  describe("clock", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("is stopped until started", () => {
+      const store = useGameStore();
+
+      vi.advanceTimersByTime(5000);
+
+      expect(store.isTimerRunning).toBe(false);
+      expect(store.elapsedSeconds).toBe(0);
+    });
+
+    it("startClock counts one second per second and sets the game playing", () => {
+      const store = useGameStore();
+
+      store.startClock();
+      vi.advanceTimersByTime(3000);
+
+      expect(store.isTimerRunning).toBe(true);
+      expect(store.state).toBe("playing");
+      expect(store.elapsedSeconds).toBe(3);
+    });
+
+    it("does not count a partial second", () => {
+      const store = useGameStore();
+
+      store.startClock();
+      vi.advanceTimersByTime(999);
+
+      expect(store.elapsedSeconds).toBe(0);
+    });
+
+    it("pauseClock stops counting and sets the game paused", () => {
+      const store = useGameStore();
+      store.startClock();
+      vi.advanceTimersByTime(2000);
+
+      store.pauseClock();
+      vi.advanceTimersByTime(5000);
+
+      expect(store.isTimerRunning).toBe(false);
+      expect(store.state).toBe("paused");
+      expect(store.elapsedSeconds).toBe(2);
+    });
+
+    it("continues from the paused time when restarted", () => {
+      const store = useGameStore();
+      store.startClock();
+      vi.advanceTimersByTime(2000);
+      store.pauseClock();
+
+      store.startClock();
+      vi.advanceTimersByTime(3000);
+
+      expect(store.elapsedSeconds).toBe(5);
+    });
+
+    it("haltClock stops counting without changing the game state", () => {
+      const store = useGameStore();
+      store.startClock();
+      store.state = "solved";
+
+      store.haltClock();
+      vi.advanceTimersByTime(5000);
+
+      expect(store.isTimerRunning).toBe(false);
+      expect(store.state).toBe("solved");
+      expect(store.elapsedSeconds).toBe(0);
+    });
+
+    it("resetClock stops counting, zeroes the time and sets the game idle", () => {
+      const store = useGameStore();
+      store.startClock();
+      vi.advanceTimersByTime(4000);
+
+      store.resetClock();
+      vi.advanceTimersByTime(5000);
+
+      expect(store.isTimerRunning).toBe(false);
+      expect(store.state).toBe("idle");
+      expect(store.elapsedSeconds).toBe(0);
+    });
+
+    it("gives each store instance its own clock", () => {
+      const first = useGameStore();
+      first.startClock();
+
+      setActivePinia(createPinia());
+      const second = useGameStore();
+      vi.advanceTimersByTime(2000);
+
+      expect(first.elapsedSeconds).toBe(2);
+      expect(second.elapsedSeconds).toBe(0);
+      expect(second.isTimerRunning).toBe(false);
+      first.haltClock();
+    });
+
+    it("stops when the store is disposed", () => {
+      const store = useGameStore();
+      store.startClock();
+
+      store.$dispose();
+      vi.advanceTimersByTime(3000);
+
+      expect(store.elapsedSeconds).toBe(0);
+    });
+  });
+
   describe("$reset", () => {
+    it("stops a running clock", () => {
+      vi.useFakeTimers();
+      try {
+        const store = useGameStore();
+        store.startClock();
+
+        store.$reset();
+        vi.advanceTimersByTime(3000);
+
+        expect(store.isTimerRunning).toBe(false);
+        expect(store.elapsedSeconds).toBe(0);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it("restores every field to its initial value", () => {
       const store = useGameStore();
       const initial = JSON.parse(JSON.stringify(store.$state));

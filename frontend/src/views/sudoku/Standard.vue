@@ -73,6 +73,7 @@ const loading = computed(() => {
   return userStore.loading || gameStore.loading;
 });
 
+// save game 5 seconds after user stops making moves, or after 10 seconds of moves.
 watchDebounced(
   () => gameStore.history.length,
   () => {
@@ -81,6 +82,8 @@ watchDebounced(
   { debounce: 5000, maxWait: 10000 },
 );
 
+// Save state locally every second.
+watch(() => gameStore.elapsedSeconds, saveLocal);
 onUnmounted(() => {
   clock.pause();
   saveLocal();
@@ -102,7 +105,7 @@ const handlePuzzleSolved = async () => {
   saveToServer();
 };
 const toggleTimer = () => {
-  if (!clock.isRunning) {
+  if (!clock.isRunning.value) {
     clock.start();
   } else {
     clock.pause();
@@ -145,7 +148,7 @@ const handleReset = () => {
       {{ gameStore.formattedTime }}
       <div class="flex items-center my-2">
         <Button class="mx-2" @click="toggleTimer" variant="ghost">
-          <Icon v-if="clock.isRunning" icon="material-symbols:pause-rounded" />
+          <Icon v-if="clock.isRunning.value" icon="material-symbols:pause-rounded" />
           <Icon v-else icon="material-symbols:play-arrow-rounded" />
         </Button>
         <ControlInstructions />

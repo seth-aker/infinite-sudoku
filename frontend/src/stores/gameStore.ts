@@ -1,4 +1,5 @@
 import { createBlankCells, isPuzzleSolved } from "@/utils/puzzleUtils";
+import { useIntervalFn } from "@vueuse/core";
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 
@@ -37,6 +38,29 @@ export const useGameStore = defineStore("gameStore", () => {
   const redoActions = ref<Action[]>([]);
 
   const autoCandidateMode = ref<boolean>(false);
+
+  const timer = useIntervalFn(() => elapsedSeconds.value++, 1000, {
+    immediate: false,
+  });
+
+  const isTimerRunning = timer.isActive;
+
+  function startClock() {
+    state.value = "playing";
+    timer.resume();
+  }
+  function pauseClock() {
+    state.value = "paused";
+    timer.pause();
+  }
+  function haltClock() {
+    timer.pause();
+  }
+  function resetClock() {
+    timer.pause();
+    elapsedSeconds.value = 0;
+    state.value = "idle";
+  }
 
   const formattedTime = computed(() => {
     const hours = Math.floor(elapsedSeconds.value / HOUR);
@@ -81,7 +105,9 @@ export const useGameStore = defineStore("gameStore", () => {
     selectedIdx.value = undefined;
     history.value = [];
     redoActions.value = [];
-    ((autoCandidateMode.value = false), (loading.value = false));
+    autoCandidateMode.value = false; 
+    loading.value = false;
+    timer.pause();
   }
 
   return {
@@ -101,6 +127,11 @@ export const useGameStore = defineStore("gameStore", () => {
     formattedTime,
     isSolved,
     progressPercent,
+    isTimerRunning,
+    startClock,
+    pauseClock,
+    haltClock,
+    resetClock,
     $reset,
   };
 });

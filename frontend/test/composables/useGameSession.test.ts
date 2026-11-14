@@ -12,8 +12,8 @@ vi.mock("@/services/sudokuService", () => ({
   saveProgress: vi.fn(),
 }));
 
-// The real clock keeps a module-level interval tied to the first store it sees,
-// so it is replaced with spies; it has its own concerns to test separately.
+// The clock is replaced with spies so these tests only check when the session
+// starts, resets or stops it; its timing is tested in gameStore.test.ts.
 const clock = { start: vi.fn(), pause: vi.fn(), halt: vi.fn(), reset: vi.fn() };
 vi.mock("@/composables/useGameClock", () => ({
   useGameClock: () => clock,

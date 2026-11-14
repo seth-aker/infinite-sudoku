@@ -14,6 +14,12 @@ export function useAuth() {
   const { showDialog } = useDialog();
   const { resumeSavedPuzzle, saveToServer } = useGameSession();
 
+  function showError(err: unknown) {
+    toast.error("Oops! An error occured!", {
+      description: err && typeof err === "string" ? err : (err as Error).message,
+    });
+  }
+
   async function login(email: string, password: string) {
     userStore.loading = true;
     try {
@@ -59,20 +65,31 @@ export function useAuth() {
               {
                 text: "Overwrite with current",
                 onClick: async () => {
-                  await saveToServer();
+                  try {
+                    await saveToServer();
+                  } catch (err) {
+                    showError(err);
+                  } finally {
+                    clock.start();
+                  }
                 },
                 closeOnClick: true,
               },
               {
                 text: "Resume unfinished",
                 onClick: async () => {
-                  await resumeSavedPuzzle(userStore.currentPuzzleId!);
+                  try {
+                    await resumeSavedPuzzle(userStore.currentPuzzleId!);
+                  } catch (err) {
+                    showError(err);
+                  } finally {
+                    clock.start();
+                  }
                 },
                 closeOnClick: true,
               },
             ],
           });
-          clock.start();
           // gamestore puzzle id === current puzzle id OR
           // current puzzle id is undefined
         } else {
@@ -92,6 +109,7 @@ export function useAuth() {
         description:
           err && typeof err === "string" ? err : (err as Error).message,
       });
+      return false;
     }
   }
 
@@ -126,7 +144,7 @@ export function useAuth() {
       const res = await userService.register(email, password, username, tosAcknowledged);
       if (!res.success) {
         toast.error("Oops! An error occured", {
-          description: `Failed to register: ${res.error ?? "Didn't recieve user info from server"}`,
+          description: `Failed to register: ${res.error ?? "internal server error"}`,
         });
         userStore.loading = false;
         return;
@@ -175,18 +193,26 @@ export function useAuth() {
   }
   async function resetPassword(token: string, newPassword: string) {
     userStore.loading = true;
-    const res = await userService.resetPassword(token, newPassword);
-    if (!res.success) {
+    try {
+      const res = await userService.resetPassword(token, newPassword);
+      if (!res.success) {
+        toast.error("Oops! An error occured", {
+          description: `Failed to reset password: ${res.error ?? 'internal server error'}`
+        })
+        return false
+      }
+      if (userStore.isAuthenticated) {
+        userStore.$reset();
+      }
+      return true;
+    } catch (err) {
       toast.error("Oops! An error occured", {
-        description: `Failed to reset password: ${res.error ?? 'internal server error'}`
-      })
-      return false
+        description: `Failed to reset password: ${err && typeof err === "string" ? err : (err as Error).message}`,
+      });
+      return false;
+    } finally {
+      userStore.loading = false;
     }
-    if (userStore.isAuthenticated) {
-      userStore.$reset();
-    }
-    userStore.loading = false;
-    return true;
   }
 
   async function requestEmailVerification(email: string) {
