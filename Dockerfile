@@ -50,7 +50,10 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /sudoku
 
-RUN mkdir -p /sudoku/logs && chown -R node:node /sudoku/logs
+# Sets container's LOG_DIR so the named volume inherits node ownership.
+ARG DEPLOY_MODE
+ARG LOG_DIR=/sudoku/logs
+RUN mkdir -p "$LOG_DIR" && chown -R node:node "$LOG_DIR"
 
 COPY --from=build /apps/sudoku/backend/dist ./
 COPY --from=build /apps/sudoku/backend/db ./db
@@ -60,7 +63,11 @@ COPY --from=build /apps/sudoku/backend/pnpm-workspace.yaml .
 
 COPY --chown=node:node --from=c_builder /cdoku/build/src/app/puzzle_generator_app .
 
-RUN pnpm i --prod
+RUN if [ "$DEPLOY_MODE" = "test" ]; then \
+      CI=true pnpm install; \
+    else \
+      CI=true pnpm install --prod; \
+    fi
 
 EXPOSE 3666
 

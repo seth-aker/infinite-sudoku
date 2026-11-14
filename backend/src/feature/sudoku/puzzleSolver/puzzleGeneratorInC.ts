@@ -8,6 +8,8 @@ import { config } from "../../../core/config";
 import { PuzzleGeneratorError } from "../errors/puzzleGeneratorError";
 import { createPuzzleSchema } from "../middleware/validation/schema/sudokuPuzzle";
 import { logger } from "@/core/logging/logger";
+export const MAX_STDERR_CHARS = 4096;
+
 export function generatePuzzles(number: number, options: PuzzleOptions) {
   const generatorPath = `${config.rootDir}/puzzle_generator_app`;
   let difficulty: string;
@@ -31,8 +33,15 @@ export function generatePuzzles(number: number, options: PuzzleOptions) {
 
   const args = [difficulty, `${number}`];
   return new Promise<void>((resolve, reject) => {
+    logger.debug({generatorPath, args}, "calling puzzle generator")
     const generator = spawn(generatorPath, args, { env: env });
     let buffer = "";
+    let stderr = "";
+    generator.stderr.on("data", (data) => {
+      // Debug builds log every trace line to stderr, so keep only the tail,
+      // which is where the reason for a failed exit will be.
+      stderr = (stderr + data.toString()).slice(-MAX_STDERR_CHARS);
+    });
     generator.stdout.on("data", (data) => {
       buffer += data.toString();
       const lines = buffer.split("\n");
@@ -70,7 +79,7 @@ export function generatePuzzles(number: number, options: PuzzleOptions) {
       } else {
         reject(
           new PuzzleGeneratorError(
-            `Generator exited with code ${code}. Node signal: ${signal ?? "NULL"}`,
+            `Generator exited with code ${code}. Node signal: ${signal ?? "NULL"}. stderr: ${stderr.trim() || "<empty>"}`,
           ),
         );
       }

@@ -6,7 +6,7 @@ services:
     user: "0:0"
     command: ["sh", "-c", "chmod 700 /backups && chown ${BACKUP_UID:-1000}:${BACKUP_GID:-1000} /backups"]
     volumes:
-      - /backups/migrations:/backups
+      - ${MIGRATION_BACKUP_DIR}:/backups
     cap_drop:
       - ALL
     cap_add:
@@ -31,7 +31,7 @@ services:
       PGOPTIONS: "-c lock_timeout=10s"
     volumes:
       - ./backend/db:/db:ro
-      - /backups/migrations:/backups
+      - ${MIGRATION_BACKUP_DIR}:/backups
     # Run as the host user that owns /backups/migrations so dumps are readable on the host.
     user: "${BACKUP_UID:-1000}:${BACKUP_GID:-1000}"
     read_only: true
@@ -87,6 +87,7 @@ services:
       dockerfile: Dockerfile
       args:
       - DEPLOY_MODE=${DEPLOY_MODE}
+      - LOG_DIR=${LOG_DIR}
     ports:
       - "127.0.0.1:3666:3666"
     cap_drop:
@@ -110,6 +111,9 @@ services:
     restart: unless-stopped
     env_file:
       - ./backend/.env.production
+    # Overrides for the env_file
+    environment:
+      LOG_DIR: ${LOG_DIR} # this is the cdoku puzzle generator log directory
     networks:
       - frontend_net
       - backend_net
