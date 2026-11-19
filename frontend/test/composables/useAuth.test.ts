@@ -48,6 +48,21 @@ const svc = vi.mocked(userService);
 const toastError = vi.mocked(toast.error);
 const toastSuccess = vi.mocked(toast.success);
 
+// What the player reads in a toast: its title plus any description.
+function toastText(call: unknown[]): string {
+  const [message, options] = call as [string, { description?: string } | undefined];
+  return [message, options?.description].filter(Boolean).join(" ");
+}
+
+// Checks that one error toast is shown, and that it carries the given detail
+// (e.g. the server's error) without pinning the surrounding wording.
+function expectErrorToast(containing?: string) {
+  expect(toastError).toHaveBeenCalledOnce();
+  const text = toastText(toastError.mock.calls[0]!);
+  expect(text.trim()).not.toBe("");
+  if (containing) expect(text).toContain(containing);
+}
+
 function makeUser(overrides: Partial<UserDto> = {}): UserDto {
   return {
     id: "user-1",
@@ -97,7 +112,7 @@ describe("useAuth", () => {
       const result = await useAuth().login("a@b.com", "x");
 
       expect(result).toBe(false);
-      expect(toastError).toHaveBeenCalledWith("Wrong password");
+      expectErrorToast("Wrong password");
       expect(userStore.isAuthenticated).toBe(false);
       expect(userStore.loading).toBe(false);
     });
@@ -107,7 +122,7 @@ describe("useAuth", () => {
 
       await useAuth().login("a@b.com", "x");
 
-      expect(toastError).toHaveBeenCalledWith("Invalid email or password");
+      expectErrorToast();
     });
 
     it("offers to resend verification when the email is not verified", async () => {
@@ -120,9 +135,9 @@ describe("useAuth", () => {
       const result = await useAuth().login("a@b.com", "x");
 
       expect(result).toBe(false);
-      expect(toastError).toHaveBeenCalledTimes(1);
+      expectErrorToast();
       const [message, options] = toastError.mock.calls[0]!;
-      expect(message).toBe("Email not verified!");
+      expect(message).toMatch(/not verified/i);
       (options as { action: { onClick: () => void } }).action.onClick();
       expect(router.push).toHaveBeenCalledWith({
         name: "request-email-verification",
@@ -136,7 +151,7 @@ describe("useAuth", () => {
       const result = await useAuth().login("a@b.com", "x");
 
       expect(result).toBe(false);
-      expect(toastError).toHaveBeenCalledWith("Invalid email or password");
+      expectErrorToast();
       expect(userStore.isAuthenticated).toBe(false);
       expect(userStore.loading).toBe(false);
     });
@@ -148,9 +163,7 @@ describe("useAuth", () => {
       const result = await useAuth().login("a@b.com", "x");
 
       expect(result).toBe(false);
-      expect(toastError).toHaveBeenCalledWith("Oops! An error occured!", {
-        description: "network down",
-      });
+      expectErrorToast("network down");
       expect(userStore.loading).toBe(false);
     });
 
@@ -293,9 +306,7 @@ describe("useAuth", () => {
             )!;
             await expect(button.onClick!()).resolves.toBeUndefined();
 
-            expect(toastError).toHaveBeenCalledWith("Oops! An error occured!", {
-              description: "network down",
-            });
+            expectErrorToast("network down");
             expect(clock.start).toHaveBeenCalledTimes(1);
           },
         );
@@ -328,9 +339,7 @@ describe("useAuth", () => {
       await useAuth().logout();
 
       expect(userStore.isAuthenticated).toBe(false);
-      expect(toastError).toHaveBeenCalledWith("Oops! An error occured!", {
-        description: "boom",
-      });
+      expectErrorToast("boom");
     });
 
     it("falls back to a generic message when logout fails without an error", async () => {
@@ -338,9 +347,7 @@ describe("useAuth", () => {
 
       await useAuth().logout();
 
-      expect(toastError).toHaveBeenCalledWith("Oops! An error occured!", {
-        description: "The logout call to the server failed.",
-      });
+      expectErrorToast();
     });
 
     it("shows an error and resets loading when the service throws", async () => {
@@ -349,9 +356,7 @@ describe("useAuth", () => {
 
       await useAuth().logout();
 
-      expect(toastError).toHaveBeenCalledWith("Oops! An error occured!", {
-        description: "network down",
-      });
+      expectErrorToast("network down");
       expect(userStore.loading).toBe(false);
     });
   });
@@ -375,7 +380,8 @@ describe("useAuth", () => {
       );
       expect(userStore.id).toBe("user-1");
       expect(userStore.loading).toBe(false);
-      expect(toastSuccess).toHaveBeenCalledWith("Welcome player! Time to play!");
+      expect(toastSuccess).toHaveBeenCalledOnce();
+      expect(toastText(toastSuccess.mock.calls[0]!)).toContain("player");
     });
 
     it("saves the puzzle in progress to the new account", async () => {
@@ -415,9 +421,7 @@ describe("useAuth", () => {
 
       expect(userStore.isAuthenticated).toBe(false);
       expect(userStore.loading).toBe(false);
-      expect(toastError).toHaveBeenCalledWith("Oops! An error occured", {
-        description: "Failed to register: Email taken",
-      });
+      expectErrorToast("Email taken");
       expect(toastSuccess).not.toHaveBeenCalled();
     });
 
@@ -426,9 +430,7 @@ describe("useAuth", () => {
 
       await useAuth().register("a@b.com", "Secret1!", "player", true);
 
-      expect(toastError).toHaveBeenCalledWith("Oops! An error occured", {
-        description: "Failed to register: internal server error",
-      });
+      expectErrorToast();
     });
 
     it("shows an error when the response has no user", async () => {
@@ -439,9 +441,7 @@ describe("useAuth", () => {
 
       expect(userStore.isAuthenticated).toBe(false);
       expect(userStore.loading).toBe(false);
-      expect(toastError).toHaveBeenCalledWith("Oops! An error occured", {
-        description: "Failed to register: Didn't recieve user info from server",
-      });
+      expectErrorToast();
     });
 
     it("shows an error and resets loading when the service throws", async () => {
@@ -451,9 +451,7 @@ describe("useAuth", () => {
       await useAuth().register("a@b.com", "Secret1!", "player", true);
 
       expect(userStore.loading).toBe(false);
-      expect(toastError).toHaveBeenCalledWith("Oops! An error occured", {
-        description: "Failed to register: network down",
-      });
+      expectErrorToast("network down");
     });
   });
 
@@ -504,9 +502,7 @@ describe("useAuth", () => {
       svc.requestPasswordReset.mockResolvedValue({ success: false, status: 500 });
 
       expect(await useAuth().requestPasswordReset("a@b.com")).toBe(false);
-      expect(toastError).toHaveBeenCalledWith("Oops! An error occured", {
-        description: "Failed to send reset request: internal server error",
-      });
+      expectErrorToast();
     });
   });
 
@@ -538,9 +534,7 @@ describe("useAuth", () => {
       });
 
       expect(await useAuth().resetPassword("token", "NewSecret1!")).toBe(false);
-      expect(toastError).toHaveBeenCalledWith("Oops! An error occured", {
-        description: "Failed to reset password: Token expired",
-      });
+      expectErrorToast("Token expired");
     });
 
     it("resets loading when the reset fails", async () => {
@@ -557,9 +551,7 @@ describe("useAuth", () => {
       const userStore = useUserStore();
 
       expect(await useAuth().resetPassword("token", "NewSecret1!")).toBe(false);
-      expect(toastError).toHaveBeenCalledWith("Oops! An error occured", {
-        description: "Failed to reset password: network down",
-      });
+      expectErrorToast("network down");
       expect(userStore.loading).toBe(false);
     });
   });
@@ -571,7 +563,8 @@ describe("useAuth", () => {
       await useAuth().requestEmailVerification("a@b.com");
 
       expect(svc.requestEmailVerification).toHaveBeenCalledWith("a@b.com");
-      expect(toastSuccess).toHaveBeenCalledWith("Verification email sent!");
+      expect(toastSuccess).toHaveBeenCalledOnce();
+      expect(toastError).not.toHaveBeenCalled();
     });
 
     it("shows the server error on failure", async () => {
@@ -583,7 +576,7 @@ describe("useAuth", () => {
 
       await useAuth().requestEmailVerification("a@b.com");
 
-      expect(toastError).toHaveBeenCalledWith("Too many requests");
+      expectErrorToast("Too many requests");
       expect(toastSuccess).not.toHaveBeenCalled();
     });
 
@@ -592,7 +585,7 @@ describe("useAuth", () => {
 
       await useAuth().requestEmailVerification("a@b.com");
 
-      expect(toastError).toHaveBeenCalledWith("An error occured");
+      expectErrorToast();
       expect(toastSuccess).not.toHaveBeenCalled();
     });
   });

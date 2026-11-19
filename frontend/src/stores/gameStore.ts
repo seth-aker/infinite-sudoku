@@ -8,14 +8,16 @@ export interface Cell {
   value: number;
   candidates: number[];
 }
-export type DifficultyRating =
-  "beginner" | "easy" | "medium" | "hard" | "impossible";
+export const DIFFICULTY_RATINGS = ["beginner", "easy", "medium", "hard", "impossible"] as const
+export type DifficultyRating = (typeof DIFFICULTY_RATINGS)[number];
 
 export interface Action {
   cell: Cell;
   isParent: boolean;
 }
-export type GameStatus = "idle" | "playing" | "paused" | "solved";
+
+export const GAME_STATUSES = ['idle', 'playing', 'paused', 'solved'] as const
+export type GameStatus = (typeof GAME_STATUSES)[number];
 
 const HOUR = 60 * 60;
 const MINUTE = 60;
@@ -46,12 +48,16 @@ export const useGameStore = defineStore("gameStore", () => {
   const isTimerRunning = timer.isActive;
 
   function startClock() {
-    state.value = "playing";
-    timer.resume();
+    if (state.value !== 'solved') {
+      state.value = "playing";
+      timer.resume();
+    }
   }
   function pauseClock() {
-    state.value = "paused";
-    timer.pause();
+    if (state.value !== "solved") {
+      state.value = "paused";
+      timer.pause();
+    }
   }
   function haltClock() {
     timer.pause();
@@ -105,7 +111,7 @@ export const useGameStore = defineStore("gameStore", () => {
     selectedIdx.value = undefined;
     history.value = [];
     redoActions.value = [];
-    autoCandidateMode.value = false; 
+    autoCandidateMode.value = false;
     loading.value = false;
     timer.pause();
   }

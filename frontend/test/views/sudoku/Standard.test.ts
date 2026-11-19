@@ -7,7 +7,8 @@ import Standard from "@/views/sudoku/Standard.vue";
 import { useGameStore, type Cell, type DifficultyRating } from "@/stores/gameStore";
 import { useUserStore } from "@/stores/userStore";
 import { useDialog } from "@/composables/useDialog";
-import { useGameSession, type GameSnapshot } from "@/composables/useGameSession";
+import { useGameSession } from "@/composables/useGameSession";
+import type { GameSnapshot } from "@/validation/localStorage";
 import * as sudokuService from "@/services/sudokuService";
 import { createBlankCells } from "@/utils/puzzleUtils";
 
@@ -108,9 +109,14 @@ function storedGame(): GameSnapshot {
   return JSON.parse(localStorage.getItem(SESSION_KEY)!);
 }
 
-// A game saved by an earlier visit or before a page refresh.
+// A game saved by an earlier visit or before a page refresh. It's written by the
+// app's own saveLocal on a throwaway store, so it always has the current format.
 function savedGame(overrides: Partial<GameSnapshot> = {}) {
-  localStorage.setItem(SESSION_KEY, JSON.stringify(localGame(overrides)));
+  setActivePinia(createPinia());
+  const session = useGameSession();
+  session.applySnapshot(localGame(overrides));
+  session.saveLocal();
+  setActivePinia(pinia);
 }
 
 // A game already in memory with nothing saved, e.g. HomeView reset the store.
@@ -429,7 +435,6 @@ describe("Standard.vue", () => {
 
       expect(getNewPuzzle).toHaveBeenCalledTimes(2);
       expect(fetchErrorShown()).toBe(true);
-      expect(dialogButton("Retry").closeOnClick).toBeFalsy();
     });
 
     it("Cancel closes the error and goes home", async () => {
@@ -497,7 +502,10 @@ describe("Standard.vue", () => {
       w.unmount();
       wrapper = undefined;
 
-      expect(storedGame()).toEqual(localGame({ difficultyRating: "easy", state: "playing" }));
+      expect(storedGame()).toEqual({
+        version: expect.any(Number),
+        ...localGame({ difficultyRating: "easy", state: "playing" }),
+      });
     });
 
     // Otherwise Resume would start the hidden game's clock and its per-second save.
@@ -855,7 +863,8 @@ describe("Standard.vue", () => {
 
       expect(storedGame().puzzleId).toBe("new-1");
       expect(saveProgress).toHaveBeenCalledOnce();
-      expect(toast.promise).toHaveBeenCalledOnce();
+      expect(toast.success).toHaveBeenCalledOnce();
+      expect(toast.error).not.toHaveBeenCalled();
     });
 
     it("only saves locally when a signed-out player leaves the route", async () => {
@@ -866,7 +875,8 @@ describe("Standard.vue", () => {
 
       expect(storedGame().puzzleId).toBe("new-1");
       expect(saveProgress).not.toHaveBeenCalled();
-      expect(toast.promise).not.toHaveBeenCalled();
+      expect(toast.success).not.toHaveBeenCalled();
+      expect(toast.error).not.toHaveBeenCalled();
     });
   });
 

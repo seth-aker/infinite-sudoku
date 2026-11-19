@@ -42,7 +42,7 @@ const fetchNewPuzzle = async (difficulty: DifficultyRating) => {
   if (!result.success) {
     const savedDifficulty = gameStore.puzzleId ? gameStore.difficultyRating :
       undefined;
-
+    // TODO: Make this a separate helper component for clarity
     showDialog({
       title: "Error Fetching Puzzle",
       message: result.error ?? `Error code: ${result.status}`,
@@ -104,11 +104,13 @@ onBeforeRouteUpdate((to, _from) => {
 onBeforeRouteLeave(async () => {
   saveLocal();
   if (userStore.isAuthenticated && gameStore.puzzleId) {
-    toast.promise(saveToServer(), {
-      success: "Game Saved!",
-      loading: "Saving game state...",
-      error: "Oops! An error occured saving!",
-    });
+    saveToServer(true).then((result) => {
+      if(!result.success) {
+        toast.error(result.error ?? "An error occurred saving")
+      } else {
+        toast.success("Puzzle saved!")
+      }
+    }).catch(_err => toast.error("An unexpected error occurred saving"));
   }
 });
 

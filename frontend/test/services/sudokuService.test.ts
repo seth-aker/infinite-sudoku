@@ -258,15 +258,12 @@ describe("sudokuService", () => {
     });
 
     it("decodes the saved actions", async () => {
-      // Encode through saveProgress so the test does not hardcode the bit layout.
-      safeFetch.mockResolvedValue({ success: true, status: 204 });
-      await saveProgress(sampleProgress());
-      const encoded = sentBody().actions;
-
+      // The encoded values are the wire format shared with the server, so they
+      // are pinned on purpose (see encodedSampleHistory).
       safeFetch.mockResolvedValue({
         success: true,
         status: 200,
-        body: savedDto({ actions: encoded }),
+        body: savedDto({ actions: encodedSampleHistory() }),
       });
       const result = await getSavedProgress("puzzle-1");
 

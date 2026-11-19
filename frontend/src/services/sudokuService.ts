@@ -111,7 +111,7 @@ export async function saveProgress(
   const response = await safeFetch<void>(`${BASE_URL}/sudoku/${progress.puzzleId}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    keepalive: progress.keepAlive,
+    keepalive: keepAlive,
     body: JSON.stringify(body),
     credentials: "include",
   });

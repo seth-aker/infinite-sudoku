@@ -1,32 +1,17 @@
 import {
   useGameStore,
-  type Action,
-  type Cell,
   type DifficultyRating,
-  type GameStatus,
 } from "@/stores/gameStore";
 import { useGameClock } from "./useGameClock";
 import { useUserStore } from "@/stores/userStore";
 import * as sudokuService from "@/services/sudokuService";
 import type { ServiceResult } from "@/services/baseService";
 import { cloneCell } from "@/utils/puzzleUtils";
+import { GameSnapshotSchema, SNAPSHOT_VERSION, type GameSnapshot } from "@/validation/localStorage";
+import { safeParseJson } from "@/utils/jsonUtils";
 
 const hasStorage = () => typeof localStorage !== "undefined";
 const SESSION_KEY = "sudoku.game";
-export interface GameSnapshot {
-  puzzleId: string | undefined;
-  cells: Cell[];
-  originalCells: Cell[];
-  difficultyRating: DifficultyRating | undefined;
-  difficultyScore: number;
-  usingPencil: boolean;
-  selectedIdx: number | undefined;
-  history: Action[];
-  redoActions: Action[];
-  autoCandidateMode: boolean;
-  elapsedSeconds: number;
-  state: GameStatus;
-}
 
 export function useGameSession() {
   const gameStore = useGameStore();
@@ -67,8 +52,15 @@ export function useGameSession() {
     if (!hasStorage()) {
       return;
     }
-    const snapshot = takeSnapshot();
-    localStorage.setItem(SESSION_KEY, JSON.stringify(snapshot));
+    try {
+      const snapshot = takeSnapshot();
+      localStorage.setItem(SESSION_KEY, JSON.stringify({
+        version: SNAPSHOT_VERSION,
+        ...snapshot
+      }));
+    } catch {
+      // catch if storage is full or blocked. No need to do anything.
+    }
   }
   function loadLocal() {
     if (!hasStorage()) {
@@ -78,13 +70,15 @@ export function useGameSession() {
     if (!raw) {
       return;
     }
-    try {
-      const snapshot = JSON.parse(raw);
+      const parsed = GameSnapshotSchema.safeParse(safeParseJson(raw));
+      if(!parsed.success) {
+        clearLocal();
+        return;
+      }
+      const {version: _, ...snapshot } = parsed.data;
       applySnapshot(snapshot);
-    } catch {
-      return;
-    }
   }
+
   function clearLocal() {
     if (!hasStorage()) {
       return;
@@ -96,7 +90,7 @@ export function useGameSession() {
     keepAlive?: boolean,
   ): Promise<ServiceResult<void>> {
     if (!gameStore.puzzleId || !userStore.isAuthenticated) {
-      return { success: false, error: "Nothing to save", status: 400  };
+      return { success: false, error: "Nothing to save", status: 400 };
     }
     return await sudokuService.saveProgress({
       puzzleId: gameStore.puzzleId,
@@ -113,11 +107,11 @@ export function useGameSession() {
     gameStore.loading = true;
     try {
       const result = await sudokuService.getNewPuzzle(difficulty);
-      if(!result.success) {
+      if (!result.success) {
         return result;
       }
       const body = result.body;
-      if(!body) {
+      if (!body) {
         return {
           success: false,
           error: "Missing puzzle details",
@@ -146,11 +140,11 @@ export function useGameSession() {
     gameStore.loading = true;
     try {
       const result = await sudokuService.getSavedProgress(puzzleId);
-      if(!result.success) {
+      if (!result.success) {
         return result;
       }
       const body = result.body;
-      if(!body) {
+      if (!body) {
         return {
           success: false,
           error: "Error resuming puzzle",

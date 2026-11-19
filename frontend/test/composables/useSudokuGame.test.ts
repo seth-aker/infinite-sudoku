@@ -24,6 +24,25 @@ function setup() {
   return { store, game: useSudokuGame() };
 }
 
+type Store = ReturnType<typeof useGameStore>;
+
+// Makes cell 0 an ordinary empty cell so the lowest index can be tested.
+function freeFirstCell(store: Store) {
+  store.originalCells[0].value = 0;
+  store.cells[0].value = 0;
+}
+
+function boardState(store: Store) {
+  return { cells: store.cells.map(cloneCell), history: [...store.history] };
+}
+
+// A rejected move must leave no trace: same board, nothing to undo, no save.
+function expectIgnored(store: Store, before: ReturnType<typeof boardState>) {
+  expect(store.cells).toEqual(before.cells);
+  expect(store.history).toEqual(before.history);
+  expect(saveLocal).not.toHaveBeenCalled();
+}
+
 describe("useSudokuGame", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
@@ -60,17 +79,19 @@ describe("useSudokuGame", () => {
   });
 
   describe("placeValue", () => {
-    it("sets the value, records one undo step and saves", () => {
+    it("sets the value, saves, and can be undone in one step", () => {
       const { store, game } = setup();
 
       game.placeValue(5, 40);
 
       expect(store.cells[40].value).toBe(5);
-      expect(store.history).toEqual([{ isParent: true, cell: { idx: 40, value: 0, candidates: [] } }]);
       expect(saveLocal).toHaveBeenCalledOnce();
+
+      game.undo();
+      expect(store.cells[40].value).toBe(0);
     });
 
-    it("removes the value from peers' candidates and records each change", () => {
+    it("removes the value from peers' candidates, and undo puts them back", () => {
       const { store, game } = setup();
       store.cells[41].candidates = [3, 5]; // same row
       store.cells[4].candidates = [5]; // same column
@@ -83,14 +104,14 @@ describe("useSudokuGame", () => {
       expect(store.cells[4].candidates).toEqual([]);
       expect(store.cells[30].candidates).toEqual([9]);
       expect(store.cells[80].candidates).toEqual([5]);
-      expect(store.history.filter((a) => !a.isParent).map((a) => a.cell)).toEqual(
-        expect.arrayContaining([
-          { idx: 41, value: 0, candidates: [3, 5] },
-          { idx: 4, value: 0, candidates: [5] },
-          { idx: 30, value: 0, candidates: [5, 9] },
-        ]),
-      );
-      expect(store.history).toHaveLength(4);
+
+      game.undo();
+
+      expect(store.cells[40].value).toBe(0);
+      expect(store.cells[41].candidates).toEqual([3, 5]);
+      expect(store.cells[4].candidates).toEqual([5]);
+      expect(store.cells[30].candidates).toEqual([5, 9]);
+      expect(store.cells[80].candidates).toEqual([5]);
     });
 
     it("clears the redo stack", () => {
@@ -121,10 +142,42 @@ describe("useSudokuGame", () => {
       ["an index above 80", 5, 81],
     ])("ignores %s", (_, value, idx) => {
       const { store, game } = setup();
+      const before = boardState(store);
 
       expect(() => game.placeValue(value, idx)).not.toThrow();
-      expect(store.history).toEqual([]);
-      expect(saveLocal).not.toHaveBeenCalled();
+      expectIgnored(store, before);
+    });
+
+    it.each([
+      ["value 1", 1],
+      ["value 9", 9],
+    ])("accepts %s", (_, value) => {
+      const { store, game } = setup();
+
+      game.placeValue(value, 40);
+
+      expect(store.cells[40].value).toBe(value);
+    });
+
+    it("accepts value 0, which empties the cell", () => {
+      const { store, game } = setup();
+      store.cells[40].value = 5;
+
+      game.placeValue(0, 40);
+
+      expect(store.cells[40].value).toBe(0);
+      expect(saveLocal).toHaveBeenCalledOnce();
+    });
+
+    it("accepts the first and last index", () => {
+      const { store, game } = setup();
+      freeFirstCell(store);
+
+      game.placeValue(4, 0);
+      game.placeValue(6, 80);
+
+      expect(store.cells[0].value).toBe(4);
+      expect(store.cells[80].value).toBe(6);
     });
   });
 
@@ -137,8 +190,10 @@ describe("useSudokuGame", () => {
       game.clearCell(40);
 
       expect(store.cells[40]).toEqual({ idx: 40, value: 0, candidates: [1] });
-      expect(store.history).toHaveLength(1);
       expect(saveLocal).toHaveBeenCalledOnce();
+
+      game.undo();
+      expect(store.cells[40]).toEqual({ idx: 40, value: 5, candidates: [1] });
     });
 
     it("clears only the candidates in pencil mode", () => {
@@ -160,6 +215,30 @@ describe("useSudokuGame", () => {
       expect(store.cells[GIVEN_IDX].value).toBe(GIVEN_VALUE);
       expect(store.history).toEqual([]);
     });
+
+    it.each([
+      ["an index below 0", -1],
+      ["an index above 80", 81],
+    ])("ignores %s", (_, idx) => {
+      const { store, game } = setup();
+      const before = boardState(store);
+
+      expect(() => game.clearCell(idx)).not.toThrow();
+      expectIgnored(store, before);
+    });
+
+    it("clears the first and last index", () => {
+      const { store, game } = setup();
+      freeFirstCell(store);
+      store.cells[0].value = 4;
+      store.cells[80].value = 6;
+
+      game.clearCell(0);
+      game.clearCell(80);
+
+      expect(store.cells[0].value).toBe(0);
+      expect(store.cells[80].value).toBe(0);
+    });
   });
 
   describe("toggleCandidate", () => {
@@ -172,8 +251,13 @@ describe("useSudokuGame", () => {
 
       game.toggleCandidate(3, 40);
       expect(store.cells[40].candidates).toEqual([8]);
-      expect(store.history).toHaveLength(3);
       expect(saveLocal).toHaveBeenCalledTimes(3);
+
+      // Each toggle is its own undo step.
+      game.undo();
+      expect(store.cells[40].candidates).toEqual([3, 8]);
+      game.undo();
+      expect(store.cells[40].candidates).toEqual([3]);
     });
 
     it("does not change a given cell", () => {
@@ -183,6 +267,42 @@ describe("useSudokuGame", () => {
 
       expect(store.cells[GIVEN_IDX].candidates).toEqual([]);
       expect(store.history).toEqual([]);
+    });
+
+    // Candidates 0 and 10+ don't fit the 9-bit candidate mask in a saved action;
+    // 10 would land on the isParent bit and corrupt undo grouping.
+    it.each([
+      ["a candidate below 1", 0, 40],
+      ["a negative candidate", -1, 40],
+      ["a candidate above 9", 10, 40],
+      ["an index below 0", 3, -1],
+      ["an index above 80", 3, 81],
+    ])("ignores %s", (_, value, idx) => {
+      const { store, game } = setup();
+      const before = boardState(store);
+
+      expect(() => game.toggleCandidate(value, idx)).not.toThrow();
+      expectIgnored(store, before);
+    });
+
+    it("accepts candidates 1 and 9", () => {
+      const { store, game } = setup();
+
+      game.toggleCandidate(1, 40);
+      game.toggleCandidate(9, 40);
+
+      expect(store.cells[40].candidates).toEqual([1, 9]);
+    });
+
+    it("accepts the first and last index", () => {
+      const { store, game } = setup();
+      freeFirstCell(store);
+
+      game.toggleCandidate(2, 0);
+      game.toggleCandidate(2, 80);
+
+      expect(store.cells[0].candidates).toEqual([2]);
+      expect(store.cells[80].candidates).toEqual([2]);
     });
   });
 

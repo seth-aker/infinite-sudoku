@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import { useGameStore, type Cell } from "@/stores/gameStore";
 import { useUserStore } from "@/stores/userStore";
-import { useGameSession, type GameSnapshot } from "@/composables/useGameSession";
+import { useGameSession } from "@/composables/useGameSession";
+import type { GameSnapshot } from "@/validation/localStorage";
 import * as sudokuService from "@/services/sudokuService";
 import { createBlankCells } from "@/utils/puzzleUtils";
 
@@ -12,13 +13,8 @@ vi.mock("@/services/sudokuService", () => ({
   saveProgress: vi.fn(),
 }));
 
-// The clock is replaced with spies so these tests only check when the session
-// starts, resets or stops it; its timing is tested in gameStore.test.ts.
-const clock = { start: vi.fn(), pause: vi.fn(), halt: vi.fn(), reset: vi.fn() };
-vi.mock("@/composables/useGameClock", () => ({
-  useGameClock: () => clock,
-}));
-
+// The real clock runs (on fake timers) so tests check whether the game is
+// actually ticking, not which clock functions were called.
 const getNewPuzzle = vi.mocked(sudokuService.getNewPuzzle);
 const getSavedProgress = vi.mocked(sudokuService.getSavedProgress);
 const saveProgress = vi.mocked(sudokuService.saveProgress);
@@ -59,12 +55,14 @@ function sampleSnapshot(): GameSnapshot {
 
 describe("useGameSession", () => {
   beforeEach(() => {
+    vi.useFakeTimers();
     setActivePinia(createPinia());
     localStorage.clear();
     vi.clearAllMocks();
   });
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.useRealTimers();
   });
 
   describe("local snapshots", () => {
@@ -125,6 +123,137 @@ describe("useGameSession", () => {
         session.loadLocal();
         session.clearLocal();
       }).not.toThrow();
+    });
+
+    it("saveLocal does not throw when storage is full", () => {
+      const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+        throw new DOMException("quota exceeded", "QuotaExceededError");
+      });
+      try {
+        const session = useGameSession();
+        session.applySnapshot(sampleSnapshot());
+
+        expect(() => session.saveLocal()).not.toThrow();
+      } finally {
+        setItem.mockRestore();
+      }
+    });
+  });
+
+  describe("checking saved games on load", () => {
+    // The stored JSON, loosely typed so tests can corrupt any part of it.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    type SavedJson = Record<string, any>;
+
+    // A save written by the app itself, so each test starts from the current
+    // format (version included) and changes one thing.
+    function appSave(snapshot: GameSnapshot = sampleSnapshot()): SavedJson {
+      const session = useGameSession();
+      session.applySnapshot(snapshot);
+      session.saveLocal();
+      return JSON.parse(localStorage.getItem(SESSION_KEY)!);
+    }
+
+    // Stores `saved` and loads it into a fresh store, as a page reload would.
+    function reloadWith(saved: unknown) {
+      localStorage.setItem(SESSION_KEY, JSON.stringify(saved));
+      setActivePinia(createPinia());
+      const session = useGameSession();
+      const fresh = session.takeSnapshot();
+      session.loadLocal();
+      return { session, fresh };
+    }
+
+    // Confirms the untouched save loads, so a later rejection is down to the one
+    // change the test made, not to the app writing invalid saves.
+    function expectLoads(saved: SavedJson) {
+      expect(reloadWith(saved).session.takeSnapshot().puzzleId).toBe(saved.puzzleId);
+    }
+
+    // A rejected save leaves the fresh game alone and is removed, so it isn't
+    // re-checked and rejected on every page load.
+    function expectRejected(saved: unknown) {
+      const { session, fresh } = reloadWith(saved);
+
+      expect(session.takeSnapshot()).toEqual(fresh);
+      expect(localStorage.getItem(SESSION_KEY)).toBeNull();
+    }
+
+    describe("accepts", () => {
+      it("a save written by the current version", () => {
+        const { session } = reloadWith(appSave());
+
+        expect(session.takeSnapshot()).toEqual(sampleSnapshot());
+        expect(localStorage.getItem(SESSION_KEY)).not.toBeNull();
+      });
+
+      it("a save whose optional fields are unset", () => {
+        // JSON drops undefined, so these fields are absent from the stored save.
+        const snapshot = { ...sampleSnapshot(), difficultyRating: undefined, selectedIdx: undefined };
+
+        const { session } = reloadWith(appSave(snapshot));
+
+        expect(session.takeSnapshot()).toEqual(snapshot);
+      });
+
+      it("a board using the edge values: empty (0) and 9, candidates 1 and 9", () => {
+        const snapshot = sampleSnapshot();
+        snapshot.cells[1] = { idx: 1, value: 9, candidates: [] };
+        snapshot.cells[2] = { idx: 2, value: 0, candidates: [1, 9] };
+        snapshot.selectedIdx = 80;
+
+        const { session } = reloadWith(appSave(snapshot));
+
+        expect(session.takeSnapshot()).toEqual(snapshot);
+      });
+    });
+
+    describe("discards", () => {
+      it("a save from before versioning", () => {
+        expectRejected(sampleSnapshot()); // today's format: no version field
+      });
+
+      it("a save from a different version", () => {
+        const saved = appSave();
+        expectLoads(saved);
+
+        expectRejected({ ...saved, version: saved.version + 1 });
+      });
+
+      it.each([
+        ["null", null],
+        ["an array", []],
+        ["a string", "game"],
+        ["a number", 42],
+        ["an empty object", {}],
+      ])("a save that is %s", (_, saved) => {
+        expectRejected(saved);
+      });
+
+      it.each<[string, (saved: SavedJson) => void]>([
+        ["is missing the board", (s) => delete s.cells],
+        ["has a board of 80 cells", (s) => s.cells.pop()],
+        ["has an original puzzle of 82 cells", (s) => s.originalCells.push({ idx: 81, value: 0, candidates: [] })],
+        ["has cells out of order", (s) => ([s.cells[1], s.cells[2]] = [s.cells[2], s.cells[1]])],
+        ["has a value above 9", (s) => (s.cells[40].value = 10)],
+        ["has a value of -1 (an unparseable digit)", (s) => (s.cells[40].value = -1)],
+        ["has a fractional value", (s) => (s.cells[40].value = 2.5)],
+        ["has a value stored as a string", (s) => (s.cells[40].value = "5")],
+        ["has a candidate of 0", (s) => (s.cells[41].candidates = [0])],
+        ["has a candidate of 10", (s) => (s.cells[41].candidates = [10])],
+        ["has an undo entry with a bad cell", (s) => (s.history[0].cell.candidates = [10])],
+        ["has a redo entry missing isParent", (s) => delete s.redoActions[0].isParent],
+        ["has an unknown game state", (s) => (s.state = "won")],
+        ["has an unknown difficulty", (s) => (s.difficultyRating = "extreme")],
+        ["has a negative time", (s) => (s.elapsedSeconds = -1)],
+        ["has a selected index off the board", (s) => (s.selectedIdx = 81)],
+      ])("a save that %s", (_, corrupt) => {
+        const saved = appSave();
+        expectLoads(saved);
+        corrupt(saved);
+
+        expectRejected(saved);
+      });
     });
   });
 
@@ -202,9 +331,21 @@ describe("useGameSession", () => {
       expect(store.redoActions).toEqual([]);
       expect(store.selectedIdx).toBeUndefined();
       expect(store.loading).toBe(false);
-      expect(clock.reset).toHaveBeenCalledOnce();
-      expect(clock.start).toHaveBeenCalledOnce();
       expect(storedSnapshot()?.puzzleId).toBe("new-1");
+    });
+
+    it("starts the clock from zero, replacing the previous game's time", async () => {
+      const session = useGameSession();
+      session.applySnapshot(sampleSnapshot()); // 125 seconds in
+      getNewPuzzle.mockResolvedValue({ success: true, status: 200, body: newPuzzle() });
+
+      await session.startNewPuzzle("hard");
+      const store = useGameStore();
+      vi.advanceTimersByTime(2000);
+
+      expect(store.state).toBe("playing");
+      expect(store.isTimerRunning).toBe(true);
+      expect(store.elapsedSeconds).toBe(2);
     });
 
     it("keeps the board and the original puzzle separate", async () => {
@@ -228,10 +369,12 @@ describe("useGameSession", () => {
         getNewPuzzle.mockResolvedValue(response);
 
         const result = await session.startNewPuzzle("hard");
+        vi.advanceTimersByTime(2000);
 
+        // The snapshot includes elapsedSeconds, so this also shows the clock never ran.
         expect(result.success).toBe(false);
         expect(session.takeSnapshot()).toEqual(sampleSnapshot());
-        expect(clock.start).not.toHaveBeenCalled();
+        expect(useGameStore().isTimerRunning).toBe(false);
       });
 
       it.each([
