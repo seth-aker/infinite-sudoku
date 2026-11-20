@@ -9,7 +9,6 @@ import type { ServiceResult } from "@/services/baseService";
 import { cloneCell } from "@/utils/puzzleUtils";
 import { GameSnapshotSchema, SNAPSHOT_VERSION, type GameSnapshot } from "@/validation/localStorage";
 import { safeParseJson } from "@/utils/jsonUtils";
-import { useRoute, useRouter } from "vue-router";
 
 const hasStorage = () => typeof localStorage !== "undefined";
 const SESSION_KEY = "sudoku.game";
@@ -18,8 +17,6 @@ export function useGameSession() {
   const gameStore = useGameStore();
   const userStore = useUserStore();
   const clock = useGameClock();
-  const route = useRoute()
-  const router = useRouter();
   function takeSnapshot(): GameSnapshot {
     return {
       puzzleId: gameStore.puzzleId,
@@ -162,9 +159,6 @@ export function useGameSession() {
       gameStore.difficultyRating = body.difficultyRating;
       gameStore.difficultyScore = body.difficultyScore;
       saveLocal();
-      if (body.difficultyRating !== route.params.difficulty) {
-        router.push({ name: 'sudoku', params: { difficulty: body.difficultyRating } })
-      }
       return result;
     } catch (err) {
       return { success: false, error: `An unexpected error occured: ${err}`, status: 400 };

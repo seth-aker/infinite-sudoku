@@ -5,12 +5,13 @@ import { useGameSession } from "./useGameSession";
 import { useDialog } from "./useDialog";
 import { useGameClock } from "./useGameClock";
 import { toast } from "vue-sonner";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 export function useAuth() {
   const userStore = useUserStore();
   const gameStore = useGameStore();
   const clock = useGameClock();
   const router = useRouter()
+  const route = useRoute();
   const { showDialog } = useDialog();
   const { resumeSavedPuzzle, saveToServer } = useGameSession();
 
@@ -36,7 +37,7 @@ export function useAuth() {
             important: true,
             action: {
               label: "Resend verification email?",
-              onClick: () => router.push({name: "request-email-verification"}),
+              onClick: () => router.push({ name: "request-email-verification" }),
             },
             duration: Infinity
           });
@@ -84,16 +85,8 @@ export function useAuth() {
               {
                 text: "Resume unfinished",
                 onClick: async () => {
-                  try {
-                    const result = await resumeSavedPuzzle(userStore.currentPuzzleId!);
-                    if(!result.success) {
-                      showError(result.error);
-                    }
-                  } catch (err) {
-                    showError(err);
-                  } finally {
-                    clock.start();
-                  }
+                  await _resumeSavedPuzzle(userStore.currentPuzzleId!);
+                  clock.start();
                 },
                 closeOnClick: true,
               },
@@ -103,17 +96,14 @@ export function useAuth() {
           // current puzzle id is undefined
         } else {
           const result = await saveToServer();
-          if(!result.success) {
+          if (!result.success) {
             showError(result.error);
           }
         }
         // !gamestore.puzzle
       } else {
         if (userStore.currentPuzzleId) {
-          const result = await resumeSavedPuzzle(userStore.currentPuzzleId);
-          if(!result.success) {
-            showError(result.error);
-          }
+          await _resumeSavedPuzzle(userStore.currentPuzzleId);
         }
       }
       userStore.loading = false;
@@ -176,7 +166,7 @@ export function useAuth() {
       userStore.set(user);
       if (gameStore.puzzleId) {
         const result = await saveToServer();
-        if(!result.success) {
+        if (!result.success) {
           showError(result.error);
         }
       }
@@ -235,10 +225,26 @@ export function useAuth() {
 
   async function requestEmailVerification(email: string) {
     const res = await userService.requestEmailVerification(email);
-    if(!res.success) {
+    if (!res.success) {
       toast.error(res.error ?? "An error occured")
     } else {
       toast.success("Verification email sent!")
+    }
+  }
+
+  async function _resumeSavedPuzzle(puzzleId: string) {
+    try {
+      const result = await resumeSavedPuzzle(puzzleId);
+      if (!result.success) {
+        showError(result.error);
+      } else {
+        const difficultyRating = result.body?.difficultyRating;
+        if (difficultyRating && route.params.difficulty !== difficultyRating) {
+          router.push({ name: 'sudoku', params: { difficulty: difficultyRating } })
+        }
+      }
+    } catch (err) {
+      showError(err)
     }
   }
   return {

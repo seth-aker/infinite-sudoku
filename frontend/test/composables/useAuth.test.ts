@@ -36,8 +36,11 @@ vi.mock("@/composables/useGameClock", () => ({
 }));
 
 const router = { push: vi.fn() };
+// The page the player is on when they log in.
+const route = { params: {} as Record<string, unknown> };
 vi.mock("vue-router", () => ({
   useRouter: () => router,
+  useRoute: () => route,
 }));
 
 vi.mock("vue-sonner", () => ({
@@ -75,12 +78,18 @@ function makeUser(overrides: Partial<UserDto> = {}): UserDto {
   };
 }
 
+// A successful resume of a puzzle with the given difficulty.
+function resumedPuzzle(difficultyRating: string) {
+  return { success: true, status: 200, body: { puzzleId: "saved-1", difficultyRating } };
+}
+
 describe("useAuth", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     vi.clearAllMocks();
     session.saveToServer.mockResolvedValue({ success: true, status: 200 });
     session.resumeSavedPuzzle.mockResolvedValue({ success: true, status: 200 });
+    route.params = {};
     // Dialog state lives at module level, so clear anything a previous test opened.
     useDialog().closeDialog();
   });
@@ -199,6 +208,73 @@ describe("useAuth", () => {
         expect(result).toBe(true);
         expect(useUserStore().isAuthenticated).toBe(true);
         expectErrorToast(detail);
+        expect(router.push).not.toHaveBeenCalled();
+      });
+
+      it("still logs in, and shows an error, when resuming throws", async () => {
+        svc.login.mockResolvedValue({
+          success: true,
+          status: 200,
+          body: { user: makeUser({ currentPuzzleId: "saved-1" }) },
+        });
+        session.resumeSavedPuzzle.mockRejectedValue(new Error("Puzzle gone"));
+        const userStore = useUserStore();
+
+        const result = await useAuth().login("a@b.com", "x");
+
+        expect(result).toBe(true);
+        expect(userStore.isAuthenticated).toBe(true);
+        expect(userStore.loading).toBe(false);
+        expectErrorToast("Puzzle gone");
+        expect(router.push).not.toHaveBeenCalled();
+      });
+
+      it("opens the resumed puzzle's page when it is a different difficulty", async () => {
+        route.params = { difficulty: "easy" };
+        svc.login.mockResolvedValue({
+          success: true,
+          status: 200,
+          body: { user: makeUser({ currentPuzzleId: "saved-1" }) },
+        });
+        session.resumeSavedPuzzle.mockResolvedValue(resumedPuzzle("hard"));
+
+        await useAuth().login("a@b.com", "x");
+
+        expect(router.push).toHaveBeenCalledExactlyOnceWith({
+          name: "sudoku",
+          params: { difficulty: "hard" },
+        });
+      });
+
+      it("opens the resumed puzzle's page when logging in away from a puzzle", async () => {
+        // e.g. on the home page, which has no difficulty param
+        svc.login.mockResolvedValue({
+          success: true,
+          status: 200,
+          body: { user: makeUser({ currentPuzzleId: "saved-1" }) },
+        });
+        session.resumeSavedPuzzle.mockResolvedValue(resumedPuzzle("medium"));
+
+        await useAuth().login("a@b.com", "x");
+
+        expect(router.push).toHaveBeenCalledExactlyOnceWith({
+          name: "sudoku",
+          params: { difficulty: "medium" },
+        });
+      });
+
+      it("stays on the page when the resumed puzzle is that page's difficulty", async () => {
+        route.params = { difficulty: "hard" };
+        svc.login.mockResolvedValue({
+          success: true,
+          status: 200,
+          body: { user: makeUser({ currentPuzzleId: "saved-1" }) },
+        });
+        session.resumeSavedPuzzle.mockResolvedValue(resumedPuzzle("hard"));
+
+        await useAuth().login("a@b.com", "x");
+
+        expect(router.push).not.toHaveBeenCalled();
       });
 
       it("does nothing with puzzles when the user has none saved", async () => {
@@ -328,6 +404,65 @@ describe("useAuth", () => {
           expect(session.resumeSavedPuzzle).toHaveBeenCalledWith("saved-1");
           expect(session.saveToServer).not.toHaveBeenCalled();
           expect(clock.start).toHaveBeenCalledTimes(1);
+        });
+
+        async function chooseResume() {
+          await useAuth().login("a@b.com", "x");
+          const button = useDialog().dialogState.value!.buttons.find(
+            (b) => b.text === "Resume unfinished",
+          )!;
+          await button.onClick!();
+        }
+
+        it("opens the resumed puzzle's page when it is a different difficulty", async () => {
+          // Otherwise the easy page would show the hard puzzle's board.
+          route.params = { difficulty: "easy" };
+          session.resumeSavedPuzzle.mockResolvedValue(resumedPuzzle("hard"));
+
+          await chooseResume();
+
+          expect(router.push).toHaveBeenCalledExactlyOnceWith({
+            name: "sudoku",
+            params: { difficulty: "hard" },
+          });
+        });
+
+        it("stays on the page when the resumed puzzle is that page's difficulty", async () => {
+          route.params = { difficulty: "hard" };
+          session.resumeSavedPuzzle.mockResolvedValue(resumedPuzzle("hard"));
+
+          await chooseResume();
+
+          expect(router.push).not.toHaveBeenCalled();
+        });
+
+        it("stays on the page when the resumed puzzle has no difficulty", async () => {
+          route.params = { difficulty: "easy" };
+
+          await chooseResume();
+
+          expect(router.push).not.toHaveBeenCalled();
+        });
+
+        it("stays on the page when resuming fails", async () => {
+          route.params = { difficulty: "easy" };
+          session.resumeSavedPuzzle.mockResolvedValue({ success: false, status: 503, error: "Server down" });
+
+          await chooseResume();
+
+          expect(router.push).not.toHaveBeenCalled();
+        });
+
+        it("stays on the page when the user chooses to overwrite", async () => {
+          route.params = { difficulty: "easy" };
+          await useAuth().login("a@b.com", "x");
+
+          const button = useDialog().dialogState.value!.buttons.find(
+            (b) => b.text === "Overwrite with current",
+          )!;
+          await button.onClick!();
+
+          expect(router.push).not.toHaveBeenCalled();
         });
 
         // saveToServer and resumeSavedPuzzle report failure by returning
