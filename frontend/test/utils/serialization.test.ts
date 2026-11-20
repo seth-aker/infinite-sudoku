@@ -75,7 +75,9 @@ describe("serialization", () => {
       expect(cells.every((cell) => Array.isArray(cell.candidates) && cell.candidates.length === 0)).toBe(true);
     });
 
-    it("maps non-digit characters to -1", () => {
+    // -1 is a sentinel, not a playable value: deserializeCells doesn't validate,
+    // so anything using server data must reject it (see PuzzleSchema).
+    it("marks non-digit characters with -1 instead of dropping them", () => {
       const cells = deserializeCells({ cells: "1.x", candidates: "a2::" });
 
       expect(cells.map((cell) => cell.value)).toEqual([1, -1, -1]);

@@ -25,8 +25,11 @@ const guards = vi.hoisted(() => ({
   update: undefined as undefined | ((to: { params: Record<string, unknown> }) => unknown),
 }));
 const router = vi.hoisted(() => ({ push: vi.fn() }));
+// The page's route; mountGame points it at the difficulty being mounted.
+const route = vi.hoisted(() => ({ params: {} as Record<string, unknown> }));
 vi.mock("vue-router", () => ({
   useRouter: () => router,
+  useRoute: () => route,
   onBeforeRouteLeave: (fn: () => unknown) => (guards.leave = fn),
   onBeforeRouteUpdate: (fn: (to: { params: Record<string, unknown> }) => unknown) =>
     (guards.update = fn),
@@ -167,6 +170,7 @@ let pinia: Pinia;
 let wrapper: VueWrapper | undefined;
 
 async function mountGame(difficulty: DifficultyRating = "easy") {
+  route.params = { difficulty };
   wrapper = mount(Standard, { props: { difficulty }, global: { plugins: [pinia], stubs } });
   await flushPromises();
   return wrapper;
@@ -338,6 +342,7 @@ describe("Standard.vue", () => {
       let resolve!: (v: ReturnType<typeof newPuzzle>) => void;
       getNewPuzzle.mockReturnValue(new Promise((r) => (resolve = r)));
 
+      route.params = { difficulty: "easy" };
       wrapper = mount(Standard, { props: { difficulty: "easy" }, global: { plugins: [pinia], stubs } });
       await flushPromises();
       expect(wrapper.find('[data-test="loading"]').exists()).toBe(true);
@@ -580,19 +585,15 @@ describe("Standard.vue", () => {
       expect(pauseMenuOpen(w)).toBe(false);
     });
 
-    it("the timer button is disabled and does nothing once the puzzle is solved", async () => {
+    // Only the disabled state is checked: test-utils (like a browser) drops
+    // clicks on a disabled button, so clicking it here would prove nothing.
+    it("disables the timer button once the puzzle is solved", async () => {
       const w = await mountGame();
       expect(timerButton(w).attributes("disabled")).toBeUndefined();
+
       await solve();
 
       expect(timerButton(w).attributes("disabled")).toBeDefined();
-      await timerButton(w).trigger("click");
-      vi.advanceTimersByTime(3000);
-      const store = useGameStore();
-
-      expect(store.state).toBe("solved");
-      expect(store.isTimerRunning).toBe(false);
-      expect(pauseMenuOpen(w)).toBe(false);
     });
 
     it("resuming from the pause menu restarts the clock and closes the menu", async () => {
@@ -860,6 +861,7 @@ describe("Standard.vue", () => {
       await mountGame();
 
       await guards.leave!();
+      await flushPromises(); // the server save finishes in the background
 
       expect(storedGame().puzzleId).toBe("new-1");
       expect(saveProgress).toHaveBeenCalledOnce();
@@ -867,11 +869,37 @@ describe("Standard.vue", () => {
       expect(toast.error).not.toHaveBeenCalled();
     });
 
+    it("lets the player leave without waiting for the server save", async () => {
+      signIn();
+      await mountGame();
+      saveProgress.mockReturnValue(new Promise(() => {})); // never answers
+
+      let left = false;
+      void Promise.resolve(guards.leave!()).then(() => (left = true));
+      await flushPromises();
+
+      expect(left).toBe(true);
+    });
+
+    it("tells the player when the save on leaving fails", async () => {
+      signIn();
+      await mountGame();
+      saveProgress.mockResolvedValue({ success: false, status: 503, error: "Server down" });
+
+      await guards.leave!();
+      await flushPromises();
+
+      expect(toast.error).toHaveBeenCalledOnce();
+      expect(vi.mocked(toast.error).mock.calls[0]![0]).toContain("Server down");
+      expect(toast.success).not.toHaveBeenCalled();
+    });
+
     it("only saves locally when a signed-out player leaves the route", async () => {
       await mountGame();
       localStorage.clear();
 
       await guards.leave!();
+      await flushPromises();
 
       expect(storedGame().puzzleId).toBe("new-1");
       expect(saveProgress).not.toHaveBeenCalled();

@@ -14,10 +14,13 @@ export function useAuth() {
   const { showDialog } = useDialog();
   const { resumeSavedPuzzle, saveToServer } = useGameSession();
 
+  // err can be undefined: failed service results often carry no message.
   function showError(err: unknown) {
-    toast.error("Oops! An error occured!", {
-      description: err && typeof err === "string" ? err : (err as Error).message,
-    });
+    const description =
+      typeof err === "string" && err ? err
+        : err instanceof Error ? err.message
+          : "Something went wrong. Please try again.";
+    toast.error("Oops! An error occured!", { description });
   }
 
   async function login(email: string, password: string) {
@@ -66,7 +69,10 @@ export function useAuth() {
                 text: "Overwrite with current",
                 onClick: async () => {
                   try {
-                    await saveToServer();
+                    const result = await saveToServer();
+                    if (!result.success) {
+                      showError(result.error);
+                    }
                   } catch (err) {
                     showError(err);
                   } finally {
@@ -79,7 +85,10 @@ export function useAuth() {
                 text: "Resume unfinished",
                 onClick: async () => {
                   try {
-                    await resumeSavedPuzzle(userStore.currentPuzzleId!);
+                    const result = await resumeSavedPuzzle(userStore.currentPuzzleId!);
+                    if(!result.success) {
+                      showError(result.error);
+                    }
                   } catch (err) {
                     showError(err);
                   } finally {
@@ -93,12 +102,18 @@ export function useAuth() {
           // gamestore puzzle id === current puzzle id OR
           // current puzzle id is undefined
         } else {
-          await saveToServer();
+          const result = await saveToServer();
+          if(!result.success) {
+            showError(result.error);
+          }
         }
         // !gamestore.puzzle
       } else {
         if (userStore.currentPuzzleId) {
-          await resumeSavedPuzzle(userStore.currentPuzzleId);
+          const result = await resumeSavedPuzzle(userStore.currentPuzzleId);
+          if(!result.success) {
+            showError(result.error);
+          }
         }
       }
       userStore.loading = false;
@@ -160,7 +175,10 @@ export function useAuth() {
       }
       userStore.set(user);
       if (gameStore.puzzleId) {
-        await saveToServer();
+        const result = await saveToServer();
+        if(!result.success) {
+          showError(result.error);
+        }
       }
       toast.success(
         `Welcome ${user.username}! Time to play!`,

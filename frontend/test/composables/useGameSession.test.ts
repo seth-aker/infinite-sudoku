@@ -13,6 +13,15 @@ vi.mock("@/services/sudokuService", () => ({
   saveProgress: vi.fn(),
 }));
 
+// The page the player is on: resumeSavedPuzzle follows a resumed puzzle of
+// another difficulty to its own page.
+const route = vi.hoisted(() => ({ params: {} as Record<string, unknown> }));
+const router = vi.hoisted(() => ({ push: vi.fn() }));
+vi.mock("vue-router", () => ({
+  useRoute: () => route,
+  useRouter: () => router,
+}));
+
 // The real clock runs (on fake timers) so tests check whether the game is
 // actually ticking, not which clock functions were called.
 const getNewPuzzle = vi.mocked(sudokuService.getNewPuzzle);
@@ -59,6 +68,7 @@ describe("useGameSession", () => {
     setActivePinia(createPinia());
     localStorage.clear();
     vi.clearAllMocks();
+    route.params = { difficulty: "easy" };
   });
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -66,15 +76,6 @@ describe("useGameSession", () => {
   });
 
   describe("local snapshots", () => {
-    it("applySnapshot followed by takeSnapshot returns the same game", () => {
-      const session = useGameSession();
-      const snapshot = sampleSnapshot();
-
-      session.applySnapshot(snapshot);
-
-      expect(session.takeSnapshot()).toEqual(snapshot);
-    });
-
     it("saveLocal stores the current game and loadLocal restores it", () => {
       const session = useGameSession();
       session.applySnapshot(sampleSnapshot());
@@ -359,6 +360,19 @@ describe("useGameSession", () => {
       expect(store.originalCells[40].value).toBe(0);
     });
 
+    it("sets the loading flag only while the request is in flight", async () => {
+      let respond!: (r: Awaited<ReturnType<typeof getNewPuzzle>>) => void;
+      getNewPuzzle.mockReturnValue(new Promise((r) => (respond = r)));
+      const session = useGameSession();
+
+      const pending = session.startNewPuzzle("hard");
+      expect(useGameStore().loading).toBe(true);
+
+      respond({ success: true, status: 200, body: newPuzzle() });
+      await pending;
+      expect(useGameStore().loading).toBe(false);
+    });
+
     describe("when the puzzle cannot be loaded", () => {
       it.each([
         ["the request fails", { success: false as const, status: 503, error: "down" }],
@@ -442,10 +456,46 @@ describe("useGameSession", () => {
       expect(storedSnapshot()?.puzzleId).toBe("saved-1");
     });
 
+    it("stays on the page when the saved puzzle is that page's difficulty", async () => {
+      route.params = { difficulty: "easy" };
+      getSavedProgress.mockResolvedValue({ success: true, status: 200, body: savedPuzzle() });
+
+      await useGameSession().resumeSavedPuzzle("saved-1");
+
+      expect(router.push).not.toHaveBeenCalled();
+    });
+
+    it("opens a saved puzzle of another difficulty on its own page", async () => {
+      // Otherwise the hard page would hide the easy puzzle's board.
+      route.params = { difficulty: "hard" };
+      getSavedProgress.mockResolvedValue({ success: true, status: 200, body: savedPuzzle() });
+
+      await useGameSession().resumeSavedPuzzle("saved-1");
+
+      expect(router.push).toHaveBeenCalledExactlyOnceWith({
+        name: "sudoku",
+        params: { difficulty: "easy" },
+      });
+    });
+
+    it("sets the loading flag only while the request is in flight", async () => {
+      let respond!: (r: Awaited<ReturnType<typeof getSavedProgress>>) => void;
+      getSavedProgress.mockReturnValue(new Promise((r) => (respond = r)));
+      const session = useGameSession();
+
+      const pending = session.resumeSavedPuzzle("saved-1");
+      expect(useGameStore().loading).toBe(true);
+
+      respond({ success: true, status: 200, body: savedPuzzle() });
+      await pending;
+      expect(useGameStore().loading).toBe(false);
+    });
+
     it.each([
       ["the request fails", { success: false as const, status: 404, error: "not found" }],
       ["the response has no body", { success: true as const, status: 200 }],
-    ])("keeps the current game when %s", async (_, response) => {
+    ])("keeps the current game and page when %s", async (_, response) => {
+      route.params = { difficulty: "hard" };
       const session = useGameSession();
       session.applySnapshot(sampleSnapshot());
       getSavedProgress.mockResolvedValue(response);
@@ -454,6 +504,19 @@ describe("useGameSession", () => {
 
       expect(result.success).toBe(false);
       expect(session.takeSnapshot()).toEqual(sampleSnapshot());
+      expect(router.push).not.toHaveBeenCalled();
+    });
+
+    it("returns a failure when the service throws", async () => {
+      getSavedProgress.mockRejectedValue(new Error("boom"));
+
+      const result = await useGameSession().resumeSavedPuzzle("saved-1");
+
+      expect(result).toEqual({
+        success: false,
+        status: 400,
+        error: expect.stringContaining("boom"),
+      });
     });
 
     it.each([

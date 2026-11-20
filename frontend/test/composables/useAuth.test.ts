@@ -60,6 +60,8 @@ function expectErrorToast(containing?: string) {
   expect(toastError).toHaveBeenCalledOnce();
   const text = toastText(toastError.mock.calls[0]!);
   expect(text.trim()).not.toBe("");
+  // A missing message must not leak through as "undefined" or a JS error.
+  expect(text).not.toMatch(/undefined|Cannot read/);
   if (containing) expect(text).toContain(containing);
 }
 
@@ -181,6 +183,24 @@ describe("useAuth", () => {
         expect(session.saveToServer).not.toHaveBeenCalled();
       });
 
+      it.each([
+        ["with the server's message", { success: false as const, status: 404, error: "Puzzle gone" }, "Puzzle gone"],
+        ["without a message", { success: false as const, status: 500 }, undefined],
+      ])("still logs in, and shows an error, when resuming fails %s", async (_, failure, detail) => {
+        svc.login.mockResolvedValue({
+          success: true,
+          status: 200,
+          body: { user: makeUser({ currentPuzzleId: "saved-1" }) },
+        });
+        session.resumeSavedPuzzle.mockResolvedValue(failure);
+
+        const result = await useAuth().login("a@b.com", "x");
+
+        expect(result).toBe(true);
+        expect(useUserStore().isAuthenticated).toBe(true);
+        expectErrorToast(detail);
+      });
+
       it("does nothing with puzzles when the user has none saved", async () => {
         svc.login.mockResolvedValue({
           success: true,
@@ -225,6 +245,24 @@ describe("useAuth", () => {
 
         expect(session.saveToServer).toHaveBeenCalledTimes(1);
         expect(useDialog().isOpen.value).toBe(false);
+      });
+
+      it.each([
+        ["with the server's message", { success: false as const, status: 503, error: "Server down" }, "Server down"],
+        ["without a message", { success: false as const, status: 500 }, undefined],
+      ])("still logs in, and shows an error, when saving fails %s", async (_, failure, detail) => {
+        svc.login.mockResolvedValue({
+          success: true,
+          status: 200,
+          body: { user: makeUser() },
+        });
+        session.saveToServer.mockResolvedValue(failure);
+
+        const result = await useAuth().login("a@b.com", "x");
+
+        expect(result).toBe(true);
+        expect(useUserStore().isAuthenticated).toBe(true);
+        expectErrorToast(detail);
       });
 
       describe("when the user has a different puzzle saved", () => {
@@ -292,13 +330,15 @@ describe("useAuth", () => {
           expect(clock.start).toHaveBeenCalledTimes(1);
         });
 
+        // saveToServer and resumeSavedPuzzle report failure by returning
+        // { success: false }; they don't throw.
         it.each([
           ["overwrite", "Overwrite with current", () => session.saveToServer],
           ["resume", "Resume unfinished", () => session.resumeSavedPuzzle],
         ])(
-          "shows the error and still restarts the clock when %s throws",
+          "shows the server's error and still restarts the clock when %s fails",
           async (_, text, handler) => {
-            handler().mockRejectedValue(new Error("network down"));
+            handler().mockResolvedValue({ success: false, status: 503, error: "Server down" });
             await useAuth().login("a@b.com", "x");
 
             const button = useDialog().dialogState.value!.buttons.find(
@@ -306,8 +346,26 @@ describe("useAuth", () => {
             )!;
             await expect(button.onClick!()).resolves.toBeUndefined();
 
-            expectErrorToast("network down");
+            expectErrorToast("Server down");
             expect(clock.start).toHaveBeenCalledTimes(1);
+          },
+        );
+
+        it.each([
+          ["overwrite", "Overwrite with current", () => session.saveToServer],
+          ["resume", "Resume unfinished", () => session.resumeSavedPuzzle],
+        ])(
+          "shows a readable error when %s fails without a message",
+          async (_, text, handler) => {
+            handler().mockResolvedValue({ success: false, status: 500 });
+            await useAuth().login("a@b.com", "x");
+
+            const button = useDialog().dialogState.value!.buttons.find(
+              (b) => b.text === text,
+            )!;
+            await button.onClick!();
+
+            expectErrorToast(); // also rejects "undefined" / "Cannot read"
           },
         );
       });
@@ -395,6 +453,25 @@ describe("useAuth", () => {
       await useAuth().register("a@b.com", "Secret1!", "player", true);
 
       expect(session.saveToServer).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([
+      ["with the server's message", { success: false as const, status: 503, error: "Server down" }, "Server down"],
+      ["without a message", { success: false as const, status: 500 }, undefined],
+    ])("keeps the new account, and shows an error, when saving the puzzle fails %s", async (_, failure, detail) => {
+      svc.register.mockResolvedValue({
+        success: true,
+        status: 201,
+        body: { user: makeUser() },
+      });
+      useGameStore().puzzleId = "local-1";
+      session.saveToServer.mockResolvedValue(failure);
+
+      await useAuth().register("a@b.com", "Secret1!", "player", true);
+
+      expect(useUserStore().isAuthenticated).toBe(true);
+      expect(useUserStore().loading).toBe(false);
+      expectErrorToast(detail);
     });
 
     it("does not save when there is no puzzle in progress", async () => {

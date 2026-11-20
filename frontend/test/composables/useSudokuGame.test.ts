@@ -138,8 +138,12 @@ describe("useSudokuGame", () => {
     it.each([
       ["a value below 0", -1, 40],
       ["a value above 9", 10, 40],
+      ["a fractional value", 2.5, 40],
+      ["a NaN value", NaN, 40],
       ["an index below 0", 5, -1],
       ["an index above 80", 5, 81],
+      ["a fractional index", 5, 40.5],
+      ["a NaN index", 5, NaN],
     ])("ignores %s", (_, value, idx) => {
       const { store, game } = setup();
       const before = boardState(store);
@@ -219,6 +223,8 @@ describe("useSudokuGame", () => {
     it.each([
       ["an index below 0", -1],
       ["an index above 80", 81],
+      ["a fractional index", 40.5],
+      ["a NaN index", NaN],
     ])("ignores %s", (_, idx) => {
       const { store, game } = setup();
       const before = boardState(store);
@@ -275,8 +281,12 @@ describe("useSudokuGame", () => {
       ["a candidate below 1", 0, 40],
       ["a negative candidate", -1, 40],
       ["a candidate above 9", 10, 40],
+      ["a fractional candidate", 2.5, 40],
+      ["a NaN candidate", NaN, 40],
       ["an index below 0", 3, -1],
       ["an index above 80", 3, 81],
+      ["a fractional index", 3, 40.5],
+      ["a NaN index", 3, NaN],
     ])("ignores %s", (_, value, idx) => {
       const { store, game } = setup();
       const before = boardState(store);
@@ -466,6 +476,27 @@ describe("useSudokuGame", () => {
       game.placeValue(6, 40);
 
       expect(store.cells[40].value).toBe(6);
+    });
+
+    it("makes a solved board playable again", () => {
+      const { store, game } = setup();
+      game.placeValue(5, 40);
+      store.state = "solved";
+
+      game.resetBoard();
+      game.placeValue(6, 41);
+
+      expect(store.state).not.toBe("solved");
+      expect(store.cells[41].value).toBe(6);
+    });
+
+    it("leaves a game that wasn't solved in the state it was in", () => {
+      const { store, game } = setup();
+      store.state = "paused";
+
+      game.resetBoard();
+
+      expect(store.state).toBe("paused");
     });
 
     it("keeps undo and redo history", () => {

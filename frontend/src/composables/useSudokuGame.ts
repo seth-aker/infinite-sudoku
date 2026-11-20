@@ -28,10 +28,8 @@ export function useSudokuGame() {
     gameStore.usingPencil = !gameStore.usingPencil;
   }
   function placeValue(value: number, idx: number) {
-    if (value < 0 || value > 9 || idx < 0 || idx > 80 || gameStore.state === 'solved') {
-      return;
-    }
-    if (gameStore.originalCells[idx].value !== 0) {
+    if (!_isValidIdx(idx) || !_isValidCellValue(value)
+      || gameStore.state === 'solved' || gameStore.originalCells[idx].value !== 0) {
       return;
     }
     const prevCell = cloneCell(gameStore.cells[idx]);
@@ -59,8 +57,9 @@ export function useSudokuGame() {
   }
 
   function clearCell(idx: number) {
-    if (idx < 0 || idx > 80
-      || gameStore.originalCells[idx].value !== 0 || gameStore.state === 'solved') {
+    if (!_isValidIdx(idx)
+      || gameStore.originalCells[idx].value !== 0 
+      || gameStore.state === 'solved') {
       return;
     }
     const prevCell = cloneCell(gameStore.cells[idx]);
@@ -78,8 +77,8 @@ export function useSudokuGame() {
   }
 
   function toggleCandidate(value: number, idx: number) {
-    if (idx < 0 || idx > 80 || gameStore.originalCells[idx].value !== 0
-      || gameStore.state === 'solved' || value < 1 || value > 9) {
+    if (!_isValidIdx(idx) || gameStore.originalCells[idx].value !== 0
+      || gameStore.state === 'solved' || !_isValidCandidate(value)) {
       return;
     }
     const prevCell = cloneCell(gameStore.cells[idx]);
@@ -182,9 +181,23 @@ export function useSudokuGame() {
     clearLocal();
     gameStore.cells = gameStore.originalCells.map(cloneCell);
     gameStore.selectedIdx = undefined;
+    // The board is no longer solved. Without this the clock guards refuse to
+    // restart it and every move is blocked, leaving a reset board locked.
+    if (gameStore.state === "solved") {
+      gameStore.state = "idle";
+    }
     saveLocal();
   }
 
+  function _isValidIdx(idx: number) {
+    return Number.isInteger(idx) && idx >= 0 && idx <= 80;
+  }
+  function _isValidCellValue(value: number) {
+    return Number.isInteger(value) && value >= 0 && value <= 9;
+  }
+  function _isValidCandidate(value: number) {
+    return Number.isInteger(value) && value >= 1 && value <= 9;
+  }
   return {
     selectCell,
     getRow,
