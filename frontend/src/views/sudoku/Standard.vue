@@ -15,7 +15,7 @@ import { Icon } from "@iconify/vue";
 import LoadingOverlay from "@/components/LoadingOverlay.vue";
 import PauseMenu from "@/components/PauseMenu.vue";
 import { watchDebounced } from "@vueuse/core";
-import { onBeforeRouteLeave, onBeforeRouteUpdate, useRouter } from "vue-router";
+import { onBeforeRouteLeave, onBeforeRouteUpdate } from "vue-router";
 import { PUZZLE_DIFFICULTY_ROUTES } from "@/router";
 import { toast } from "vue-sonner";
 import { useGameStore, type DifficultyRating } from "@/stores/gameStore";
@@ -24,65 +24,28 @@ import { useGameSession } from "@/composables/useGameSession";
 import { useGameClock } from "@/composables/useGameClock";
 import { useSudokuGame } from "@/composables/useSudokuGame";
 import { useDialog } from "@/composables/useDialog";
+import { usePuzzleNavigation } from "@/composables/usePuzzleNavigation";
 
 const { difficulty } = defineProps<{ difficulty: DifficultyRating }>();
 const userStore = useUserStore();
 const gameStore = useGameStore();
-const router = useRouter();
 const { resetBoard } = useSudokuGame();
-const { showDialog, closeDialog } = useDialog();
+const { showDialog } = useDialog();
 const clock = useGameClock();
-const { saveToServer, startNewPuzzle, loadLocal, saveLocal } = useGameSession();
+const { saveToServer, loadLocal, saveLocal } = useGameSession();
+const { loadNewPuzzle } = usePuzzleNavigation();
 const dialogOpen = ref(false);
 const hasPlayableGame = computed(() => !!gameStore.puzzleId &&
   gameStore.difficultyRating === difficulty);
 
-const fetchNewPuzzle = async (difficulty: DifficultyRating) => {
-  const result = await startNewPuzzle(difficulty);
-  if (!result.success) {
-    const savedDifficulty = gameStore.puzzleId ? gameStore.difficultyRating :
-      undefined;
-    // TODO: Make this a separate helper component for clarity
-    showDialog({
-      title: "Error Fetching Puzzle",
-      message: result.error ?? `Error code: ${result.status}`,
-      buttons: [
-        {
-          text: "Retry",
-          onClick: async () => {
-            closeDialog();
-            await fetchNewPuzzle(difficulty)
-          },
-        },
-        ...(savedDifficulty && savedDifficulty !== difficulty ? [{
-          text: `Back to ${savedDifficulty} game`,
-          onClick: () => {
-            router.push({
-              name: 'sudoku', params: { difficulty: savedDifficulty }
-            })
-          },
-          closeOnClick: true,
-        }] : []),
-        {
-          text: "Cancel",
-          onClick: () => {
-            router.push({ name: 'home' })
-          },
-          closeOnClick: true,
-        }
-      ]
-    })
-  } else {
-    clock.start();
-  }
-}
+
 onMounted(async () => {
   gameStore.loading = true;
   loadLocal();
   if (!gameStore.puzzleId || gameStore.difficultyRating !== difficulty) {
-    await fetchNewPuzzle(difficulty);
+    await loadNewPuzzle(difficulty);
   }
-  if(hasPlayableGame.value && gameStore.state === 'playing') {
+  if (hasPlayableGame.value && gameStore.state === 'playing') {
     clock.start();
   }
   gameStore.loading = false;
@@ -105,7 +68,7 @@ onBeforeRouteLeave(async () => {
   saveLocal();
   if (userStore.isAuthenticated && gameStore.puzzleId) {
     saveToServer(true).then((result) => {
-      if(!result.success) {
+      if (!result.success) {
         toast.error(result.error ?? "An error occurred saving")
       } else {
         toast.success("Puzzle saved!")
@@ -222,7 +185,7 @@ const handleReset = () => {
           </DialogClose>
           <Button @click="
             () => {
-              fetchNewPuzzle(difficulty);
+              loadNewPuzzle(difficulty);
               dialogOpen = false;
             }
           ">

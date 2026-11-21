@@ -4,9 +4,8 @@ import NavHeader from "./components/NavHeader.vue";
 import { onMounted } from "vue";
 import { Toaster } from "./components/ui/sonner";
 import "vue-sonner/style.css";
-import AppDialog from "./components/AppDialog.vue";
 import { useAuth } from "./composables/useAuth";
-
+import AppDialog from "@/components/dialog/AppDialog.vue"
 const route = useRoute();
 const { getSession } = useAuth();
 

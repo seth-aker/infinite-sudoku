@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { useDialog, type DialogButton } from "@/composables/useDialog";
-import Button from "./ui/button/Button.vue";
-import Dialog from "./ui/dialog/Dialog.vue";
-import DialogContent from "./ui/dialog/DialogContent.vue";
-import DialogDescription from "./ui/dialog/DialogDescription.vue";
-import DialogFooter from "./ui/dialog/DialogFooter.vue";
-import DialogHeader from "./ui/dialog/DialogHeader.vue";
-import DialogTitle from "./ui/dialog/DialogTitle.vue";
+import Button from "../ui/button/Button.vue";
+import Dialog from "../ui/dialog/Dialog.vue";
+import DialogContent from "../ui/dialog/DialogContent.vue";
+import DialogDescription from "../ui/dialog/DialogDescription.vue";
+import DialogFooter from "../ui/dialog/DialogFooter.vue";
+import DialogHeader from "../ui/dialog/DialogHeader.vue";
+import DialogTitle from "../ui/dialog/DialogTitle.vue";
 
 const { isOpen, dialogState, closeDialog } = useDialog();
 

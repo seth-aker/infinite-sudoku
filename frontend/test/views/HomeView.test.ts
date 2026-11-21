@@ -20,8 +20,10 @@ vi.mock("@/services/sudokuService", () => ({
 }));
 
 const router = vi.hoisted(() => ({ push: vi.fn() }));
+// The home page is never a puzzle page, so new puzzles always navigate.
 vi.mock("vue-router", () => ({
   useRouter: () => router,
+  useRoute: () => ({ name: "home", params: {} }),
 }));
 
 // Icon is an anonymous component, so it can't be stubbed by name.

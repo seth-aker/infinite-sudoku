@@ -5,16 +5,16 @@ import { useGameSession } from "./useGameSession";
 import { useDialog } from "./useDialog";
 import { useGameClock } from "./useGameClock";
 import { toast } from "vue-sonner";
-import { useRoute, useRouter } from "vue-router";
+import { useRouter } from "vue-router";
+import { usePuzzleNavigation } from "./usePuzzleNavigation";
 export function useAuth() {
   const userStore = useUserStore();
   const gameStore = useGameStore();
   const clock = useGameClock();
   const router = useRouter()
-  const route = useRoute();
   const { showDialog } = useDialog();
-  const { resumeSavedPuzzle, saveToServer } = useGameSession();
-
+  const { saveToServer } = useGameSession();
+  const { resumePuzzle } = usePuzzleNavigation()
   // err can be undefined: failed service results often carry no message.
   function showError(err: unknown) {
     const description =
@@ -85,7 +85,7 @@ export function useAuth() {
               {
                 text: "Resume unfinished",
                 onClick: async () => {
-                  await _resumeSavedPuzzle(userStore.currentPuzzleId!);
+                  await resumePuzzle();
                   clock.start();
                 },
                 closeOnClick: true,
@@ -103,7 +103,7 @@ export function useAuth() {
         // !gamestore.puzzle
       } else {
         if (userStore.currentPuzzleId) {
-          await _resumeSavedPuzzle(userStore.currentPuzzleId);
+          await resumePuzzle();
         }
       }
       userStore.loading = false;
@@ -232,21 +232,6 @@ export function useAuth() {
     }
   }
 
-  async function _resumeSavedPuzzle(puzzleId: string) {
-    try {
-      const result = await resumeSavedPuzzle(puzzleId);
-      if (!result.success) {
-        showError(result.error);
-      } else {
-        const difficultyRating = result.body?.difficultyRating;
-        if (difficultyRating && route.params.difficulty !== difficultyRating) {
-          router.push({ name: 'sudoku', params: { difficulty: difficultyRating } })
-        }
-      }
-    } catch (err) {
-      showError(err)
-    }
-  }
   return {
     login,
     logout,

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
+import { flushPromises } from "@vue/test-utils";
 import { toast } from "vue-sonner";
 import { useAuth } from "@/composables/useAuth";
 import { useDialog } from "@/composables/useDialog";
@@ -22,10 +23,18 @@ vi.mock("@/services/userService", () => ({
 // functions useAuth decides to call.
 const session = {
   saveToServer: vi.fn(),
-  resumeSavedPuzzle: vi.fn(),
 };
 vi.mock("@/composables/useGameSession", () => ({
   useGameSession: () => session,
+}));
+
+// usePuzzleNavigation is tested on its own (including where it navigates and
+// how it reports failures); here we only care when useAuth asks it to resume.
+const nav = {
+  resumePuzzle: vi.fn(),
+};
+vi.mock("@/composables/usePuzzleNavigation", () => ({
+  usePuzzleNavigation: () => nav,
 }));
 
 // The clock is tested on its own (gameStore / useGameClock); here we only
@@ -36,11 +45,8 @@ vi.mock("@/composables/useGameClock", () => ({
 }));
 
 const router = { push: vi.fn() };
-// The page the player is on when they log in.
-const route = { params: {} as Record<string, unknown> };
 vi.mock("vue-router", () => ({
   useRouter: () => router,
-  useRoute: () => route,
 }));
 
 vi.mock("vue-sonner", () => ({
@@ -78,9 +84,15 @@ function makeUser(overrides: Partial<UserDto> = {}): UserDto {
   };
 }
 
-// A successful resume of a puzzle with the given difficulty.
-function resumedPuzzle(difficultyRating: string) {
-  return { success: true, status: 200, body: { puzzleId: "saved-1", difficultyRating } };
+// A resume that only finishes when the returned function is called, so tests
+// can check what happens before and after it completes.
+function pendingResume() {
+  let finish!: () => void;
+  nav.resumePuzzle.mockReturnValue(new Promise<void>((r) => (finish = r)));
+  return () => {
+    finish();
+    return flushPromises();
+  };
 }
 
 describe("useAuth", () => {
@@ -88,8 +100,7 @@ describe("useAuth", () => {
     setActivePinia(createPinia());
     vi.clearAllMocks();
     session.saveToServer.mockResolvedValue({ success: true, status: 200 });
-    session.resumeSavedPuzzle.mockResolvedValue({ success: true, status: 200 });
-    route.params = {};
+    nav.resumePuzzle.mockResolvedValue(undefined);
     // Dialog state lives at module level, so clear anything a previous test opened.
     useDialog().closeDialog();
   });
@@ -179,99 +190,52 @@ describe("useAuth", () => {
     });
 
     describe("with no puzzle in progress locally", () => {
-      it("resumes the user's saved puzzle", async () => {
+      beforeEach(() => {
         svc.login.mockResolvedValue({
           success: true,
           status: 200,
           body: { user: makeUser({ currentPuzzleId: "saved-1" }) },
         });
+      });
 
+      it("resumes the user's saved puzzle instead of saving", async () => {
         await useAuth().login("a@b.com", "x");
 
-        expect(session.resumeSavedPuzzle).toHaveBeenCalledWith("saved-1");
+        expect(nav.resumePuzzle).toHaveBeenCalledOnce();
         expect(session.saveToServer).not.toHaveBeenCalled();
+        expect(useDialog().isOpen.value).toBe(false);
       });
 
-      it.each([
-        ["with the server's message", { success: false as const, status: 404, error: "Puzzle gone" }, "Puzzle gone"],
-        ["without a message", { success: false as const, status: 500 }, undefined],
-      ])("still logs in, and shows an error, when resuming fails %s", async (_, failure, detail) => {
-        svc.login.mockResolvedValue({
-          success: true,
-          status: 200,
-          body: { user: makeUser({ currentPuzzleId: "saved-1" }) },
+      it("resumes after the user is signed in, so the saved puzzle id is known", async () => {
+        nav.resumePuzzle.mockImplementation(async () => {
+          expect(useUserStore().isAuthenticated).toBe(true);
+          expect(useUserStore().currentPuzzleId).toBe("saved-1");
         });
-        session.resumeSavedPuzzle.mockResolvedValue(failure);
 
-        const result = await useAuth().login("a@b.com", "x");
+        await useAuth().login("a@b.com", "x");
 
-        expect(result).toBe(true);
-        expect(useUserStore().isAuthenticated).toBe(true);
-        expectErrorToast(detail);
-        expect(router.push).not.toHaveBeenCalled();
+        expect(nav.resumePuzzle).toHaveBeenCalledOnce();
       });
 
-      it("still logs in, and shows an error, when resuming throws", async () => {
-        svc.login.mockResolvedValue({
-          success: true,
-          status: 200,
-          body: { user: makeUser({ currentPuzzleId: "saved-1" }) },
-        });
-        session.resumeSavedPuzzle.mockRejectedValue(new Error("Puzzle gone"));
+      it("stays loading, and doesn't finish logging in, until the puzzle is resumed", async () => {
+        const finishResume = pendingResume();
         const userStore = useUserStore();
+        let result: boolean | undefined;
 
-        const result = await useAuth().login("a@b.com", "x");
+        const login = useAuth().login("a@b.com", "x").then((r) => (result = r));
+        await flushPromises();
 
-        expect(result).toBe(true);
-        expect(userStore.isAuthenticated).toBe(true);
+        expect(userStore.loading).toBe(true);
+        expect(result).toBeUndefined();
+
+        await finishResume();
+        await login;
+
         expect(userStore.loading).toBe(false);
-        expectErrorToast("Puzzle gone");
-        expect(router.push).not.toHaveBeenCalled();
+        expect(result).toBe(true);
       });
 
-      it("opens the resumed puzzle's page when it is a different difficulty", async () => {
-        route.params = { difficulty: "easy" };
-        svc.login.mockResolvedValue({
-          success: true,
-          status: 200,
-          body: { user: makeUser({ currentPuzzleId: "saved-1" }) },
-        });
-        session.resumeSavedPuzzle.mockResolvedValue(resumedPuzzle("hard"));
-
-        await useAuth().login("a@b.com", "x");
-
-        expect(router.push).toHaveBeenCalledExactlyOnceWith({
-          name: "sudoku",
-          params: { difficulty: "hard" },
-        });
-      });
-
-      it("opens the resumed puzzle's page when logging in away from a puzzle", async () => {
-        // e.g. on the home page, which has no difficulty param
-        svc.login.mockResolvedValue({
-          success: true,
-          status: 200,
-          body: { user: makeUser({ currentPuzzleId: "saved-1" }) },
-        });
-        session.resumeSavedPuzzle.mockResolvedValue(resumedPuzzle("medium"));
-
-        await useAuth().login("a@b.com", "x");
-
-        expect(router.push).toHaveBeenCalledExactlyOnceWith({
-          name: "sudoku",
-          params: { difficulty: "medium" },
-        });
-      });
-
-      it("stays on the page when the resumed puzzle is that page's difficulty", async () => {
-        route.params = { difficulty: "hard" };
-        svc.login.mockResolvedValue({
-          success: true,
-          status: 200,
-          body: { user: makeUser({ currentPuzzleId: "saved-1" }) },
-        });
-        session.resumeSavedPuzzle.mockResolvedValue(resumedPuzzle("hard"));
-
+      it("leaves navigation to the resume itself", async () => {
         await useAuth().login("a@b.com", "x");
 
         expect(router.push).not.toHaveBeenCalled();
@@ -286,7 +250,7 @@ describe("useAuth", () => {
 
         await useAuth().login("a@b.com", "x");
 
-        expect(session.resumeSavedPuzzle).not.toHaveBeenCalled();
+        expect(nav.resumePuzzle).not.toHaveBeenCalled();
         expect(session.saveToServer).not.toHaveBeenCalled();
       });
     });
@@ -306,7 +270,7 @@ describe("useAuth", () => {
         await useAuth().login("a@b.com", "x");
 
         expect(session.saveToServer).toHaveBeenCalledTimes(1);
-        expect(session.resumeSavedPuzzle).not.toHaveBeenCalled();
+        expect(nav.resumePuzzle).not.toHaveBeenCalled();
         expect(useDialog().isOpen.value).toBe(false);
       });
 
@@ -357,7 +321,7 @@ describe("useAuth", () => {
           expect(isOpen.value).toBe(true);
           expect(dialogState.value?.title).toBe("Resume or Overwrite?");
           expect(session.saveToServer).not.toHaveBeenCalled();
-          expect(session.resumeSavedPuzzle).not.toHaveBeenCalled();
+          expect(nav.resumePuzzle).not.toHaveBeenCalled();
         });
 
         it("finishes logging in without waiting for the user to choose", async () => {
@@ -380,129 +344,99 @@ describe("useAuth", () => {
           expect(clock.start).not.toHaveBeenCalled();
         });
 
+        function dialogButton(text: string) {
+          return useDialog().dialogState.value!.buttons.find((b) => b.text === text)!;
+        }
+
+        it("closes the dialog after either choice", async () => {
+          await useAuth().login("a@b.com", "x");
+
+          expect(useDialog().dialogState.value!.buttons.map((b) => [b.text, b.closeOnClick])).toEqual([
+            ["Overwrite with current", true],
+            ["Resume unfinished", true],
+          ]);
+        });
+
         it("saves the local puzzle and restarts the clock when the user chooses to overwrite", async () => {
           await useAuth().login("a@b.com", "x");
 
-          const button = useDialog().dialogState.value!.buttons.find(
-            (b) => b.text === "Overwrite with current",
-          )!;
-          await button.onClick!();
+          await dialogButton("Overwrite with current").onClick!();
 
           expect(session.saveToServer).toHaveBeenCalledTimes(1);
-          expect(session.resumeSavedPuzzle).not.toHaveBeenCalled();
+          expect(nav.resumePuzzle).not.toHaveBeenCalled();
           expect(clock.start).toHaveBeenCalledTimes(1);
         });
 
-        it("loads the saved puzzle and restarts the clock when the user chooses to resume", async () => {
+        it("stays on the page when the user chooses to overwrite", async () => {
           await useAuth().login("a@b.com", "x");
 
-          const button = useDialog().dialogState.value!.buttons.find(
-            (b) => b.text === "Resume unfinished",
-          )!;
-          await button.onClick!();
+          await dialogButton("Overwrite with current").onClick!();
 
-          expect(session.resumeSavedPuzzle).toHaveBeenCalledWith("saved-1");
+          expect(router.push).not.toHaveBeenCalled();
+        });
+
+        // saveToServer reports failure by returning { success: false }; it doesn't throw.
+        it("shows the server's error and still restarts the clock when overwriting fails", async () => {
+          session.saveToServer.mockResolvedValue({ success: false, status: 503, error: "Server down" });
+          await useAuth().login("a@b.com", "x");
+
+          await expect(dialogButton("Overwrite with current").onClick!()).resolves.toBeUndefined();
+
+          expectErrorToast("Server down");
+          expect(clock.start).toHaveBeenCalledTimes(1);
+        });
+
+        it("shows a readable error when overwriting fails without a message", async () => {
+          session.saveToServer.mockResolvedValue({ success: false, status: 500 });
+          await useAuth().login("a@b.com", "x");
+
+          await dialogButton("Overwrite with current").onClick!();
+
+          expectErrorToast(); // also rejects "undefined" / "Cannot read"
+        });
+
+        it("still restarts the clock when overwriting throws", async () => {
+          session.saveToServer.mockRejectedValue(new Error("network down"));
+          await useAuth().login("a@b.com", "x");
+
+          await expect(dialogButton("Overwrite with current").onClick!()).resolves.toBeUndefined();
+
+          expectErrorToast("network down");
+          expect(clock.start).toHaveBeenCalledTimes(1);
+        });
+
+        it("resumes the saved puzzle and restarts the clock when the user chooses to resume", async () => {
+          await useAuth().login("a@b.com", "x");
+
+          await dialogButton("Resume unfinished").onClick!();
+
+          expect(nav.resumePuzzle).toHaveBeenCalledOnce();
           expect(session.saveToServer).not.toHaveBeenCalled();
           expect(clock.start).toHaveBeenCalledTimes(1);
         });
 
-        async function chooseResume() {
+        it("keeps the clock stopped until the saved puzzle has loaded", async () => {
           await useAuth().login("a@b.com", "x");
-          const button = useDialog().dialogState.value!.buttons.find(
-            (b) => b.text === "Resume unfinished",
-          )!;
-          await button.onClick!();
-        }
+          const finishResume = pendingResume();
 
-        it("opens the resumed puzzle's page when it is a different difficulty", async () => {
-          // Otherwise the easy page would show the hard puzzle's board.
-          route.params = { difficulty: "easy" };
-          session.resumeSavedPuzzle.mockResolvedValue(resumedPuzzle("hard"));
+          const click = dialogButton("Resume unfinished").onClick!();
+          await flushPromises();
 
-          await chooseResume();
+          expect(clock.start).not.toHaveBeenCalled();
 
-          expect(router.push).toHaveBeenCalledExactlyOnceWith({
-            name: "sudoku",
-            params: { difficulty: "hard" },
-          });
+          await finishResume();
+          await click;
+
+          expect(clock.start).toHaveBeenCalledOnce();
         });
 
-        it("stays on the page when the resumed puzzle is that page's difficulty", async () => {
-          route.params = { difficulty: "hard" };
-          session.resumeSavedPuzzle.mockResolvedValue(resumedPuzzle("hard"));
-
-          await chooseResume();
-
-          expect(router.push).not.toHaveBeenCalled();
-        });
-
-        it("stays on the page when the resumed puzzle has no difficulty", async () => {
-          route.params = { difficulty: "easy" };
-
-          await chooseResume();
-
-          expect(router.push).not.toHaveBeenCalled();
-        });
-
-        it("stays on the page when resuming fails", async () => {
-          route.params = { difficulty: "easy" };
-          session.resumeSavedPuzzle.mockResolvedValue({ success: false, status: 503, error: "Server down" });
-
-          await chooseResume();
-
-          expect(router.push).not.toHaveBeenCalled();
-        });
-
-        it("stays on the page when the user chooses to overwrite", async () => {
-          route.params = { difficulty: "easy" };
+        it("leaves navigation to the resume itself", async () => {
           await useAuth().login("a@b.com", "x");
 
-          const button = useDialog().dialogState.value!.buttons.find(
-            (b) => b.text === "Overwrite with current",
-          )!;
-          await button.onClick!();
+          await dialogButton("Resume unfinished").onClick!();
 
           expect(router.push).not.toHaveBeenCalled();
         });
-
-        // saveToServer and resumeSavedPuzzle report failure by returning
-        // { success: false }; they don't throw.
-        it.each([
-          ["overwrite", "Overwrite with current", () => session.saveToServer],
-          ["resume", "Resume unfinished", () => session.resumeSavedPuzzle],
-        ])(
-          "shows the server's error and still restarts the clock when %s fails",
-          async (_, text, handler) => {
-            handler().mockResolvedValue({ success: false, status: 503, error: "Server down" });
-            await useAuth().login("a@b.com", "x");
-
-            const button = useDialog().dialogState.value!.buttons.find(
-              (b) => b.text === text,
-            )!;
-            await expect(button.onClick!()).resolves.toBeUndefined();
-
-            expectErrorToast("Server down");
-            expect(clock.start).toHaveBeenCalledTimes(1);
-          },
-        );
-
-        it.each([
-          ["overwrite", "Overwrite with current", () => session.saveToServer],
-          ["resume", "Resume unfinished", () => session.resumeSavedPuzzle],
-        ])(
-          "shows a readable error when %s fails without a message",
-          async (_, text, handler) => {
-            handler().mockResolvedValue({ success: false, status: 500 });
-            await useAuth().login("a@b.com", "x");
-
-            const button = useDialog().dialogState.value!.buttons.find(
-              (b) => b.text === text,
-            )!;
-            await button.onClick!();
-
-            expectErrorToast(); // also rejects "undefined" / "Cannot read"
-          },
-        );
       });
     });
   });

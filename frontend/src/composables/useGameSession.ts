@@ -9,6 +9,7 @@ import type { ServiceResult } from "@/services/baseService";
 import { cloneCell } from "@/utils/puzzleUtils";
 import { GameSnapshotSchema, SNAPSHOT_VERSION, type GameSnapshot } from "@/validation/localStorage";
 import { safeParseJson } from "@/utils/jsonUtils";
+import { computed } from "vue";
 
 const hasStorage = () => typeof localStorage !== "undefined";
 const SESSION_KEY = "sudoku.game";
@@ -123,6 +124,9 @@ export function useGameSession() {
       gameStore.originalCells = body.cells
       gameStore.difficultyRating = body.difficultyRating;
       gameStore.difficultyScore = body.difficultyScore;
+      if(userStore.isAuthenticated) {
+        userStore.currentPuzzleId = body.puzzleId;
+      }
       clock.reset();
       clock.start();
       saveLocal();
@@ -167,6 +171,11 @@ export function useGameSession() {
     }
   }
 
+  const hasInProgressPuzzle = computed(() => {
+    return (userStore.isAuthenticated && !!userStore.currentPuzzleId) ||
+      (!!gameStore.puzzleId && !gameStore.isSolved);
+  })
+
   return {
     takeSnapshot,
     loadLocal,
@@ -176,5 +185,6 @@ export function useGameSession() {
     saveToServer,
     startNewPuzzle,
     resumeSavedPuzzle,
+    hasInProgressPuzzle,
   };
 }

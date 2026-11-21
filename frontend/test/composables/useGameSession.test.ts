@@ -363,6 +363,42 @@ describe("useGameSession", () => {
       expect(useGameStore().loading).toBe(false);
     });
 
+    describe("for a signed-in user", () => {
+      // The server makes a newly fetched puzzle the user's current puzzle.
+      beforeEach(() => {
+        useUserStore().set({ id: "user-1", email: "a@b.c", role: "user", currentPuzzleId: "saved-1" });
+      });
+
+      it("makes the new puzzle their current puzzle", async () => {
+        getNewPuzzle.mockResolvedValue({ success: true, status: 200, body: newPuzzle() });
+
+        await useGameSession().startNewPuzzle("hard");
+
+        expect(useUserStore().currentPuzzleId).toBe("new-1");
+        expect(useGameSession().hasInProgressPuzzle.value).toBe(true);
+      });
+
+      it.each([
+        ["the request fails", () => getNewPuzzle.mockResolvedValue({ success: false, status: 503 })],
+        ["the response has no body", () => getNewPuzzle.mockResolvedValue({ success: true, status: 200 })],
+        ["the service throws", () => getNewPuzzle.mockRejectedValue(new Error("boom"))],
+      ])("keeps their current puzzle when %s", async (_, arrange) => {
+        arrange();
+
+        await useGameSession().startNewPuzzle("hard");
+
+        expect(useUserStore().currentPuzzleId).toBe("saved-1");
+      });
+    });
+
+    it("doesn't give a signed-out player a current puzzle", async () => {
+      getNewPuzzle.mockResolvedValue({ success: true, status: 200, body: newPuzzle() });
+
+      await useGameSession().startNewPuzzle("hard");
+
+      expect(useUserStore().currentPuzzleId).toBeUndefined();
+    });
+
     describe("when the puzzle cannot be loaded", () => {
       it.each([
         ["the request fails", { success: false as const, status: 503, error: "down" }],
