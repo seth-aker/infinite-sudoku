@@ -11,6 +11,8 @@ services:
       - ALL
     cap_add:
       - CHOWN
+      # chmod on a directory root doesn't own (e.g. pre-created by the host user) needs FOWNER
+      - FOWNER
     security_opt:
       - no-new-privileges:true
     read_only: true
