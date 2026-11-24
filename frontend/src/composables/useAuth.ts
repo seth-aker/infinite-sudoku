@@ -142,7 +142,7 @@ export function useAuth() {
     password: string,
     username: string,
     tosAcknowledged: boolean,
-  ) {
+  ): Promise<boolean> {
     userStore.$reset();
     userStore.loading = true;
     try {
@@ -152,7 +152,7 @@ export function useAuth() {
           description: `Failed to register: ${res.error ?? "internal server error"}`,
         });
         userStore.loading = false;
-        return;
+        return false;
       }
       // Duplicate code bloc because of typescript strict typeing requirements
       const user = res.body?.user;
@@ -161,7 +161,7 @@ export function useAuth() {
           description: `Failed to register: Didn't recieve user info from server`
         })
         userStore.loading = false;
-        return;
+        return false;
       }
       userStore.set(user);
       if (gameStore.puzzleId) {
@@ -173,12 +173,15 @@ export function useAuth() {
       toast.success(
         `Welcome ${user.username}! Time to play!`,
       );
+      userStore.loading = false;
+      return true;
     } catch (err) {
       toast.error("Oops! An error occured", {
         description: `Failed to register: ${err && typeof err === "string" ? err : (err as Error).message}`,
       });
+      userStore.loading = false;
+      return false;
     }
-    userStore.loading = false;
   }
   async function getSession() {
     const res = await userService.getSession();
@@ -207,11 +210,13 @@ export function useAuth() {
         toast.error("Oops! An error occured", {
           description: `Failed to reset password: ${res.error ?? 'internal server error'}`
         })
+        userStore.loading = false;
         return false
       }
       if (userStore.isAuthenticated) {
         userStore.$reset();
       }
+      userStore.loading = false;
       return true;
     } catch (err) {
       toast.error("Oops! An error occured", {

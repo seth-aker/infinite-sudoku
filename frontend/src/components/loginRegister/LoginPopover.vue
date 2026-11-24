@@ -15,7 +15,7 @@ import { useGameStore } from "@/stores/gameStore";
 const popoverOpen = ref<boolean>(false);
 const store = useGameStore();
 watch(popoverOpen, () => {
-  if (popoverOpen) {
+  if (popoverOpen.value) {
     store.selectedIdx = undefined;
   }
 });

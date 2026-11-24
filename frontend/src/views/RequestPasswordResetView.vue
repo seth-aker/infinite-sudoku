@@ -12,9 +12,11 @@ import { FieldError } from '@/components/ui/field';
 import Input from "@/components/ui/input/Input.vue";
 import { Icon } from "@iconify/vue";
 import Button from "@/components/ui/button/Button.vue";
+import LoadingOverlay from '@/components/LoadingOverlay.vue';
 import { useAuth } from '@/composables/useAuth';
 import { z } from 'zod/mini';
 import { toast } from 'vue-sonner';
+import { watchDebounced } from '@vueuse/core';
 
 const router = useRouter();
 const { requestPasswordReset } = useAuth();
@@ -28,6 +30,7 @@ async function handleRequestReset(event: SubmitEvent) {
   const emailResult = z.email().safeParse(email.value);
   if (!emailResult.success) {
     error.value = "Invalid email."
+    isLoading.value = false;
     return;
   }
   const success = await requestPasswordReset(email.value)
@@ -37,6 +40,17 @@ async function handleRequestReset(event: SubmitEvent) {
   }
   isLoading.value = false;
 }
+watchDebounced(email,
+  (value) => {
+    const result = z.email().safeParse(value)
+    if(!result.success) {
+      error.value = "Invalid email.";
+    } else {
+      error.value = undefined
+    }
+  },
+  { debounce: 500 }
+)
 </script>
 
 <template>

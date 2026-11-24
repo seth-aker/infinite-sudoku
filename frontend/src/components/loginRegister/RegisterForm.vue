@@ -20,7 +20,6 @@ import {
   usernameSchema,
 } from "@/validation/registerValidation";
 import FieldError from "../ui/field/FieldError.vue";
-import { toast } from "vue-sonner";
 import { useAuth } from "@/composables/useAuth";
 import { z } from "zod/mini";
 const popoverOpen = defineModel<boolean>("popover-open", { required: true });
@@ -76,9 +75,9 @@ watchDebounced(
 );
 
 watchDebounced(
-  confirmPassword,
-  (value) => {
-    if (value !== password.value) {
+  [confirmPassword, password],
+  ([value, password]) => {
+    if (value !== password && value.length !== 0) {
       confirmPasswordErrorMessage.value = "Password does not match!";
     } else {
       confirmPasswordErrorMessage.value = undefined;
@@ -109,18 +108,10 @@ const handleRegister = async (event: SubmitEvent) => {
   if (!userNameRes.success || !emailRes.success || !passwordRes.success || !confirmMatches) {
     return;
   }
-  (toast.promise(
-    Promise.all([
-      register(email.value, password.value, username.value, true),
-      new Promise((resolve) => setTimeout(resolve, 500)),
-    ]),
-  ),
-  {
-    loading: "Loading...",
-    success: () => {
-      popoverOpen.value = false;
-    },
-  });
+  const success = await register(email.value, password.value, username.value, true)
+  if(success) {
+    popoverOpen.value = false;
+  }
 };
 
 // for hiding/showing password input
@@ -200,7 +191,7 @@ const { pressed: showConfirmPassword } = useMousePressed({
         <Button type="submit" v-if="!userStore.loading" :disabled="emailErrorMessage || usernameErrorMessage ||
           passwordErrorMessage || confirmPasswordErrorMessage
           " class="w-30 bg-orange-400 hover:bg-orange-400/60">Create Account</Button>
-        <Button class="w-30 bg-orange-400" v-else>
+        <Button disabled type="button" class="w-30 bg-orange-400" v-else>
           <Icon icon="line-md:loading-twotone-loop" />
         </Button>
       </Field>

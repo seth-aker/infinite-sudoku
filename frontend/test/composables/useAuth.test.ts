@@ -497,8 +497,9 @@ describe("useAuth", () => {
       });
       const userStore = useUserStore();
 
-      await useAuth().register("player@example.com", "Secret1!", "player", true);
+      const ok = await useAuth().register("player@example.com", "Secret1!", "player", true);
 
+      expect(ok).toBe(true);
       expect(svc.register).toHaveBeenCalledWith(
         "player@example.com",
         "Secret1!",
@@ -519,8 +520,9 @@ describe("useAuth", () => {
       });
       useGameStore().puzzleId = "local-1";
 
-      await useAuth().register("a@b.com", "Secret1!", "player", true);
+      const ok = await useAuth().register("a@b.com", "Secret1!", "player", true);
 
+      expect(ok).toBe(true);
       expect(session.saveToServer).toHaveBeenCalledTimes(1);
     });
 
@@ -536,11 +538,26 @@ describe("useAuth", () => {
       useGameStore().puzzleId = "local-1";
       session.saveToServer.mockResolvedValue(failure);
 
-      await useAuth().register("a@b.com", "Secret1!", "player", true);
+      const ok = await useAuth().register("a@b.com", "Secret1!", "player", true);
 
+      // The account exists, so the form should close even though the save failed.
+      expect(ok).toBe(true);
       expect(useUserStore().isAuthenticated).toBe(true);
       expect(useUserStore().loading).toBe(false);
       expectErrorToast(detail);
+    });
+
+    it("stays loading until registration finishes", async () => {
+      let finish!: (v: Awaited<ReturnType<typeof svc.register>>) => void;
+      svc.register.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+      const userStore = useUserStore();
+
+      const pending = useAuth().register("a@b.com", "Secret1!", "player", true);
+      expect(userStore.loading).toBe(true);
+
+      finish({ success: true, status: 201, body: { user: makeUser() } });
+      await pending;
+      expect(userStore.loading).toBe(false);
     });
 
     it("does not save when there is no puzzle in progress", async () => {
@@ -563,8 +580,9 @@ describe("useAuth", () => {
       });
       const userStore = useUserStore();
 
-      await useAuth().register("a@b.com", "Secret1!", "player", true);
+      const ok = await useAuth().register("a@b.com", "Secret1!", "player", true);
 
+      expect(ok).toBe(false);
       expect(userStore.isAuthenticated).toBe(false);
       expect(userStore.loading).toBe(false);
       expectErrorToast("Email taken");
@@ -574,8 +592,9 @@ describe("useAuth", () => {
     it("falls back to a generic message when registration fails without an error", async () => {
       svc.register.mockResolvedValue({ success: false, status: 500 });
 
-      await useAuth().register("a@b.com", "Secret1!", "player", true);
+      const ok = await useAuth().register("a@b.com", "Secret1!", "player", true);
 
+      expect(ok).toBe(false);
       expectErrorToast();
     });
 
@@ -583,8 +602,9 @@ describe("useAuth", () => {
       svc.register.mockResolvedValue({ success: true, status: 201 });
       const userStore = useUserStore();
 
-      await useAuth().register("a@b.com", "Secret1!", "player", true);
+      const ok = await useAuth().register("a@b.com", "Secret1!", "player", true);
 
+      expect(ok).toBe(false);
       expect(userStore.isAuthenticated).toBe(false);
       expect(userStore.loading).toBe(false);
       expectErrorToast();
@@ -594,8 +614,9 @@ describe("useAuth", () => {
       svc.register.mockRejectedValue(new Error("network down"));
       const userStore = useUserStore();
 
-      await useAuth().register("a@b.com", "Secret1!", "player", true);
+      const ok = await useAuth().register("a@b.com", "Secret1!", "player", true);
 
+      expect(ok).toBe(false);
       expect(userStore.loading).toBe(false);
       expectErrorToast("network down");
     });

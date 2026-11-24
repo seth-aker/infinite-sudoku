@@ -13,13 +13,13 @@ onMounted(async () => {
   isLoading.value = true;
   const result = await emailValidationTokenSchema.safeParseAsync(route.query.token)
   if (!result.success || !result.data) {
-    error.value = result.error?.message;
+    error.value = "This verification link is invalid"
     isLoading.value = false;
     return;
   }
   const validationRes = await userService.validateEmail(result.data);
   if (!validationRes.success) {
-    error.value = validationRes.error
+    error.value = validationRes.error ?? "Could not verify your email."
     isLoading.value = false;
     return;
   }
@@ -33,7 +33,7 @@ onMounted(async () => {
     <LoadingOverlay v-if="isLoading" message="Loading" />
     <div v-else>
       <div v-if="error" class="flex items-center justify-center flex-col">
-        <h1 class="font-bold text-2xl p-2">Oops! An error occured.</h1>
+        <h1 class="font-bold text-2xl p-2">Oops! An error occurred.</h1>
         {{ error }}
         <Button class="m-6" @click="router.push({ name: 'home' })">Go home</Button>
       </div>

@@ -24,12 +24,13 @@ const handleCheckboxChange = (isChecked: boolean | string) => {
   setAutoCandidateMode(isChecked);
 };
 const handleKeyPress = (event: KeyboardEvent) => {
-  if (store.selectedIdx === undefined) {
+  if (store.selectedIdx === undefined || store.state === 'paused' || store.state
+    === 'solved') {
     return;
   }
+  let idx = store.selectedIdx - 9;
   switch (event.key) {
     case "ArrowUp":
-      let idx = store.selectedIdx - 9;
       if (idx < 0) {
         idx = 81 + idx;
       }
@@ -96,27 +97,14 @@ useEventListener("keyup", handleKeyPress);
 <template>
   <div class="flex flex-col items-center mx-4">
     <div class="flex gap-2 md:gap-0 w-[60%] md:w-auto justify-evenly">
-      <Button
-        :disabled="store.state === 'paused'"
-        @click="() => undo()"
-        class="mx-0.5 size-12 md:size-10"
-      >
+      <Button :disabled="store.state === 'paused'" @click="() => undo()" class="mx-0.5 size-12 md:size-10">
         <Icon icon="material-symbols:undo-rounded" />
       </Button>
-      <Button
-        :disabled="store.state === 'paused'"
-        @click="() => redo()"
-        class="mx-0.5 size-12 md:size-10"
-      >
+      <Button :disabled="store.state === 'paused'" @click="() => redo()" class="mx-0.5 size-12 md:size-10">
         <Icon icon="material-symbols:redo-rounded" />
       </Button>
-      <Toggle
-        :disabled="store.state === 'paused'"
-        variant="outline"
-        @update:model-value="() => togglePencil()"
-        class="mx-0.5 size-12 md:size-10 data-[state=on]:bg-orange-400/95"
-        :model-value="store.usingPencil"
-      >
+      <Toggle :disabled="store.state === 'paused'" variant="outline" @update:model-value="() => togglePencil()"
+        class="mx-0.5 size-12 md:size-10 data-[state=on]:bg-orange-400/95" :model-value="store.usingPencil">
         <Icon icon="material-symbols:edit-outline-rounded" />
       </Toggle>
     </div>
@@ -124,12 +112,8 @@ useEventListener("keyup", handleKeyPress);
     <Numpad />
 
     <div class="flex items-center justify-center">
-      <Checkbox
-        :disabled="store.state === 'paused'"
-        id="auto-candidate"
-        :model-value="store.autoCandidateMode"
-        @update:model-value="handleCheckboxChange"
-      />
+      <Checkbox :disabled="store.state === 'paused'" id="auto-candidate" :model-value="store.autoCandidateMode"
+        @update:model-value="handleCheckboxChange" />
       <label for="auto-candidate" class="text-xs ml-1">
         Auto-fill candidates
       </label>

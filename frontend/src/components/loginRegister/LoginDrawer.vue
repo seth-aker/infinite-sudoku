@@ -11,12 +11,13 @@ import TabsContent from "../ui/tabs/TabsContent.vue";
 import LoginForm from "./LoginForm.vue";
 import RegisterForm from "./RegisterForm.vue";
 import DrawerDescription from "../ui/drawer/DrawerDescription.vue";
+import DrawerTitle from "../ui/drawer/DrawerTitle.vue";
 import { useGameStore } from "@/stores/gameStore";
 
 const drawerOpen = ref<boolean>(false);
 const store = useGameStore();
 watch(drawerOpen, () => {
-  if (drawerOpen) {
+  if (drawerOpen.value) {
     store.selectedIdx = undefined;
   }
 });
@@ -28,6 +29,7 @@ watch(drawerOpen, () => {
       <Button variant="ghost">Login</Button>
     </DrawerTrigger>
     <DrawerContent class="px-8">
+      <DrawerTitle class="sr-only">Login</DrawerTitle>
       <DrawerDescription hidden>Login or Signup</DrawerDescription>
       <Tabs class="my-8" default-value="login">
         <TabsList>

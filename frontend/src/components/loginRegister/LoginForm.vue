@@ -69,7 +69,7 @@ const handleLogin = async (event: SubmitEvent) => {
       <Field orientation="horizontal" class="justify-end">
         <Button class="w-20 bg-orange-400 hover:bg-orange-400/75" type="submit"
           v-if="!userStore.loading">Submit</Button>
-        <Button class="w-20 bg-orange-400" v-else>
+        <Button disabled type="button" class="w-20 bg-orange-400" v-else>
           <Icon icon="line-md:loading-twotone-loop" />
         </Button>
       </Field>

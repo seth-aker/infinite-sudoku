@@ -11,8 +11,10 @@ import { FieldError } from '@/components/ui/field';
 import Input from "@/components/ui/input/Input.vue";
 import { Icon } from "@iconify/vue";
 import Button from "@/components/ui/button/Button.vue";
+import LoadingOverlay from '@/components/LoadingOverlay.vue';
 import { useAuth } from '@/composables/useAuth';
 import { z } from 'zod/mini';
+import { watchDebounced } from '@vueuse/core';
 
 const { requestEmailVerification } = useAuth();
 const isLoading = ref<boolean>(false);
@@ -24,7 +26,8 @@ async function handleRequestEmail(event: SubmitEvent) {
   isLoading.value = true;
   const emailResult = z.email().safeParse(email.value);
   if (!emailResult.success) {
-    error.value = "Invalid email!"
+    error.value = "Invalid email."
+    isLoading.value = false;
     return;
   } else {
     error.value = undefined;
@@ -32,6 +35,16 @@ async function handleRequestEmail(event: SubmitEvent) {
   await requestEmailVerification(email.value)
   isLoading.value = false
 }
+watchDebounced(email,
+  (value) => {
+    if (!z.email().safeParse(value).success) {
+      error.value = "Invalid email."
+    } else {
+      error.value = undefined;
+    }
+  },
+  { debounce: 500 }
+)
 </script>
 
 <template>

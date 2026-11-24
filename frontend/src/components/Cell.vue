@@ -9,7 +9,7 @@ const { cell } = defineProps<{
 const store = useGameStore();
 const isSelected = computed(() => store.selectedIdx === cell.idx);
 const isHighlighted = computed(() =>
-  store.selectedIdx ? PEERS[store.selectedIdx].includes(cell.idx) : false,
+  isValidIndex(store.selectedIdx) ? PEERS[store.selectedIdx!].includes(cell.idx) : false,
 );
 const hasError = computed(() =>
   PEERS[cell.idx].some((peer) => store.cells[peer].value === cell.value),
@@ -22,7 +22,11 @@ const visableCandidates = computed(() => {
     return cell.value !== 0 ? false : cell.candidates.includes(index + 1);
   });
 });
-</script>
+
+function isValidIndex(value: number | undefined) {
+  return value !== undefined && value >= 0 && value < 81;
+}
+</script> 
 
 <template>
   <div
